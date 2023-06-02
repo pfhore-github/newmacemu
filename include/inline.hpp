@@ -216,15 +216,15 @@ inline uint32_t ADD_L(uint32_t a, uint32_t b) {
 }
 
 inline void CMP_B(uint8_t a, uint8_t b) {
-    uint32_t ret = a;
-    ret -= b;
+    uint32_t ret = static_cast<int8_t>(a);
+    ret -= static_cast<int8_t>(b);
     TEST_CV_B(ret);
     TEST_B(ret);
 }
 
 inline void CMP_W(uint16_t a, uint16_t b) {
-    uint32_t ret = a;
-    ret -= b;
+    uint32_t ret = static_cast<int16_t>(a);
+    ret -= static_cast<int16_t>(b);
     TEST_CV_W(ret);
     TEST_W(ret);
 }
@@ -915,14 +915,18 @@ inline int32_t BFEXTS_M(uint32_t addr, int offset, int width) {
 
 inline uint32_t BFFFO_D(uint32_t v, int offset, int width) {
     uint32_t x = BFTST_D(v, offset, width);
-    return offset + width - __builtin_ffs(x >> (32-width));
+    return offset + (x?std::countl_zero(x):width);
 }
-inline uint32_t BFFFO_M(uint32_t addr, int offset, int width) {
-    uint32_t x = BFTST_M(addr, offset, width) ;
-    return offset + width - __builtin_ffs(x>> (32-width));
+inline int32_t BFFFO_M(uint32_t addr, int offset, int width) {
+    int offset_x = offset;
+    uint32_t x = BFTST_M(addr, offset_x, width) ;
+    return offset + (x?std::countl_zero(x):width);
 }
 
 inline uint32_t BFINS_D(uint32_t old, int offset, uint8_t width, uint32_t v) {
+    TEST_L(v << (32-width));
+    cpu.V = false;
+    cpu.C = false;
     uint32_t mask = -1 >> (32-width);
     v &= mask;    
     uint32_t x = std::rotl(old, offset);
