@@ -19,15 +19,17 @@ elseif(CMAKE_COMPILER_IS_GNUCC OR CMAKE_COMPILER_IS_GNUCXX)
 endif()
 add_executable(newmacemu src/cpu/m68k_ea.cc src/cpu/68040_mmu.cc src/cpu/exception.cc src/cpu/movem.cc src/cpu/68040_fpu.cc src/cpu/opcodes.cc src/68040.cc src/bus.cc src/memory.cc src/io.cc)
 add_executable(testcpu test/test_main.cc 
-test/ea.cc test/abcd.cc test/add.cc test/adda.cc test/addi.cc test/addq.cc test/addx.cc 
-test/and.cc test/andi.cc
-test/asl.cc test/asr.cc
-test/bcc.cc test/bra.cc
-test/bchg.cc test/bclr.cc test/bset.cc
-test/bfchg.cc test/bfclr.cc test/bfexts.cc test/bfextu.cc test/bfffo.cc test/bfins.cc test/bfset.cc test/bftst.cc
-test/bkpt.cc test/chk.cc
-test/cas.cc test/cas2.cc
-test/ori.cc 
+test/cpu/ea.cc 
+test/cpu/abcd.cc 
+test/cpu/add.cc test/cpu/adda.cc test/cpu/addi.cc test/cpu/addq.cc test/cpu/addx.cc 
+test/cpu/and.cc test/cpu/andi.cc
+test/cpu/asl.cc test/cpu/asr.cc
+test/cpu/bcc.cc test/cpu/bra.cc
+test/cpu/bchg.cc test/cpu/bclr.cc test/cpu/bset.cc
+test/cpu/bfchg.cc test/cpu/bfclr.cc test/cpu/bfexts.cc test/cpu/bfextu.cc test/cpu/bfffo.cc test/cpu/bfins.cc test/cpu/bfset.cc test/cpu/bftst.cc
+test/cpu/bkpt.cc test/cpu/chk.cc
+test/cpu/cas.cc test/cpu/cas2.cc
+test/cpu/ori.cc 
 test/arithmetric.cc test/bitfields.cc test/nz.cc test/store.cc test/bits.cc test/fpu.cc src/cpu/m68k_ea.cc src/cpu/68040_fpu.cc src/cpu/68040_mmu.cc src/cpu/exception.cc src/cpu/movem.cc src/cpu/opcodes.cc src/bus.cc src/memory.cc src/io.cc)
 target_link_libraries(newmacemu gmp mpfr SDL2::SDL2 fmt)
 target_include_directories(newmacemu PRIVATE "./include")
