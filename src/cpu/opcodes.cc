@@ -29,7 +29,7 @@ static std::pair<std::function<void()>, int> bitimm(int type, int reg,
                     2};
         }
     } else {
-         imm &= 7;
+        imm &= 7;
         if(o == 0) {
             // BTST.B
             auto [r, off] = ea_read8(type, reg, cpu.PC + 4);
@@ -100,25 +100,25 @@ static std::pair<std::function<void()>, int> decode00(int dn, int type,
     if(dn == 6) {
         // CMPI.B
         auto [r, off] = ea_read8(type, reg, cpu.PC + 2);
-        return {[r, imm]() { CMP_B(r(), imm); }, off};
+        return {[r, imm]() { CMP_B(r(), imm); }, off+2};
     }
     auto [r, w, off] = ea_rw8(type, reg, cpu.PC + 2);
     switch(dn) {
     case 0:
         // ORI.B
-        return {[r, w, imm]() { w(OR_B(r(), imm)); }, off+2};
+        return {[r, w, imm]() { w(OR_B(r(), imm)); }, off + 2};
     case 1:
         // ANDI.B
-        return {[r, w, imm]() { w(AND_B(r(), imm)); }, off+2};
+        return {[r, w, imm]() { w(AND_B(r(), imm)); }, off + 2};
     case 2:
         // SUBI.B
-        return {[r, w, imm]() { w(SUB_B(r(), imm)); }, off+2};
+        return {[r, w, imm]() { w(SUB_B(r(), imm)); }, off + 2};
     case 3:
         // ADDI.B
-        return {[r, w, imm]() { w(ADD_B(r(), imm)); }, off+2};
+        return {[r, w, imm]() { w(ADD_B(r(), imm)); }, off + 2};
     case 5:
         // EORI.B
-        return {[r, w, imm]() { w(XOR_B(r(), imm)); }, off+2};
+        return {[r, w, imm]() { w(XOR_B(r(), imm)); }, off + 2};
     }
     throw DecodeError{};
 }
@@ -177,26 +177,26 @@ static std::pair<std::function<void()>, int> decode01(int dn, int type,
     if(dn == 6) {
         // CMPI.W
         auto [r, off] = ea_read16(type, reg, cpu.PC + 2);
-        return {[r, imm]() { CMP_W(r(), imm); }, off};
+        return {[r, imm]() { CMP_W(r(), imm); }, off+2};
 
     } else {
         auto [r, w, off] = ea_rw16(type, reg, cpu.PC + 2);
         switch(dn) {
         case 0:
             // ORI.W
-            return {[r, w, imm]() { w(OR_W(r(), imm)); }, off+2};
+            return {[r, w, imm]() { w(OR_W(r(), imm)); }, off + 2};
         case 1:
             // ANDI.W
-            return {[r, w, imm]() { w(AND_W(r(), imm)); }, off+2};
+            return {[r, w, imm]() { w(AND_W(r(), imm)); }, off + 2};
         case 2:
             // SUBI.W
-            return {[r, w, imm]() { w(SUB_W(r(), imm)); }, off+2};
+            return {[r, w, imm]() { w(SUB_W(r(), imm)); }, off + 2};
         case 3:
             // ADDI.W
-            return {[r, w, imm]() { w(ADD_W(r(), imm)); }, off+2};
+            return {[r, w, imm]() { w(ADD_W(r(), imm)); }, off + 2};
         case 5:
             // EORI.W
-            return {[r, w, imm]() { w(XOR_W(r(), imm)); }, off+2};
+            return {[r, w, imm]() { w(XOR_W(r(), imm)); }, off + 2};
         }
     }
     throw DecodeError{};
@@ -211,7 +211,7 @@ static std::pair<std::function<void()>, int> decode02(int dn, int type,
         uint16_t imm = FETCH(cpu.PC + 2);
         int rn = imm >> 12 & 7;
         if(imm & 1 << 11) {
-        auto [addr, off] = ea_addr(type, reg, cpu.PC + 2, 4, true);
+            auto [addr, off] = ea_addr(type, reg, cpu.PC + 2, 4, true);
             // MOVES.L TO REG
             return {[rn, addr]() {
                         if(!cpu.S) {
@@ -219,9 +219,9 @@ static std::pair<std::function<void()>, int> decode02(int dn, int type,
                         }
                         BusWriteL(cpu.EA = addr(), cpu.R(rn));
                     },
-                    off+2};
+                    off + 2};
         } else {
-        auto [addr, off] = ea_addr(type, reg, cpu.PC + 2, 4, false);
+            auto [addr, off] = ea_addr(type, reg, cpu.PC + 2, 4, false);
             // MOVES.L TO MEM
             return {[rn, addr]() {
                         if(!cpu.S) {
@@ -229,33 +229,33 @@ static std::pair<std::function<void()>, int> decode02(int dn, int type,
                         }
                         cpu.R(rn) = BusReadL(cpu.EA = addr());
                     },
-                    off+2};
+                    off + 2};
         }
     }
     uint32_t imm = FETCH32(cpu.PC + 2);
     if(dn == 6) {
         // CMPI.L
         auto [r, off] = ea_read32(type, reg, cpu.PC + 2);
-        return {[r, imm]() { CMP_L(r(), imm); }, off+4};
+        return {[r, imm]() { CMP_L(r(), imm); }, off + 4};
 
     } else {
         auto [r, w, off] = ea_rw32(type, reg, cpu.PC + 2);
         switch(dn) {
         case 0:
             // ORI.L
-            return {[r, w, imm]() { w(OR_L(r(), imm)); }, off+4};
+            return {[r, w, imm]() { w(OR_L(r(), imm)); }, off + 4};
         case 1:
             // ANDI.L
-            return {[r, w, imm]() { w(AND_L(r(), imm)); }, off+4};
+            return {[r, w, imm]() { w(AND_L(r(), imm)); }, off + 4};
         case 2:
             // SUBI.L
-            return {[r, w, imm]() { w(SUB_L(r(), imm)); }, off+4};
+            return {[r, w, imm]() { w(SUB_L(r(), imm)); }, off + 4};
         case 3:
             // ADDI.L
-            return {[r, w, imm]() { w(ADD_L(r(), imm)); }, off+4};
+            return {[r, w, imm]() { w(ADD_L(r(), imm)); }, off + 4};
         case 5:
             // EORI.L
-            return {[r, w, imm]() { w(XOR_L(r(), imm)); }, off+4};
+            return {[r, w, imm]() { w(XOR_L(r(), imm)); }, off + 4};
         }
     }
     throw DecodeError{};
@@ -287,7 +287,7 @@ static std::pair<std::function<void()>, int> decode03(int dn, int type,
         } else {
             return {[addr, rn, chk]() {
                         cpu.EA = addr();
-                        uint8_t v = cpu.A[rn];
+                        uint8_t v = cpu.D[rn];
                         auto lo = MMU_ReadB(cpu.EA);
                         auto hi = MMU_ReadB(cpu.EA + 1);
                         cpu.Z = (lo == v) || (hi == v);
@@ -323,7 +323,7 @@ static std::pair<std::function<void()>, int> decode03(int dn, int type,
         } else {
             return {[addr, rn, chk]() {
                         cpu.EA = addr();
-                        uint16_t v = cpu.A[rn];
+                        uint16_t v = cpu.D[rn];
                         auto lo = MMU_ReadW(cpu.EA);
                         auto hi = MMU_ReadW(cpu.EA + 2);
                         cpu.Z = (lo == v) || (hi == v);
@@ -358,7 +358,7 @@ static std::pair<std::function<void()>, int> decode03(int dn, int type,
         } else {
             return {[addr, rn, chk]() {
                         cpu.EA = addr();
-                        uint32_t v = cpu.A[rn];
+                        uint32_t v = cpu.D[rn];
                         auto lo = MMU_ReadL(cpu.EA);
                         auto hi = MMU_ReadL(cpu.EA + 4);
                         cpu.Z = (lo == v) || (hi == v);
@@ -1327,12 +1327,12 @@ std::pair<std::function<void()>, int> decode_op5(int dn, int sz, int type,
                         if(!cc_v()) {
                             int16_t dn = cpu.D[reg];
                             STORE_W(cpu.D[reg], --dn);
-                            if(dn == -1) {
+                            if(dn != -1) {
                                 JUMP(cpu.PC + 2 + d);
                             }
                         }
                     },
-                    0};
+                    2};
         } else if(type == 7 && reg == 4) {
             // Trapcc
             return {[cc_v]() {
@@ -1868,7 +1868,7 @@ std::pair<std::function<void()>, int> decode_op13(int dn, int sz, int type,
                         uint32_t dst_adr = (cpu.A[dn] -= 2);
                         bool zz = cpu.Z;
                         uint16_t v = ADD_W(MMU_ReadW(dst_adr),
-                                          MMU_ReadW(src_adr) + cpu.X);
+                                           MMU_ReadW(src_adr) + cpu.X);
                         MMU_WriteW(dst_adr, v);
                         cpu.Z = v ? false : zz;
                     },
@@ -1895,7 +1895,7 @@ std::pair<std::function<void()>, int> decode_op13(int dn, int sz, int type,
                         uint32_t dst_adr = (cpu.A[dn] -= 4);
                         bool zz = cpu.Z;
                         uint32_t v = ADD_L(MMU_ReadL(dst_adr),
-                                          MMU_ReadL(src_adr) + cpu.X);
+                                           MMU_ReadL(src_adr) + cpu.X);
                         MMU_WriteL(dst_adr, v);
                         cpu.Z = v ? false : zz;
                     },
@@ -2392,8 +2392,8 @@ std::pair<std::function<void()>, int> decode_op14_7(int dn, int type, int reg) {
                             2};
                 case 7:
                     return {[offset, width, reg, reg2]() {
-                                cpu.D[reg] = BFINS_D(cpu.D[reg], cpu.D[offset], cpu.D[width],
-                                        cpu.D[reg2]);
+                                cpu.D[reg] = BFINS_D(cpu.D[reg], cpu.D[offset],
+                                                     cpu.D[width], cpu.D[reg2]);
                             },
                             2};
                 }
@@ -2420,8 +2420,8 @@ std::pair<std::function<void()>, int> decode_op14_7(int dn, int type, int reg) {
                             2};
                 case 7:
                     return {[offset, width, reg, reg2]() {
-                                cpu.D[reg] = BFINS_D(cpu.D[reg], cpu.D[offset], width,
-                                        cpu.D[reg2]);
+                                cpu.D[reg] = BFINS_D(cpu.D[reg], cpu.D[offset],
+                                                     width, cpu.D[reg2]);
                             },
                             2};
                 }
@@ -2450,8 +2450,8 @@ std::pair<std::function<void()>, int> decode_op14_7(int dn, int type, int reg) {
                             2};
                 case 7:
                     return {[offset, width, reg, reg2]() {
-                                cpu.D[reg] = BFINS_D(cpu.D[reg], offset, cpu.D[width],
-                                        cpu.D[reg2]);
+                                cpu.D[reg] = BFINS_D(cpu.D[reg], offset,
+                                                     cpu.D[width], cpu.D[reg2]);
                             },
                             2};
                 }
@@ -2478,7 +2478,8 @@ std::pair<std::function<void()>, int> decode_op14_7(int dn, int type, int reg) {
                             2};
                 case 7:
                     return {[offset, width, reg, reg2]() {
-                                cpu.D[reg] = BFINS_D(cpu.D[reg], offset, width, cpu.D[reg2]);
+                                cpu.D[reg] = BFINS_D(cpu.D[reg], offset, width,
+                                                     cpu.D[reg2]);
                             },
                             2};
                 }

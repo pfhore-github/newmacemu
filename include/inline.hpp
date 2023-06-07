@@ -14,7 +14,7 @@ inline uint16_t POP16() {
 }
 inline void JUMP(uint32_t next) {
     cpu.PC = next;
-    if( next & 1) {
+    if(next & 1) {
         ADDRESS_ERROR();
     }
 }
@@ -152,14 +152,12 @@ inline uint32_t XOR_L(uint32_t a, uint32_t b) {
 }
 
 inline void TEST_CV_B(uint32_t v) {
-    cpu.V = static_cast<int32_t>(v) > std::numeric_limits<int8_t>::max() ||
-            static_cast<int32_t>(v) < std::numeric_limits<int8_t>::min();
+    cpu.V = static_cast<int8_t>(v) != static_cast<int32_t>(v);
     cpu.C = v >> 8 & 1;
 }
 
 inline void TEST_CV_W(uint32_t v) {
-    cpu.V = static_cast<int32_t>(v) > std::numeric_limits<int16_t>::max() ||
-            static_cast<int32_t>(v) < std::numeric_limits<int16_t>::min();
+    cpu.V = static_cast<int16_t>(v) != static_cast<int32_t>(v);
     cpu.C = v >> 16 & 1;
 }
 
@@ -256,11 +254,11 @@ inline uint32_t BCLR_L(uint32_t v, uint8_t b) {
 }
 inline uint8_t BSET_B(uint8_t v, uint8_t b) {
     BTST_B(v, b);
-    return v |(1 << b);
+    return v | (1 << b);
 }
 inline uint32_t BSET_L(uint32_t v, uint8_t b) {
     BTST_L(v, b);
-    return v |(1 << b);
+    return v | (1 << b);
 }
 inline int BCD2BIN(uint8_t v) { return (v >> 4) * 10 + (v & 0xf); }
 inline uint8_t BIN2BCD(int v) { return (v / 10) << 4 | (v % 10); }
@@ -688,27 +686,25 @@ inline int32_t BF_D(uint32_t v, int offset, uint8_t width) {
     return std::rotl(v, offset) & (-1 << (32 - width));
 }
 
-
 inline int32_t BF_M(uint32_t addr, int offset, uint8_t width) {
     addr += (offset >> 3);
     offset &= 7;
-    uint32_t v = 0;    
-    v |= MMU_ReadB(addr) << (24+offset);
-    if(width+offset > 8) {
-        v |= MMU_ReadB(addr+1) << (16+offset);
+    uint32_t v = 0;
+    v |= MMU_ReadB(addr) << (24 + offset);
+    if(width + offset > 8) {
+        v |= MMU_ReadB(addr + 1) << (16 + offset);
     }
-    if(width+offset > 16) {
-        v |= MMU_ReadB(addr+2) << (8+offset);
+    if(width + offset > 16) {
+        v |= MMU_ReadB(addr + 2) << (8 + offset);
     }
-    if(width+offset > 24) {
-        v |= MMU_ReadB(addr+3) << offset;
+    if(width + offset > 24) {
+        v |= MMU_ReadB(addr + 3) << offset;
     }
-    if(width+offset > 32) {
-        v |= MMU_ReadB(addr+4) >> (8-offset);
+    if(width + offset > 32) {
+        v |= MMU_ReadB(addr + 4) >> (8 - offset);
     }
-    return v & (-1 << (32 - width));    
+    return v & (-1 << (32 - width));
 }
-
 
 inline int32_t BFTST_D(uint32_t v, int offset, int width) {
     int32_t x = BF_D(v, offset, width);
@@ -725,9 +721,10 @@ inline int32_t BFTST_M(uint32_t addr, int offset, int width) {
     return x;
 }
 
-inline void BFCHG_D(uint32_t& v, int offset, int width) {
+inline void BFCHG_D(uint32_t &v, int offset, int width) {
     BFTST_D(v, offset, width);
-    uint32_t mask = std::rotr(static_cast<uint32_t>(-1 << (32-width)), offset);
+    uint32_t mask =
+        std::rotr(static_cast<uint32_t>(-1 << (32 - width)), offset);
     v ^= mask;
 }
 inline void BFCHG_M(uint32_t addr, int offset, int width) {
@@ -735,55 +732,56 @@ inline void BFCHG_M(uint32_t addr, int offset, int width) {
     addr += (offset >> 3);
     offset &= 7;
     int ln = width + offset;
-    if( ln <= 8) {
-        uint8_t mask = -1 << (8-width);
+    if(ln <= 8) {
+        uint8_t mask = -1 << (8 - width);
         MMU_WriteB(addr, MMU_ReadB(addr) ^ (mask >> offset));
-    } else if( ln <= 16) {
+    } else if(ln <= 16) {
         // byte0
         uint8_t mask = -1 << offset;
-        MMU_WriteB(addr, MMU_ReadB(addr) ^ (mask>>offset));
+        MMU_WriteB(addr, MMU_ReadB(addr) ^ (mask >> offset));
         // byte1
-        mask = (-1 << (16-ln));
-        MMU_WriteB(addr+1, MMU_ReadB(addr+1) ^ mask);
-    } else if( ln <= 24) {
+        mask = (-1 << (16 - ln));
+        MMU_WriteB(addr + 1, MMU_ReadB(addr + 1) ^ mask);
+    } else if(ln <= 24) {
         // byte0
         uint8_t mask = -1 << offset;
-        MMU_WriteB(addr, MMU_ReadB(addr) ^ (mask>>offset));
+        MMU_WriteB(addr, MMU_ReadB(addr) ^ (mask >> offset));
         // byte1
-        MMU_WriteB(addr+1, ~MMU_ReadB(addr+1));
+        MMU_WriteB(addr + 1, ~MMU_ReadB(addr + 1));
         // byte2
-        mask = (-1 << (24-ln));
-        MMU_WriteB(addr+2, MMU_ReadB(addr+2) ^ mask);
-    }else if( width + offset <= 32) {
+        mask = (-1 << (24 - ln));
+        MMU_WriteB(addr + 2, MMU_ReadB(addr + 2) ^ mask);
+    } else if(width + offset <= 32) {
         // byte0
         uint8_t mask = (-1 << offset);
-        MMU_WriteB(addr, MMU_ReadB(addr) ^ (mask>>offset));
+        MMU_WriteB(addr, MMU_ReadB(addr) ^ (mask >> offset));
         // byte1
-        MMU_WriteB(addr+1, ~MMU_ReadB(addr+1));
+        MMU_WriteB(addr + 1, ~MMU_ReadB(addr + 1));
         // byte2
-        MMU_WriteB(addr+2, ~MMU_ReadB(addr+2));
+        MMU_WriteB(addr + 2, ~MMU_ReadB(addr + 2));
         // byte3
-        mask = (-1 << (32-ln));
-        MMU_WriteB(addr+3, MMU_ReadB(addr+3) ^ mask);
+        mask = (-1 << (32 - ln));
+        MMU_WriteB(addr + 3, MMU_ReadB(addr + 3) ^ mask);
     } else {
         // byte0
         uint8_t mask = (-1 << offset);
-        MMU_WriteB(addr, MMU_ReadB(addr) ^ (mask>>offset));
-       // byte1
-        MMU_WriteB(addr+1, ~MMU_ReadB(addr+1));
+        MMU_WriteB(addr, MMU_ReadB(addr) ^ (mask >> offset));
+        // byte1
+        MMU_WriteB(addr + 1, ~MMU_ReadB(addr + 1));
         // byte2
-        MMU_WriteB(addr+2, ~MMU_ReadB(addr+2));
-       // byte3
-        MMU_WriteB(addr+3, ~MMU_ReadB(addr+3));
+        MMU_WriteB(addr + 2, ~MMU_ReadB(addr + 2));
+        // byte3
+        MMU_WriteB(addr + 3, ~MMU_ReadB(addr + 3));
         // byte4
-        mask = (-1 << (40-ln));
-        MMU_WriteB(addr+4, MMU_ReadB(addr+4) ^ mask);
+        mask = (-1 << (40 - ln));
+        MMU_WriteB(addr + 4, MMU_ReadB(addr + 4) ^ mask);
     }
 }
 
-inline void BFCLR_D(uint32_t& v, int offset, int width) {
+inline void BFCLR_D(uint32_t &v, int offset, int width) {
     BFTST_D(v, offset, width);
-    uint32_t mask = std::rotr(static_cast<uint32_t>(-1 << (32-width)), offset);
+    uint32_t mask =
+        std::rotr(static_cast<uint32_t>(-1 << (32 - width)), offset);
     v &= ~mask;
 }
 inline void BFCLR_M(uint32_t addr, int offset, int width) {
@@ -791,56 +789,56 @@ inline void BFCLR_M(uint32_t addr, int offset, int width) {
     addr += (offset >> 3);
     offset &= 7;
     int ln = width + offset;
-    if( ln <= 8) {
-        uint8_t mask = -1 << (8-width);
-        MMU_WriteB(addr, MMU_ReadB(addr) &~ (mask >> offset));
-    } else if( ln <= 16) {
+    if(ln <= 8) {
+        uint8_t mask = -1 << (8 - width);
+        MMU_WriteB(addr, MMU_ReadB(addr) & ~(mask >> offset));
+    } else if(ln <= 16) {
         // byte0
         uint8_t mask = -1 << offset;
-        MMU_WriteB(addr, MMU_ReadB(addr) &~ (mask>>offset));
+        MMU_WriteB(addr, MMU_ReadB(addr) & ~(mask >> offset));
         // byte1
-        mask = (-1 << (16-ln));
-        MMU_WriteB(addr+1, MMU_ReadB(addr+1) &~ mask);
-    } else if( ln <= 24) {
+        mask = (-1 << (16 - ln));
+        MMU_WriteB(addr + 1, MMU_ReadB(addr + 1) & ~mask);
+    } else if(ln <= 24) {
         // byte0
         uint8_t mask = -1 << offset;
-        MMU_WriteB(addr, MMU_ReadB(addr) &~ (mask>>offset));
+        MMU_WriteB(addr, MMU_ReadB(addr) & ~(mask >> offset));
         // byte1
-        MMU_WriteB(addr+1, 0);
+        MMU_WriteB(addr + 1, 0);
         // byte2
-        mask = (-1 << (24-ln));
-        MMU_WriteB(addr+2, MMU_ReadB(addr+2) &~ mask);
-    }else if( width + offset <= 32) {
+        mask = (-1 << (24 - ln));
+        MMU_WriteB(addr + 2, MMU_ReadB(addr + 2) & ~mask);
+    } else if(width + offset <= 32) {
         // byte0
         uint8_t mask = (-1 << offset);
-        MMU_WriteB(addr, MMU_ReadB(addr) &~ (mask>>offset));
+        MMU_WriteB(addr, MMU_ReadB(addr) & ~(mask >> offset));
         // byte1
-        MMU_WriteB(addr+1, 0);
+        MMU_WriteB(addr + 1, 0);
         // byte2
-        MMU_WriteB(addr+2, 0);
+        MMU_WriteB(addr + 2, 0);
         // byte3
-        mask = (-1 << (32-ln));
-        MMU_WriteB(addr+3, MMU_ReadB(addr+3) &~ mask);
+        mask = (-1 << (32 - ln));
+        MMU_WriteB(addr + 3, MMU_ReadB(addr + 3) & ~mask);
     } else {
         // byte0
         uint8_t mask = (-1 << offset);
-        MMU_WriteB(addr, MMU_ReadB(addr) &~ (mask>>offset));
-       // byte1
-        MMU_WriteB(addr+1, 0);
+        MMU_WriteB(addr, MMU_ReadB(addr) & ~(mask >> offset));
+        // byte1
+        MMU_WriteB(addr + 1, 0);
         // byte2
-        MMU_WriteB(addr+2, 0);
-       // byte3
-        MMU_WriteB(addr+3, 0);
+        MMU_WriteB(addr + 2, 0);
+        // byte3
+        MMU_WriteB(addr + 3, 0);
         // byte4
-        mask = (-1 << (40-ln));
-        MMU_WriteB(addr+4, MMU_ReadB(addr+4) &~ mask);
+        mask = (-1 << (40 - ln));
+        MMU_WriteB(addr + 4, MMU_ReadB(addr + 4) & ~mask);
     }
 }
 
-
-inline void BFSET_D(uint32_t& v, int offset, int width) {
+inline void BFSET_D(uint32_t &v, int offset, int width) {
     BFTST_D(v, offset, width);
-    uint32_t mask = std::rotr(static_cast<uint32_t>(-1 << (32-width)), offset);
+    uint32_t mask =
+        std::rotr(static_cast<uint32_t>(-1 << (32 - width)), offset);
     v |= mask;
 }
 inline void BFSET_M(uint32_t addr, int offset, int width) {
@@ -848,90 +846,89 @@ inline void BFSET_M(uint32_t addr, int offset, int width) {
     addr += (offset >> 3);
     offset &= 7;
     int ln = width + offset;
-    if( ln <= 8) {
-        uint8_t mask = -1 << (8-width);
+    if(ln <= 8) {
+        uint8_t mask = -1 << (8 - width);
         MMU_WriteB(addr, MMU_ReadB(addr) | (mask >> offset));
-    } else if( ln <= 16) {
+    } else if(ln <= 16) {
         // byte0
         uint8_t mask = -1 << offset;
-        MMU_WriteB(addr, MMU_ReadB(addr) | (mask>>offset));
+        MMU_WriteB(addr, MMU_ReadB(addr) | (mask >> offset));
         // byte1
-        mask = (-1 << (16-ln));
-        MMU_WriteB(addr+1, MMU_ReadB(addr+1) | mask);
-    } else if( ln <= 24) {
+        mask = (-1 << (16 - ln));
+        MMU_WriteB(addr + 1, MMU_ReadB(addr + 1) | mask);
+    } else if(ln <= 24) {
         // byte0
         uint8_t mask = -1 << offset;
-        MMU_WriteB(addr, MMU_ReadB(addr) | (mask>>offset));
+        MMU_WriteB(addr, MMU_ReadB(addr) | (mask >> offset));
         // byte1
-        MMU_WriteB(addr+1, 0xFF);
+        MMU_WriteB(addr + 1, 0xFF);
         // byte2
-        mask = (-1 << (24-ln));
-        MMU_WriteB(addr+2, MMU_ReadB(addr+2) | mask);
-    }else if( width + offset <= 32) {
+        mask = (-1 << (24 - ln));
+        MMU_WriteB(addr + 2, MMU_ReadB(addr + 2) | mask);
+    } else if(width + offset <= 32) {
         // byte0
         uint8_t mask = (-1 << offset);
-        MMU_WriteB(addr, MMU_ReadB(addr) | (mask>>offset));
+        MMU_WriteB(addr, MMU_ReadB(addr) | (mask >> offset));
         // byte1
-        MMU_WriteB(addr+1, 0xFF);
+        MMU_WriteB(addr + 1, 0xFF);
         // byte2
-        MMU_WriteB(addr+2, 0xFF);
+        MMU_WriteB(addr + 2, 0xFF);
         // byte3
-        mask = (-1 << (32-ln));
-        MMU_WriteB(addr+3, MMU_ReadB(addr+3) | mask);
+        mask = (-1 << (32 - ln));
+        MMU_WriteB(addr + 3, MMU_ReadB(addr + 3) | mask);
     } else {
         // byte0
         uint8_t mask = (-1 << offset);
-        MMU_WriteB(addr, MMU_ReadB(addr) | (mask>>offset));
-       // byte1
-        MMU_WriteB(addr+1, 0xFF);
+        MMU_WriteB(addr, MMU_ReadB(addr) | (mask >> offset));
+        // byte1
+        MMU_WriteB(addr + 1, 0xFF);
         // byte2
-        MMU_WriteB(addr+2, 0xFF);
-       // byte3
-        MMU_WriteB(addr+3, 0xFF);
+        MMU_WriteB(addr + 2, 0xFF);
+        // byte3
+        MMU_WriteB(addr + 3, 0xFF);
         // byte4
-        mask = (-1 << (40-ln));
-        MMU_WriteB(addr+4, MMU_ReadB(addr+4) | mask);
+        mask = (-1 << (40 - ln));
+        MMU_WriteB(addr + 4, MMU_ReadB(addr + 4) | mask);
     }
 }
 
-
 inline uint32_t BFEXTU_D(uint32_t v, int offset, int width) {
     uint32_t x = BFTST_D(v, offset, width);
-    return x >> (32-width);
+    return x >> (32 - width);
 }
 inline uint32_t BFEXTU_M(uint32_t addr, int offset, int width) {
     uint32_t x = BFTST_M(addr, offset, width);
-    return x >> (32-width);
+    return x >> (32 - width);
 }
 
 inline int32_t BFEXTS_D(uint32_t v, int offset, int width) {
     int32_t x = BFTST_D(v, offset, width);
-    return x >> (32-width);
+    return x >> (32 - width);
 }
 inline int32_t BFEXTS_M(uint32_t addr, int offset, int width) {
     int32_t x = BFTST_M(addr, offset, width);
-    return x >> (32-width);
+    return x >> (32 - width);
 }
 
 inline uint32_t BFFFO_D(uint32_t v, int offset, int width) {
     uint32_t x = BFTST_D(v, offset, width);
-    return offset + (x?std::countl_zero(x):width);
+    return offset + (x ? std::countl_zero(x) : width);
 }
 inline int32_t BFFFO_M(uint32_t addr, int offset, int width) {
     int offset_x = offset;
-    uint32_t x = BFTST_M(addr, offset_x, width) ;
-    return offset + (x?std::countl_zero(x):width);
+    uint32_t x = BFTST_M(addr, offset_x, width);
+    return offset + (x ? std::countl_zero(x) : width);
 }
 
 inline uint32_t BFINS_D(uint32_t old, int offset, uint8_t width, uint32_t v) {
-    TEST_L(v << (32-width));
+    TEST_L(v << (32 - width));
     cpu.V = false;
     cpu.C = false;
-    uint32_t mask = -1 >> (32-width);
-    v &= mask;    
+    uint32_t mask = -1 >> (32 - width);
+    v &= mask;
     uint32_t x = std::rotl(old, offset);
-    x &= ~(-1<<(32-width));
-    x |= v<<(32-width);
+    x &= ~(-1 << (32 - width));
+    x |= v << (32 - width);
     return std::rotr(x, offset);
 }
 
@@ -939,72 +936,72 @@ inline void BFINS_M(uint32_t addr, int offset, uint8_t width, uint32_t v) {
     addr += (offset >> 3);
     offset &= 7;
     int ln = width + offset;
-    if( ln <= 8) {
-        uint8_t mask = (-1 << (8-width));
-        uint8_t old = MMU_ReadB(addr) &~ (mask >> offset);        
-        MMU_WriteB(addr, old | (v & mask >> (8-width)));
-    } else if( ln <= 16) {
+    if(ln <= 8) {
+        uint8_t mask = (-1 << (8 - width));
+        uint8_t old = MMU_ReadB(addr) & ~(mask >> offset);
+        MMU_WriteB(addr, old | (v & mask >> (8 - width)));
+    } else if(ln <= 16) {
         // byte0
-        uint8_t v1 = v >> (ln-8);
+        uint8_t v1 = v >> (ln - 8);
         uint8_t mask = (-1 << offset);
-        uint8_t old = MMU_ReadB(addr) &~ mask >> offset;
+        uint8_t old = MMU_ReadB(addr) & ~mask >> offset;
         MMU_WriteB(addr, old | v1);
         // byte1
-        uint8_t v2 = v << (16-ln);
-        mask = (-1 << (16-ln));
-        old = MMU_ReadB(addr+1) &~ mask;
-        MMU_WriteB(addr+1, old | v2);
-    } else if( ln <= 24) {
+        uint8_t v2 = v << (16 - ln);
+        mask = (-1 << (16 - ln));
+        old = MMU_ReadB(addr + 1) & ~mask;
+        MMU_WriteB(addr + 1, old | v2);
+    } else if(ln <= 24) {
         // byte0
-        uint8_t v1 = v >> (ln-8);
+        uint8_t v1 = v >> (ln - 8);
         uint8_t mask = (-1 << offset);
-        uint8_t old = MMU_ReadB(addr) &~ (mask >> offset);
+        uint8_t old = MMU_ReadB(addr) & ~(mask >> offset);
         MMU_WriteB(addr, old | v1);
         // byte1
-        uint8_t v2 = v >> (ln-16);
-        MMU_WriteB(addr+1, v2);
+        uint8_t v2 = v >> (ln - 16);
+        MMU_WriteB(addr + 1, v2);
         // byte2
-        uint8_t v3 = v << (24-ln);
-        mask = (-1 << (24-ln));
-        old = MMU_ReadB(addr+2) &~ mask;
-        MMU_WriteB(addr+2, old | v3);
-    }else if( width + offset <= 32) {
+        uint8_t v3 = v << (24 - ln);
+        mask = (-1 << (24 - ln));
+        old = MMU_ReadB(addr + 2) & ~mask;
+        MMU_WriteB(addr + 2, old | v3);
+    } else if(width + offset <= 32) {
         // byte0
-        uint8_t v1 = v >> (ln-8);
+        uint8_t v1 = v >> (ln - 8);
         uint8_t mask = (-1 << offset);
-        uint8_t old = MMU_ReadB(addr) &~ mask >> offset;
+        uint8_t old = MMU_ReadB(addr) & ~mask >> offset;
         MMU_WriteB(addr, old | v1);
         // byte1
-        uint8_t v2 = v >> (ln-16);
-        MMU_WriteB(addr+1, v2);
+        uint8_t v2 = v >> (ln - 16);
+        MMU_WriteB(addr + 1, v2);
         // byte2
-        uint8_t v3 = v >> (ln-24);
-        MMU_WriteB(addr+2, v3);
+        uint8_t v3 = v >> (ln - 24);
+        MMU_WriteB(addr + 2, v3);
         // byte3
-        uint8_t v4 = v << (32-ln);
-        mask = (-1 << (32-ln));
-        old = MMU_ReadB(addr+3) &~ mask;
-        MMU_WriteB(addr+3, old | v4);
+        uint8_t v4 = v << (32 - ln);
+        mask = (-1 << (32 - ln));
+        old = MMU_ReadB(addr + 3) & ~mask;
+        MMU_WriteB(addr + 3, old | v4);
     } else {
         // byte0
-        uint8_t v1 = v >> (ln-8);
+        uint8_t v1 = v >> (ln - 8);
         uint8_t mask = (-1 << offset);
-        uint8_t old = MMU_ReadB(addr) &~ mask >> offset;
+        uint8_t old = MMU_ReadB(addr) & ~mask >> offset;
         MMU_WriteB(addr, old | v1);
         // byte1
-        uint8_t v2 = v >> (ln-16);
-        MMU_WriteB(addr+1, v2);
+        uint8_t v2 = v >> (ln - 16);
+        MMU_WriteB(addr + 1, v2);
         // byte2
-        uint8_t v3 = v >> (ln-24);
-        MMU_WriteB(addr+2, v3);
+        uint8_t v3 = v >> (ln - 24);
+        MMU_WriteB(addr + 2, v3);
         // byte3
-        uint8_t v4 = v >> (ln-32);
-        MMU_WriteB(addr+3, v4);
+        uint8_t v4 = v >> (ln - 32);
+        MMU_WriteB(addr + 3, v4);
         // byte4
-        uint8_t v5 = v << (40-ln);
-        mask = (-1 << (40-ln));
-        old = MMU_ReadB(addr+4) &~ mask;
-        MMU_WriteB(addr+4, old | v5);
+        uint8_t v5 = v << (40 - ln);
+        mask = (-1 << (40 - ln));
+        old = MMU_ReadB(addr + 4) & ~mask;
+        MMU_WriteB(addr + 4, old | v5);
     }
 }
 #endif
