@@ -374,7 +374,7 @@ BOOST_AUTO_TEST_CASE(n) {
     BOOST_TEST(cpu.N);
 }
 BOOST_AUTO_TEST_CASE(v) {
-    DIVS_L(0x7fffffff, -1);
+    DIVS_L(0x80000000, -1);
     BOOST_TEST(cpu.V);
 }
 BOOST_AUTO_TEST_CASE(dz) {

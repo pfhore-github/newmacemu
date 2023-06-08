@@ -11,7 +11,7 @@ BOOST_AUTO_TEST_CASE(T) {
     TEST::SET_W(2, 0x30);
     cpu.C = false;
     auto i = decode_and_run();
-    BOOST_TEST(cpu.PC == 0);
+    BOOST_TEST(cpu.nextpc == 0);
     BOOST_TEST(i == 2);
 }
 
@@ -21,7 +21,7 @@ BOOST_AUTO_TEST_CASE(F1) {
     TEST::SET_W(2, 0x30);
     decode_and_run();
     BOOST_TEST(cpu.D[4] == 4);
-    BOOST_TEST(cpu.PC == 0x32);
+    BOOST_TEST(cpu.nextpc == 0x32);
 }
 
 BOOST_AUTO_TEST_CASE(F2) {
@@ -30,7 +30,7 @@ BOOST_AUTO_TEST_CASE(F2) {
     TEST::SET_W(2, 0x30);
     decode_and_run();
     BOOST_TEST(cpu.D[4] == 0xffff);
-    BOOST_TEST(cpu.PC == 0);
+    BOOST_TEST(cpu.nextpc == 0);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

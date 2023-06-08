@@ -8,13 +8,23 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include "test.hpp"
 std::vector<uint8_t> RAM;
 const std::uint8_t *ROM;
 size_t ROMSize;
 Cpu cpu;
 void initBus();
 void init_fpu();
-
+Prepare::Prepare() {
+    reset_fpu();
+    for(int i = 0; i < 8; ++i) {
+        cpu.D[i] = cpu.A[i] = 0;
+    }
+    cpu.nextpc = 0;
+    cpu.Z = cpu.X = cpu.V = cpu.C = cpu.N = false;
+    memset(RAM.data(), 0, 0x2000);
+    cpu.PC = 0;
+}
 extern bool rom_is_overlay;
 struct MyGlobalFixture {
     MyGlobalFixture() {

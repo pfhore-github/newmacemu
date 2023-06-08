@@ -111,7 +111,7 @@ BOOST_AUTO_TEST_CASE(V1) {
 BOOST_AUTO_TEST_CASE(V2) {
     TEST::SET_W(0, 0150410 | 3 << 9 | 1);
     RAM[0x1000] = 0x80;
-    RAM[0x1100] = 0x7f;
+    RAM[0x1100] = 0xff;
     cpu.A[3] = 0x1001;
     cpu.A[1] = 0x1101;
     decode_and_run();
@@ -125,7 +125,7 @@ BOOST_AUTO_TEST_CASE(N) {
     cpu.A[3] = 0x1001;
     cpu.A[1] = 0x1101;
     decode_and_run();
-    BOOST_TEST(cpu.V);
+    BOOST_TEST(cpu.N);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

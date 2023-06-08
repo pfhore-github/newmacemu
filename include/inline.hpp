@@ -13,7 +13,7 @@ inline uint16_t POP16() {
     return v;
 }
 inline void JUMP(uint32_t next) {
-    cpu.PC = next;
+    cpu.nextpc = next;
     if(next & 1) {
         ADDRESS_ERROR();
     }
@@ -161,54 +161,51 @@ inline void TEST_CV_W(uint32_t v) {
     cpu.C = v >> 16 & 1;
 }
 
-inline uint8_t SUB_B(uint8_t a, uint8_t b) {
-    uint32_t ret = static_cast<int8_t>(a);
-    ret -= static_cast<int8_t>(b);
-    TEST_CV_B(ret);
-    cpu.X = cpu.C;
-    TEST_B(ret);
-    return ret;
-}
-
-inline uint16_t SUB_W(uint16_t a, uint16_t b) {
-    uint32_t ret = static_cast<int16_t>(a);
-    ret -= static_cast<int16_t>(b);
-    TEST_CV_W(ret);
-    cpu.X = cpu.C;
-    TEST_W(ret);
-    return ret;
-}
-
-inline uint32_t SUB_L(uint32_t a, uint32_t b) {
-    uint32_t ret;
-    cpu.V = __builtin_sub_overflow_p(int32_t(a), int32_t(b), int32_t(0));
-    cpu.X = cpu.C = __builtin_sub_overflow(a, b, &ret);
-    TEST_L(ret);
-    return ret;
-}
 
 inline uint8_t ADD_B(uint8_t a, uint8_t b) {
-    uint32_t ret = a;
-    ret += b;
-    TEST_CV_B(ret);
-    cpu.X = cpu.C;
-    TEST_B(ret);
-    return ret;
+    uint16_t c = a + b;
+    cpu.X = cpu.C = c & 0x100;
+    cpu.V = ((~(a^b))&(a^c)) & 0x80;
+    TEST_B(c);
+    return c;
 }
 
 inline uint16_t ADD_W(uint16_t a, uint16_t b) {
-    uint32_t ret = a;
-    ret += b;
-    TEST_CV_W(ret);
-    cpu.X = cpu.C;
-    TEST_W(ret);
-    return ret;
+    uint32_t c = a + b;
+    cpu.X = cpu.C = c & 0x10000;
+    cpu.V = ((~(a^b))&(a^c)) & 0x8000;
+    TEST_W(c);
+    return c;
 }
 
 inline uint32_t ADD_L(uint32_t a, uint32_t b) {
     uint32_t ret;
-    cpu.V = __builtin_add_overflow_p(int32_t(a), int32_t(b), int32_t(0));
     cpu.X = cpu.C = __builtin_add_overflow(a, b, &ret);
+    cpu.V = ((~(a^b))&(a^ret)) & 0x80000000;
+    TEST_L(ret);
+    return ret;
+}
+
+inline uint8_t SUB_B(uint8_t a, uint8_t b) {
+    uint16_t c = a - b;
+    cpu.X = cpu.C = (c & 0x100);
+    cpu.V = ((a^b)&~(b^c)) & 0x80;
+    TEST_B(c);
+    return c;
+}
+
+inline uint16_t SUB_W(uint16_t a, uint16_t b) {
+    uint32_t c = a - b;
+    cpu.X = cpu.C = (c & 0x10000);
+    cpu.V = ((a^b)&~(b^c)) & 0x8000;
+    TEST_W(c);
+    return c;
+}
+
+inline uint32_t SUB_L(uint32_t a, uint32_t b) {
+    uint32_t ret;
+    cpu.X = cpu.C = __builtin_sub_overflow(a, b, &ret);
+    cpu.V = ((a^b)&~(b^ret)) & 0x80000000;
     TEST_L(ret);
     return ret;
 }
@@ -354,7 +351,7 @@ inline std::pair<int32_t, int32_t> DIVS_L(int32_t a, int32_t b) {
     if(b == 0) {
         DIV0_ERROR();
     }
-    if(a == 0x7fffffff && b == -1) {
+    if(a == static_cast<int32_t>(0x80000000) && b == -1) {
         cpu.V = true;
         return {0, 0};
     }

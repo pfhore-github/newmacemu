@@ -35,7 +35,7 @@ BOOST_AUTO_TEST_CASE(V1) {
 BOOST_AUTO_TEST_CASE(V2) {
     TEST::SET_W(0, 0003000 | 2);
     TEST::SET_W(2, 0x80);
-    cpu.D[2] = 0x7f;
+    cpu.D[2] = 0xff;
     decode_and_run();
     BOOST_TEST(cpu.V);
 }
@@ -95,7 +95,7 @@ BOOST_AUTO_TEST_CASE(V1) {
 BOOST_AUTO_TEST_CASE(V2) {
     TEST::SET_W(0, 0003100 | 2);
     TEST::SET_W(2, 0x8000);
-    cpu.D[2] = 0x7fff;
+    cpu.D[2] = 0xffff;
     decode_and_run();
     BOOST_TEST(cpu.V);
 }

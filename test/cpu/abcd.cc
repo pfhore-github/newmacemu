@@ -1,5 +1,5 @@
 #define BOOST_TEST_DYN_LINK
-#include "inline.hpp"
+#include "68040.hpp"
 #include "test.hpp"
 #include <boost/test/data/monomorphic.hpp>
 #include <boost/test/data/test_case.hpp>

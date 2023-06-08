@@ -18,8 +18,8 @@ void MOVEM_W_TO_MEM_ADDR(uint16_t regs) {
     for(int i = cpu.movem_cnt; i < 16; ++i) {
         if(regs & 1 << i) {
             MMU_WriteW(cpu.movem_addr, cpu.R(i));
+            cpu.movem_addr += 2;
         }
-        cpu.movem_addr += 2;
         cpu.movem_cnt = i;
     }
 }
@@ -66,8 +66,8 @@ void MOVEM_L_TO_MEM_ADDR(uint16_t regs) {
     for(int i = cpu.movem_cnt; i < 16; ++i) {
         if(regs & 1 << i) {
             MMU_WriteL(cpu.movem_addr, cpu.R(i));
+            cpu.movem_addr += 4;
         }
-        cpu.movem_addr += 4;
         cpu.movem_cnt = i;
     }
 }

@@ -5,35 +5,36 @@
 #include <boost/test/data/test_case.hpp>
 #include <boost/test/unit_test.hpp>
 namespace bdata = boost::unit_test::data;
-BOOST_FIXTURE_TEST_SUITE(ANDI, Prepare)
+BOOST_FIXTURE_TEST_SUITE(EOR, Prepare)
 BOOST_AUTO_TEST_SUITE(Byte)
 BOOST_AUTO_TEST_CASE(err) {
-    TEST::SET_W(0, 0001000 | 072);
+    TEST::SET_W(0, 0130400 | 3 << 9 | 072);
     BOOST_CHECK_THROW(decode(), DecodeError);
 }
 BOOST_AUTO_TEST_CASE(value) {
-    TEST::SET_W(0, 0001000 | 2);
-    TEST::SET_W(2, 0x40);
+    TEST::SET_W(0, 0130400 | 3 << 9 | 2);
+    cpu.D[3] = 0xED;
     cpu.D[2] = 0xFF;
     auto i = decode_and_run();
-    BOOST_TEST(cpu.D[2] == 0x40);
+    BOOST_TEST(cpu.D[2] == 0x12);
     BOOST_TEST(!cpu.Z);
     BOOST_TEST(!cpu.V);
     BOOST_TEST(!cpu.N);
     BOOST_TEST(!cpu.C);
-    BOOST_TEST(i == 2);
+    BOOST_TEST(i == 0);
 }
+
 BOOST_AUTO_TEST_CASE(N) {
-    TEST::SET_W(0, 0001000 | 2);
-    TEST::SET_W(2, 0xff);
-    cpu.D[2] = 0x80;
+    TEST::SET_W(0, 0130400 | 3 << 9 | 2);
+    cpu.D[3] = 0xff;
+    cpu.D[2] = 0x12;
     decode_and_run();
     BOOST_TEST(cpu.N);
 }
 
 BOOST_AUTO_TEST_CASE(Z) {
-    TEST::SET_W(0, 0001000 | 2);
-    TEST::SET_W(2, 0x7f);
+    TEST::SET_W(0, 0130400 | 3 << 9 | 2);
+    cpu.D[3] = 0x80;
     cpu.D[2] = 0x80;
     decode_and_run();
     BOOST_TEST(cpu.Z);
@@ -41,35 +42,33 @@ BOOST_AUTO_TEST_CASE(Z) {
 BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE(Word)
 BOOST_AUTO_TEST_CASE(err) {
-    TEST::SET_W(0, 0001100 | 072);
+    TEST::SET_W(0, 0130500 | 3 << 9 | 072);
     BOOST_CHECK_THROW(decode(), DecodeError);
 }
-
 BOOST_AUTO_TEST_CASE(value) {
-    TEST::SET_W(0, 0001100 | 2);
-    TEST::SET_W(2, 0x7fff);
-    cpu.D[2] = 0xffff;
+    TEST::SET_W(0, 0130500 | 3 << 9 | 2);
+    cpu.D[3] = 0xffff;
+    cpu.D[2] = 0xeded;
     auto i = decode_and_run();
-    BOOST_TEST(cpu.D[2] == 0x7fff);
+    BOOST_TEST(cpu.D[2] == 0x1212);
     BOOST_TEST(!cpu.Z);
     BOOST_TEST(!cpu.V);
     BOOST_TEST(!cpu.N);
     BOOST_TEST(!cpu.C);
-    BOOST_TEST(i == 2);
+    BOOST_TEST(i == 0);
 }
-
 BOOST_AUTO_TEST_CASE(N) {
-    TEST::SET_W(0, 0001100 | 2);
-    TEST::SET_W(2, 0xffff);
-    cpu.D[2] = 0x8000;
+    TEST::SET_W(0, 0130500 | 3 << 9 | 2);
+    cpu.D[3] = 0xffff;
+    cpu.D[2] = 0x1234;
     decode_and_run();
     BOOST_TEST(cpu.N);
 }
 
 BOOST_AUTO_TEST_CASE(Z) {
-    TEST::SET_W(0, 0001100 | 2);
-    TEST::SET_W(2, 0x7fff);
-    cpu.D[2] = 0x8000;
+    TEST::SET_W(0, 0130500 | 3 << 9 | 2);
+    cpu.D[3] = 0x7FFF;
+    cpu.D[2] = 0x7FFF;
     decode_and_run();
     BOOST_TEST(cpu.Z);
 }
@@ -77,49 +76,36 @@ BOOST_AUTO_TEST_SUITE_END()
 
 BOOST_AUTO_TEST_SUITE(Long)
 BOOST_AUTO_TEST_CASE(err) {
-    TEST::SET_W(0, 0001200 | 072);
+    TEST::SET_W(0, 0130600 | 3 << 9 | 072);
     BOOST_CHECK_THROW(decode(), DecodeError);
 }
-
 BOOST_AUTO_TEST_CASE(value) {
-    TEST::SET_W(0, 0001200 | 2);
-    TEST::SET_L(2, 0x7fffffff);
-    cpu.D[2] = 0xffff0000;
+    TEST::SET_W(0, 0130600 | 3 << 9 | 2);
+    cpu.D[3] = 0xffffffff;
+    cpu.D[2] = 0xedededed;
     auto i = decode_and_run();
-    BOOST_TEST(cpu.D[2] == 0x7fff0000);
+    BOOST_TEST(cpu.D[2] == 0x12121212);
     BOOST_TEST(!cpu.Z);
     BOOST_TEST(!cpu.V);
     BOOST_TEST(!cpu.N);
     BOOST_TEST(!cpu.C);
-    BOOST_TEST(i == 4);
+    BOOST_TEST(i == 0);
 }
+
 BOOST_AUTO_TEST_CASE(N) {
-    TEST::SET_W(0, 0001200 | 2);
-    TEST::SET_L(2, 0x80000000);
+    TEST::SET_W(0, 0130600 | 3 << 9 | 2);
+    cpu.D[3] = 0x12121212;
     cpu.D[2] = 0xffffffff;
     decode_and_run();
     BOOST_TEST(cpu.N);
 }
 
 BOOST_AUTO_TEST_CASE(Z) {
-    TEST::SET_W(0, 0001200 | 2);
-    TEST::SET_L(2, 0x7fffffff);
-    cpu.D[2] = 0x80000000;
+    TEST::SET_W(0, 0130600 | 3 << 9 | 2);
+    cpu.D[3] = 0x20000000;
+    cpu.D[2] = 0x20000000;
     decode_and_run();
     BOOST_TEST(cpu.Z);
 }
 BOOST_AUTO_TEST_SUITE_END()
-BOOST_AUTO_TEST_CASE(ccr) {
-    cpu.X = cpu.N = cpu.Z = cpu.V = cpu.C = true;
-    TEST::SET_W(0, 0001074);
-    TEST::SET_W(2, 0);
-    auto i = decode_and_run();
-    BOOST_TEST(i == 2);
-    BOOST_TEST(!cpu.X);
-    BOOST_TEST(!cpu.Z);
-    BOOST_TEST(!cpu.N);
-    BOOST_TEST(!cpu.V);
-    BOOST_TEST(!cpu.C);
-}
-
 BOOST_AUTO_TEST_SUITE_END()

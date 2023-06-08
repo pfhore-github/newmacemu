@@ -16,7 +16,7 @@ BOOST_AUTO_TEST_CASE(value) {
     BOOST_TEST(cpu.D[3] == 0x30);
     BOOST_TEST(!cpu.Z);
     BOOST_TEST(!cpu.V);
-    BOOST_TEST(!cpu.V);
+    BOOST_TEST(!cpu.N);
     BOOST_TEST(!cpu.C);
     BOOST_TEST(i == 0);
 }
@@ -46,7 +46,7 @@ BOOST_AUTO_TEST_CASE(value) {
     BOOST_TEST(cpu.D[3] == 0x3000);
     BOOST_TEST(!cpu.Z);
     BOOST_TEST(!cpu.V);
-    BOOST_TEST(!cpu.V);
+    BOOST_TEST(!cpu.N);
     BOOST_TEST(!cpu.C);
     BOOST_TEST(i == 0);
 }
@@ -76,7 +76,7 @@ BOOST_AUTO_TEST_CASE(value) {
     BOOST_TEST(cpu.D[3] == 0x30000000);
     BOOST_TEST(!cpu.Z);
     BOOST_TEST(!cpu.V);
-    BOOST_TEST(!cpu.V);
+    BOOST_TEST(!cpu.N);
     BOOST_TEST(!cpu.C);
     BOOST_TEST(i == 0);
 }

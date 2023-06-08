@@ -9,15 +9,7 @@ extern std::vector<uint8_t> RAM;
 void reset_fpu();
 std::pair<std::function<void()>, int> decode();
 struct Prepare {
-    Prepare() {
-        reset_fpu();
-        for(int i = 0; i < 8; ++i) {
-            cpu.D[i] = cpu.A[i] = 0;
-        }
-        cpu.Z = cpu.X = cpu.V = cpu.C = cpu.N = false;
-        memset(RAM.data(), 0, 4096);
-        cpu.PC = 0;
-    }
+    Prepare() ;
 };
 namespace TEST {
 inline uint16_t GET_W(uint32_t addr) { return RAM[addr] << 8 | RAM[addr + 1]; }
