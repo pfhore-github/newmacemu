@@ -20,32 +20,34 @@ endif()
 add_executable(newmacemu src/cpu/m68k_ea.cc src/cpu/68040_mmu.cc src/cpu/exception.cc src/cpu/op_movem.cc src/cpu/68040_fpu.cc src/cpu/opcodes.cc src/68040.cc src/bus.cc src/memory.cc src/io.cc)
 add_executable(testcpu test/test_main.cc 
 test/cpu/ea.cc 
-test/cpu/abcd.cc test/cpu/nbcd.cc
+test/cpu/abcd.cc test/cpu/nbcd.cc test/cpu/pack.cc test/cpu/sbcd.cc test/cpu/unpk.cc
 test/cpu/add.cc test/cpu/adda.cc test/cpu/addi.cc test/cpu/addq.cc test/cpu/addx.cc 
+test/cpu/sub.cc test/cpu/suba.cc test/cpu/subi.cc  test/cpu/subq.cc  test/cpu/subx.cc 
 test/cpu/and.cc test/cpu/andi.cc
 test/cpu/cmp.cc test/cpu/cmpa.cc test/cpu/cmpi.cc test/cpu/cmpm.cc test/cpu/cmp2.cc
-test/cpu/asl.cc test/cpu/asr.cc test/cpu/lsl.cc  test/cpu/lsr.cc
-test/cpu/bcc.cc test/cpu/bra.cc test/cpu/dbcc.cc test/cpu/jmp.cc test/cpu/jsr.cc test/cpu/lea.cc
+test/cpu/asl.cc test/cpu/asr.cc test/cpu/lsl.cc  test/cpu/lsr.cc 
+test/cpu/rol.cc test/cpu/ror.cc test/cpu/roxl.cc  test/cpu/roxr.cc
+test/cpu/bcc.cc test/cpu/bra.cc test/cpu/dbcc.cc test/cpu/jmp.cc test/cpu/jsr.cc test/cpu/lea.cc test/cpu/pea.cc test/cpu/scc.cc
 test/cpu/bchg.cc test/cpu/bclr.cc test/cpu/bset.cc
 test/cpu/bfchg.cc test/cpu/bfclr.cc test/cpu/bfexts.cc test/cpu/bfextu.cc test/cpu/bfffo.cc test/cpu/bfins.cc test/cpu/bfset.cc test/cpu/bftst.cc
 test/cpu/bkpt.cc test/cpu/chk.cc  test/cpu/chk2.cc
 test/cpu/cas.cc test/cpu/cas2.cc
-test/cpu/clr.cc test/cpu/neg.cc
+test/cpu/clr.cc test/cpu/neg.cc test/cpu/negx.cc test/cpu/not.cc
 test/cpu/divs.cc test/cpu/divu.cc test/cpu/muls.cc  test/cpu/mulu.cc
 test/cpu/eor.cc test/cpu/eori.cc
-test/cpu/exg.cc
-test/cpu/ext.cc
-test/cpu/ori.cc
-test/cpu/illegal.cc 
-test/cpu/link.cc
+test/cpu/exg.cc test/cpu/ext.cc test/cpu/swap.cc
+test/cpu/illegal.cc  test/cpu/nop.cc test/cpu/trap.cc  test/cpu/trapcc.cc test/cpu/trapv.cc
+test/cpu/link.cc test/cpu/rtd.cc  test/cpu/rtr.cc test/cpu/rts.cc test/cpu/unlk.cc
 test/cpu/move.cc test/cpu/movea.cc test/cpu/move16.cc test/cpu/movem.cc test/cpu/movep.cc test/cpu/moveq.cc
-test/arithmetric.cc test/nz.cc test/store.cc test/bits.cc test/fpu.cc src/cpu/m68k_ea.cc src/cpu/68040_fpu.cc src/cpu/68040_mmu.cc src/cpu/exception.cc src/cpu/op_movem.cc src/cpu/opcodes.cc src/bus.cc src/memory.cc src/io.cc)
+test/cpu/or.cc test/cpu/ori.cc
+test/cpu/tas.cc test/cpu/tst.cc
+test/store.cc test/bits.cc test/fpu.cc src/cpu/m68k_ea.cc src/cpu/68040_fpu.cc src/cpu/68040_mmu.cc src/cpu/exception.cc src/cpu/op_movem.cc src/cpu/opcodes.cc src/bus.cc src/memory.cc src/io.cc)
 target_link_libraries(newmacemu gmp mpfr SDL2::SDL2 fmt)
 target_include_directories(newmacemu PRIVATE "./include")
 target_link_libraries(testcpu gmp mpfr SDL2::SDL2 fmt Boost::unit_test_framework)
 target_include_directories(testcpu PRIVATE "./include" ${Boost_INCLUDE_DIRS})
 
-add_test(NAME core COMMAND $<TARGET_FILE:testcpu> )
+# add_test(NAME cpu COMMAND $<TARGET_FILE:testcpu> )
 add_test(NAME ea/r COMMAND $<TARGET_FILE:testcpu> --run_test=EA/Read/*)
 add_test(NAME ea/w COMMAND $<TARGET_FILE:testcpu> --run_test=EA/Write/*)
 add_test(NAME ea/addr COMMAND $<TARGET_FILE:testcpu> --run_test=EA/ADDR/*)
@@ -107,4 +109,33 @@ add_test(NAME muls COMMAND $<TARGET_FILE:testcpu> --run_test=MULS/*)
 add_test(NAME mulu COMMAND $<TARGET_FILE:testcpu> --run_test=MULU/*)
 add_test(NAME nbcd COMMAND $<TARGET_FILE:testcpu> --run_test=NBCD/*)
 add_test(NAME neg COMMAND $<TARGET_FILE:testcpu> --run_test=NEG/*)
+add_test(NAME negx COMMAND $<TARGET_FILE:testcpu> --run_test=NEGX/*)
+add_test(NAME nop COMMAND $<TARGET_FILE:testcpu> --run_test=NOP)
+add_test(NAME not COMMAND $<TARGET_FILE:testcpu> --run_test=NOT/*)
+add_test(NAME or COMMAND $<TARGET_FILE:testcpu> --run_test=OR/*)
 add_test(NAME ori COMMAND $<TARGET_FILE:testcpu> --run_test=ORI/*)
+add_test(NAME pack COMMAND $<TARGET_FILE:testcpu> --run_test=PACK/*)
+add_test(NAME pea COMMAND $<TARGET_FILE:testcpu> --run_test=PEA)
+add_test(NAME rol COMMAND $<TARGET_FILE:testcpu> --run_test=ROL/*)
+add_test(NAME ror COMMAND $<TARGET_FILE:testcpu> --run_test=ROR/*)
+add_test(NAME roxl COMMAND $<TARGET_FILE:testcpu> --run_test=ROXL/*)
+add_test(NAME roxr COMMAND $<TARGET_FILE:testcpu> --run_test=ROXR/*)
+add_test(NAME rtd COMMAND $<TARGET_FILE:testcpu> --run_test=RTD)
+add_test(NAME rtr COMMAND $<TARGET_FILE:testcpu> --run_test=RTR)
+add_test(NAME rts COMMAND $<TARGET_FILE:testcpu> --run_test=RTS)
+add_test(NAME sbcd COMMAND $<TARGET_FILE:testcpu> --run_test=SBCD/*)
+add_test(NAME sub COMMAND $<TARGET_FILE:testcpu> --run_test=SUB/*)
+add_test(NAME suba COMMAND $<TARGET_FILE:testcpu> --run_test=SUBA/*)
+add_test(NAME subi COMMAND $<TARGET_FILE:testcpu> --run_test=SUBI/*)
+add_test(NAME subq COMMAND $<TARGET_FILE:testcpu> --run_test=SUBQ/*)
+add_test(NAME subx COMMAND $<TARGET_FILE:testcpu> --run_test=SUBX/*)
+add_test(NAME swap COMMAND $<TARGET_FILE:testcpu> --run_test=SWAP/*)
+add_test(NAME tas COMMAND $<TARGET_FILE:testcpu> --run_test=TAS/*)
+add_test(NAME trap COMMAND $<TARGET_FILE:testcpu> --run_test=TRAP)
+add_test(NAME trapcc COMMAND $<TARGET_FILE:testcpu> --run_test=TRAPcc/*)
+add_test(NAME trapv COMMAND $<TARGET_FILE:testcpu> --run_test=TRAPV/*)
+add_test(NAME tst COMMAND $<TARGET_FILE:testcpu> --run_test=TST/*)
+add_test(NAME unlk COMMAND $<TARGET_FILE:testcpu> --run_test=UNLK/*)
+add_test(NAME unpk COMMAND $<TARGET_FILE:testcpu> --run_test=UNPK/*)
+
+
