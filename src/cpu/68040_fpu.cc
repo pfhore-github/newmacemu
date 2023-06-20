@@ -32,71 +32,37 @@ inline void WriteLL(uint32_t addr, uint64_t v) {
 }
 void load_fpS(uint32_t v) {
     uint16_t exp = v >> 23 & 0xff;
-    bool sign = v >> 31 & 1;
     uint32_t frac = v & 0x7FFFFF;
-    // consider special number
-    if(exp == 0 && frac == 0) {
-        // zero
-        mpfr_set_ui(cpu.fp_tmp, 0, cpu.FPCR.RND);
-        return;
-    } else if(exp == 0xFF) {
-        if(frac == 0) {
-            // infinity
-            mpfr_set_inf(cpu.fp_tmp, sign ? -1 : 1);
-        } else {
-            // NAN
-            mpfr_set_nan(cpu.fp_tmp);
-            cpu.fp_tmp_nan = static_cast<uint64_t>(frac) << 41;
-        }
-        return;
-    }
-    if(exp) {
-        // normalized
-        mpfr_set_uj_2exp(cpu.fp_tmp, 1 << 23 | frac, exp - 127 - 23,
-                         cpu.FPCR.RND);
+    // test NAN
+    if(exp == 0xff && frac) {
+        mpfr_set_nan(cpu.fp_tmp);
+        cpu.fp_tmp_nan = static_cast<uint64_t>(frac) << 41;
     } else {
-        // denorm
-        mpfr_set_uj_2exp(cpu.fp_tmp, frac, -126 - 23, cpu.FPCR.RND);
+        auto f = std::bit_cast<float>(v);
+        mpfr_set_flt(cpu.fp_tmp, f, cpu.FPCR.RND);
     }
-    mpfr_setsign(cpu.fp_tmp, cpu.fp_tmp, sign, cpu.FPCR.RND);
 }
+
 void load_fpD(uint64_t v) {
     uint16_t exp = v >> 52 & 0x7ff;
-    bool sign = v >> 63 & 1;
     uint64_t frac = v & 0xFFFFFFFFFFFFFLLU;
-    // consider special number
-    if(exp == 0 && frac == 0) {
-        // zero
-        mpfr_set_ui(cpu.fp_tmp, 0, cpu.FPCR.RND);
-        return;
-    } else if(exp == 0x7FF) {
-        if(frac == 0) {
-            // infinity
-            mpfr_set_inf(cpu.fp_tmp, sign ? -1 : 1);
-        } else {
-            // NAN
-            mpfr_set_nan(cpu.fp_tmp);
-            cpu.fp_tmp_nan = frac << 12;
-        }
-        return;
-    }
-    if(exp) {
-        // normalized
-        mpfr_set_uj_2exp(cpu.fp_tmp, 1LL << 52 | frac, exp - 1023 - 52,
-                         cpu.FPCR.RND);
+    // test NAN
+    if(exp == 0x7FF && frac) {
+        mpfr_set_nan(cpu.fp_tmp);
+        cpu.fp_tmp_nan = frac << 12;
     } else {
-        // denorm
-        mpfr_set_uj_2exp(cpu.fp_tmp, frac, -1022 - 52, cpu.FPCR.RND);
+        double d = std::bit_cast<double>(v);
+        mpfr_set_d(cpu.fp_tmp, d, cpu.FPCR.RND);
     }
-    mpfr_setsign(cpu.fp_tmp, cpu.fp_tmp, sign, cpu.FPCR.RND);
 }
+
 void load_fpX(uint64_t frac, uint16_t exp) {
     bool sign = exp & 0x8000;
     exp &= 0x7fff;
     // consider special number
     if(exp == 0 && frac == 0) {
         // zero
-        mpfr_set_ui(cpu.fp_tmp, 0, cpu.FPCR.RND);
+        mpfr_set_zero(cpu.fp_tmp, sign ? -1 : 1);
         return;
     } else if(exp == 0x7fff) {
         if(frac == 0) {
@@ -135,7 +101,7 @@ void load_fpP(uint32_t addr) {
         return;
     } else if(exp == 0 && frac == 0) {
         // zero
-        mpfr_set_ui(cpu.fp_tmp, 0, cpu.FPCR.RND);
+        mpfr_set_zero(cpu.fp_tmp, sm ? -1.0 : 1.0);
         return;
     }
     char s[25];
@@ -159,7 +125,11 @@ std::pair<std::function<void()>, int> fpu_load(int t, int type, int reg) {
     switch(t) {
     case 0: {
         auto [f, i] = ea_read32(type, reg, cpu.PC + 4);
-        return {[f]() { mpfr_set_si(cpu.fp_tmp, f(), cpu.FPCR.RND); }, i + 2};
+        return {[f]() {
+                    mpfr_set_si(cpu.fp_tmp, static_cast<int32_t>(f()),
+                                cpu.FPCR.RND);
+                },
+                i + 2};
     }
     case 1: {
         auto [f, i] = ea_read32(type, reg, cpu.PC + 4);
@@ -208,14 +178,14 @@ std::pair<std::function<void()>, int> fpu_load(int t, int type, int reg) {
 }
 int32_t store_fpL() {
     if(mpfr_get_exp(cpu.fp_tmp) < -1022) {
-        mpfr_set_underflow();
+        mpfr_set_erangeflag();
     }
     auto v = mpfr_get_sj(cpu.fp_tmp, cpu.FPCR.RND);
     if(v > std::numeric_limits<int32_t>::max()) {
-        mpfr_set_overflow();
+        mpfr_set_erangeflag();
         return std::numeric_limits<int32_t>::max();
     } else if(v < std::numeric_limits<int32_t>::min()) {
-        mpfr_set_overflow();
+        mpfr_set_erangeflag();
         return std::numeric_limits<int32_t>::min();
     } else {
         return v;
@@ -261,9 +231,8 @@ uint32_t store_fpS() {
     if(mpfr_nan_p(cpu.fp_tmp)) {
         // NAN
         return 0x7F800000 | (cpu.fp_tmp_nan >> 41);
-    } else {
-        return std::bit_cast<uint32_t>(mpfr_get_flt(cpu.fp_tmp, cpu.FPCR.RND));
     }
+    return std::bit_cast<uint32_t>(mpfr_get_flt(cpu.fp_tmp, cpu.FPCR.RND));
 }
 
 uint64_t store_fpD() {
@@ -271,9 +240,8 @@ uint64_t store_fpD() {
     if(mpfr_nan_p(cpu.fp_tmp)) {
         // NAN
         return 0x7FF0000000000000LLU | (cpu.fp_tmp_nan >> 12);
-    } else {
-        return std::bit_cast<uint64_t>(mpfr_get_d(cpu.fp_tmp, cpu.FPCR.RND));
     }
+    return std::bit_cast<uint64_t>(mpfr_get_d(cpu.fp_tmp, cpu.FPCR.RND));
 }
 
 std::pair<uint64_t, uint16_t> store_fpX() {
@@ -282,31 +250,66 @@ std::pair<uint64_t, uint16_t> store_fpX() {
         // NAN
         return {cpu.fp_tmp_nan, static_cast<uint16_t>(0x7FFF)};
     }
-    uint16_t e = mpfr_signbit(cpu.fp_tmp) << 15;
+    uint16_t e = (!!mpfr_signbit(cpu.fp_tmp)) << 15;
     if(mpfr_inf_p(cpu.fp_tmp)) {
         return {0, e | 0x7FFF};
     }
     if(mpfr_zero_p(cpu.fp_tmp)) {
         return {0, e};
     }
-    MPFR_DECL_INIT(tmp, 65);
     mpfr_exp_t exp;
-    mpfr_frexp(&exp, tmp, cpu.fp_tmp, cpu.FPCR.RND);
-    mpfr_abs(tmp, tmp, cpu.FPCR.RND);
+    mpfr_frexp(&exp, cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
+    mpfr_abs(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
     exp--;
     if(exp > -16383) {
         // normal
-        mpfr_mul_2si(tmp, tmp, 64, cpu.FPCR.RND);
-        uint64_t frac = mpfr_get_uj(tmp, cpu.FPCR.RND);
+        mpfr_mul_2si(cpu.fp_tmp, cpu.fp_tmp, 64, cpu.FPCR.RND);
+        uint64_t frac = mpfr_get_uj(cpu.fp_tmp, cpu.FPCR.RND);
         return {frac, e | (exp + 16383)};
     } else {
         int sn = -exp - 16383;
-        mpfr_mul_2si(tmp, tmp, 64 - sn, cpu.FPCR.RND);
-        uint64_t frac = mpfr_get_uj(tmp, cpu.FPCR.RND);
+        mpfr_mul_2si(cpu.fp_tmp, cpu.fp_tmp, 64 - sn, cpu.FPCR.RND);
+        uint64_t frac = mpfr_get_uj(cpu.fp_tmp, cpu.FPCR.RND);
         return {frac, e};
     }
 }
 constexpr double LOG10_2 = .30102999566398119521;
+
+void fpu_testex() {
+    cpu.FPSR.OPERR = mpfr_nanflag_p() || mpfr_erangeflag_p();
+    cpu.FPSR.OVFL = mpfr_overflow_p();
+    cpu.FPSR.UNFL = mpfr_underflow_p();
+    cpu.FPSR.DZ = mpfr_divby0_p();
+    cpu.FPSR.INEX2 = mpfr_inexflag_p();
+
+    cpu.FPSR.EXC_IOP |= (cpu.FPSR.S_NAN || cpu.FPSR.OPERR);
+    cpu.FPSR.EXC_OVFL |= (cpu.FPSR.OVFL);
+    cpu.FPSR.EXC_UNFL |= (cpu.FPSR.UNFL || cpu.FPSR.INEX2);
+    cpu.FPSR.EXC_DZ |= (cpu.FPSR.DZ);
+    cpu.FPSR.EXC_INEX |= (cpu.FPSR.INEX1 || cpu.FPSR.INEX2 || cpu.FPSR.OVFL);
+
+    if(cpu.FPSR.S_NAN && cpu.FPCR.S_NAN) {
+        CPU_RAISE(54);
+    }
+    if(cpu.FPSR.OPERR && cpu.FPCR.OPERR) {
+        CPU_RAISE(52);
+    }
+    if(cpu.FPSR.OVFL && cpu.FPCR.OVFL) {
+        CPU_RAISE(53);
+    }
+    if(cpu.FPSR.UNFL && cpu.FPCR.UNFL) {
+        CPU_RAISE(51);
+    }
+    if(cpu.FPSR.DZ && cpu.FPCR.DZ) {
+        CPU_RAISE(50);
+    }
+    if(cpu.FPSR.INEX1 && cpu.FPCR.INEX1) {
+        CPU_RAISE(49);
+    }
+    if(cpu.FPSR.INEX2 && cpu.FPCR.INEX2) {
+        CPU_RAISE(49);
+    }
+}
 long mpfr_digit10() {
     mpfr_exp_t e = mpfr_get_exp(cpu.fp_tmp);
     if(e <= 0) {
@@ -379,6 +382,7 @@ std::pair<std::function<void()>, int> fpu_store(int t, int type, int reg,
                     mpfr_set(cpu.fp_tmp, cpu.FP[fpn], cpu.FPCR.RND);
                     cpu.fp_tmp_nan = cpu.FP_nan[fpn];
                     f(store_fpL());
+                    fpu_testex();
                 },
                 i + 2};
     }
@@ -388,6 +392,7 @@ std::pair<std::function<void()>, int> fpu_store(int t, int type, int reg,
                     mpfr_set(cpu.fp_tmp, cpu.FP[fpn], cpu.FPCR.RND);
                     cpu.fp_tmp_nan = cpu.FP_nan[fpn];
                     f(store_fpS());
+                    fpu_testex();
                 },
                 i + 2};
     }
@@ -400,6 +405,7 @@ std::pair<std::function<void()>, int> fpu_store(int t, int type, int reg,
                     auto [frac, exp] = store_fpX();
                     MMU_WriteW(cpu.EA, exp);
                     WriteLL(cpu.EA + 4, frac);
+                    fpu_testex();
                 },
                 i + 2};
     }
@@ -409,6 +415,7 @@ std::pair<std::function<void()>, int> fpu_store(int t, int type, int reg,
                     mpfr_set(cpu.fp_tmp, cpu.FP[fpn], cpu.FPCR.RND);
                     cpu.fp_tmp_nan = cpu.FP_nan[fpn];
                     store_fpP(cpu.EA = f(), k);
+                    fpu_testex();
                 },
                 i + 2};
     }
@@ -418,6 +425,7 @@ std::pair<std::function<void()>, int> fpu_store(int t, int type, int reg,
                     mpfr_set(cpu.fp_tmp, cpu.FP[fpn], cpu.FPCR.RND);
                     cpu.fp_tmp_nan = cpu.FP_nan[fpn];
                     f(fpu_storeW());
+                    fpu_testex();
                 },
                 i + 2};
     }
@@ -427,6 +435,7 @@ std::pair<std::function<void()>, int> fpu_store(int t, int type, int reg,
                     mpfr_set(cpu.fp_tmp, cpu.FP[fpn], cpu.FPCR.RND);
                     cpu.fp_tmp_nan = cpu.FP_nan[fpn];
                     WriteLL(cpu.EA = f(), store_fpD());
+                    fpu_testex();
                 },
                 i + 2};
     }
@@ -436,6 +445,7 @@ std::pair<std::function<void()>, int> fpu_store(int t, int type, int reg,
                     mpfr_set(cpu.fp_tmp, cpu.FP[fpn], cpu.FPCR.RND);
                     cpu.fp_tmp_nan = cpu.FP_nan[fpn];
                     f(store_fpB());
+                    fpu_testex();
                 },
                 i + 2};
     }
@@ -445,6 +455,7 @@ std::pair<std::function<void()>, int> fpu_store(int t, int type, int reg,
                     mpfr_set(cpu.fp_tmp, cpu.FP[fpn], cpu.FPCR.RND);
                     cpu.fp_tmp_nan = cpu.FP_nan[fpn];
                     store_fpP(cpu.EA = f(), static_cast<int8_t>(cpu.D[k]));
+                    fpu_testex();
                 },
                 i + 2};
     }
@@ -452,22 +463,20 @@ std::pair<std::function<void()>, int> fpu_store(int t, int type, int reg,
     __builtin_unreachable();
 }
 void normalize_fp(FPU_PREC p) {
-    int native_min = mpfr_get_emin();
-    int native_max = mpfr_get_emax();
     switch(p) {
     case FPU_PREC::AUTO:
         __builtin_unreachable();
     case FPU_PREC::X:
-        mpfr_set_emin(-16383 - 64);
-        mpfr_set_emax(16383);
+        mpfr_set_emin(-16445);
+        mpfr_set_emax(16384);
         break;
     case FPU_PREC::D:
-        mpfr_set_emin(-1023 - 52);
-        mpfr_set_emax(1023);
+        mpfr_set_emin(-1073);
+        mpfr_set_emax(1024);
         break;
     case FPU_PREC::S:
-        mpfr_set_emin(-127 - 23);
-        mpfr_set_emax(127);
+        mpfr_set_emin(-148);
+        mpfr_set_emax(128);
         break;
     }
     cpu.fp_tmp_tv = mpfr_check_range(cpu.fp_tmp, cpu.fp_tmp_tv, cpu.FPCR.RND);
@@ -476,17 +485,17 @@ void normalize_fp(FPU_PREC p) {
     case FPU_PREC::AUTO:
         __builtin_unreachable();
     case FPU_PREC::X:
-        mpfr_prec_round(cpu.fp_tmp, 64, cpu.FPCR.RND);
+        cpu.fp_tmp_tv = mpfr_prec_round(cpu.fp_tmp, 64, cpu.FPCR.RND);
         break;
     case FPU_PREC::D:
-        mpfr_prec_round(cpu.fp_tmp, 52, cpu.FPCR.RND);
+        cpu.fp_tmp_tv = mpfr_prec_round(cpu.fp_tmp, 53, cpu.FPCR.RND);
         break;
     case FPU_PREC::S:
-        mpfr_prec_round(cpu.fp_tmp, 23, cpu.FPCR.RND);
+        cpu.fp_tmp_tv = mpfr_prec_round(cpu.fp_tmp, 24, cpu.FPCR.RND);
         break;
     }
-    mpfr_set_emin(native_min);
-    mpfr_set_emax(native_max);
+    mpfr_set_emin(-32768);
+    mpfr_set_emax(32767);
 }
 void store_fpr(int fpn, FPU_PREC p = FPU_PREC::AUTO) {
     cpu.FPSR.CC_NAN = mpfr_nan_p(cpu.fp_tmp);
@@ -498,47 +507,15 @@ void store_fpr(int fpn, FPU_PREC p = FPU_PREC::AUTO) {
     }
     FPU_PREC pp = p == FPU_PREC::AUTO ? cpu.FPCR.PREC : p;
     normalize_fp(pp);
-    cpu.FPSR.OPERR = mpfr_nanflag_p() || mpfr_erangeflag_p();
-    cpu.FPSR.OVFL = mpfr_overflow_p();
-    cpu.FPSR.UNFL = mpfr_underflow_p();
-    cpu.FPSR.DZ = mpfr_divby0_p();
-    cpu.FPSR.INEX2 = mpfr_inexflag_p();
-
-    cpu.FPSR.EXC_IOP |= (cpu.FPSR.S_NAN || cpu.FPSR.OPERR);
-    cpu.FPSR.EXC_OVFL |= (cpu.FPSR.OVFL);
-    cpu.FPSR.EXC_UNFL |= (cpu.FPSR.UNFL || cpu.FPSR.INEX2);
-    cpu.FPSR.EXC_DZ |= (cpu.FPSR.DZ);
-    cpu.FPSR.EXC_INEX |= (cpu.FPSR.INEX1 || cpu.FPSR.INEX2 || cpu.FPSR.OVFL);
-
-    cpu.FPSR.CC_I = mpfr_inf_p(cpu.fp_tmp);
-    cpu.FPSR.CC_Z = mpfr_zero_p(cpu.fp_tmp);
-    cpu.FPSR.CC_N = mpfr_sgn(cpu.fp_tmp) < 0;
     if(fpn != -1) {
         mpfr_swap(cpu.FP[fpn], cpu.fp_tmp);
         std::swap(cpu.FP_nan[fpn], cpu.fp_tmp_nan);
     }
+    cpu.FPSR.CC_I = mpfr_inf_p(cpu.fp_tmp);
+    cpu.FPSR.CC_Z = mpfr_zero_p(cpu.fp_tmp);
+    cpu.FPSR.CC_N = mpfr_sgn(cpu.fp_tmp) < 0;
 
-    if(cpu.FPSR.S_NAN && cpu.FPCR.S_NAN) {
-        CPU_RAISE(54);
-    }
-    if(cpu.FPSR.OPERR && cpu.FPCR.OPERR) {
-        CPU_RAISE(52);
-    }
-    if(cpu.FPSR.OVFL && cpu.FPCR.OVFL) {
-        CPU_RAISE(53);
-    }
-    if(cpu.FPSR.UNFL && cpu.FPCR.UNFL) {
-        CPU_RAISE(51);
-    }
-    if(cpu.FPSR.DZ && cpu.FPCR.DZ) {
-        CPU_RAISE(50);
-    }
-    if(cpu.FPSR.INEX1 && cpu.FPCR.INEX1) {
-        CPU_RAISE(49);
-    }
-    if(cpu.FPSR.INEX2 && cpu.FPCR.INEX2) {
-        CPU_RAISE(49);
-    }
+    fpu_testex();
 }
 
 bool test_NAN1() {
@@ -552,6 +529,7 @@ bool test_NAN1() {
 bool test_NAN2(int fpn) {
     if(mpfr_nan_p(cpu.FP[fpn]) && !mpfr_nan_p(cpu.fp_tmp)) {
         cpu.FPSR.OPERR = true;
+        mpfr_set_nan(cpu.fp_tmp);
         cpu.fp_tmp_nan = cpu.FP_nan[fpn];
         return false;
     } else if(mpfr_nan_p(cpu.fp_tmp)) {
@@ -578,7 +556,7 @@ std::function<void()> decode_movecr(int opc, int fpn) {
         // log10_2
         return [fpn]() {
             fpu_prologue();
-            mpfr_set_ui(cpu.fp_tmp, 10.0, cpu.FPCR.RND);
+            mpfr_set_ui(cpu.fp_tmp, 2.0, cpu.FPCR.RND);
             mpfr_log10(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
             store_fpr(fpn);
         };
@@ -749,9 +727,8 @@ std::function<void()> fop_to_reg(std::function<void()> f, int opc, int fpn) {
             f();
             if(test_NAN1()) {
                 cpu.fp_tmp_tv = mpfr_rint(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
-
-                store_fpr(fpn);
             }
+            store_fpr(fpn);
         };
     case 2:
         // FSINH
@@ -760,9 +737,8 @@ std::function<void()> fop_to_reg(std::function<void()> f, int opc, int fpn) {
             f();
             if(test_NAN1()) {
                 cpu.fp_tmp_tv = mpfr_sinh(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
-
-                store_fpr(fpn);
             }
+            store_fpr(fpn);
         };
     case 3:
         // FINTRZ
@@ -771,9 +747,8 @@ std::function<void()> fop_to_reg(std::function<void()> f, int opc, int fpn) {
             f();
             if(test_NAN1()) {
                 cpu.fp_tmp_tv = mpfr_trunc(cpu.fp_tmp, cpu.fp_tmp);
-
-                store_fpr(fpn);
             }
+            store_fpr(fpn);
         };
     case 4:
         // FSQRT
@@ -782,9 +757,8 @@ std::function<void()> fop_to_reg(std::function<void()> f, int opc, int fpn) {
             f();
             if(test_NAN1()) {
                 cpu.fp_tmp_tv = mpfr_sqrt(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
-
-                store_fpr(fpn);
             }
+            store_fpr(fpn);
         };
     case 6:
         // FLOGNP1
@@ -794,9 +768,8 @@ std::function<void()> fop_to_reg(std::function<void()> f, int opc, int fpn) {
             if(test_NAN1()) {
                 cpu.fp_tmp_tv =
                     mpfr_log1p(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
-
-                store_fpr(fpn);
             }
+            store_fpr(fpn);
         };
     case 8:
         // FETOXM1
@@ -806,9 +779,8 @@ std::function<void()> fop_to_reg(std::function<void()> f, int opc, int fpn) {
             if(test_NAN1()) {
                 cpu.fp_tmp_tv =
                     mpfr_expm1(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
-
-                store_fpr(fpn);
             }
+            store_fpr(fpn);
         };
     case 9:
         // FTANH
@@ -817,9 +789,8 @@ std::function<void()> fop_to_reg(std::function<void()> f, int opc, int fpn) {
             f();
             if(test_NAN1()) {
                 cpu.fp_tmp_tv = mpfr_tanh(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
-
-                store_fpr(fpn);
             }
+            store_fpr(fpn);
         };
     case 10:
         // FATAN
@@ -828,9 +799,8 @@ std::function<void()> fop_to_reg(std::function<void()> f, int opc, int fpn) {
             f();
             if(test_NAN1()) {
                 cpu.fp_tmp_tv = mpfr_atan(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
-
-                store_fpr(fpn);
             }
+            store_fpr(fpn);
         };
     case 12:
         // FASIN
@@ -839,9 +809,8 @@ std::function<void()> fop_to_reg(std::function<void()> f, int opc, int fpn) {
             f();
             if(test_NAN1()) {
                 cpu.fp_tmp_tv = mpfr_asin(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
-
-                store_fpr(fpn);
             }
+            store_fpr(fpn);
         };
     case 13:
         // FATANH
@@ -851,9 +820,8 @@ std::function<void()> fop_to_reg(std::function<void()> f, int opc, int fpn) {
             if(test_NAN1()) {
                 cpu.fp_tmp_tv =
                     mpfr_atanh(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
-
-                store_fpr(fpn);
             }
+            store_fpr(fpn);
         };
     case 14:
         // FSIN
@@ -862,9 +830,8 @@ std::function<void()> fop_to_reg(std::function<void()> f, int opc, int fpn) {
             f();
             if(test_NAN1()) {
                 cpu.fp_tmp_tv = mpfr_sin(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
-
-                store_fpr(fpn);
             }
+            store_fpr(fpn);
         };
     case 15:
         // FTAN
@@ -873,9 +840,8 @@ std::function<void()> fop_to_reg(std::function<void()> f, int opc, int fpn) {
             f();
             if(test_NAN1()) {
                 cpu.fp_tmp_tv = mpfr_tan(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
-
-                store_fpr(fpn);
             }
+            store_fpr(fpn);
         };
     case 16:
         // FETOX
@@ -884,9 +850,8 @@ std::function<void()> fop_to_reg(std::function<void()> f, int opc, int fpn) {
             f();
             if(test_NAN1()) {
                 cpu.fp_tmp_tv = mpfr_exp(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
-
-                store_fpr(fpn);
             }
+            store_fpr(fpn);
         };
     case 17:
         // FTWOTOX
@@ -895,9 +860,8 @@ std::function<void()> fop_to_reg(std::function<void()> f, int opc, int fpn) {
             f();
             if(test_NAN1()) {
                 cpu.fp_tmp_tv = mpfr_exp2(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
-
-                store_fpr(fpn);
             }
+            store_fpr(fpn);
         };
     case 18:
         // FTENTOX
@@ -907,9 +871,8 @@ std::function<void()> fop_to_reg(std::function<void()> f, int opc, int fpn) {
             if(test_NAN1()) {
                 cpu.fp_tmp_tv =
                     mpfr_exp10(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
-
-                store_fpr(fpn);
             }
+            store_fpr(fpn);
         };
     case 20:
         // FLOGN
@@ -918,9 +881,8 @@ std::function<void()> fop_to_reg(std::function<void()> f, int opc, int fpn) {
             f();
             if(test_NAN1()) {
                 cpu.fp_tmp_tv = mpfr_log(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
-
-                store_fpr(fpn);
             }
+            store_fpr(fpn);
         };
     case 21:
         // FLOG10
@@ -930,9 +892,8 @@ std::function<void()> fop_to_reg(std::function<void()> f, int opc, int fpn) {
             if(test_NAN1()) {
                 cpu.fp_tmp_tv =
                     mpfr_log10(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
-
-                store_fpr(fpn);
             }
+            store_fpr(fpn);
         };
     case 22:
         // FLOG2
@@ -941,9 +902,8 @@ std::function<void()> fop_to_reg(std::function<void()> f, int opc, int fpn) {
             f();
             if(test_NAN1()) {
                 cpu.fp_tmp_tv = mpfr_log2(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
-
-                store_fpr(fpn);
             }
+            store_fpr(fpn);
         };
     case 24:
         // FABS
@@ -952,9 +912,8 @@ std::function<void()> fop_to_reg(std::function<void()> f, int opc, int fpn) {
             f();
             if(test_NAN1()) {
                 cpu.fp_tmp_tv = mpfr_abs(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
-
-                store_fpr(fpn);
             }
+            store_fpr(fpn);
         };
     case 25:
         // FCOSH
@@ -963,9 +922,8 @@ std::function<void()> fop_to_reg(std::function<void()> f, int opc, int fpn) {
             f();
             if(test_NAN1()) {
                 cpu.fp_tmp_tv = mpfr_cosh(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
-
-                store_fpr(fpn);
             }
+            store_fpr(fpn);
         };
     case 26:
         // FNEG
@@ -974,9 +932,8 @@ std::function<void()> fop_to_reg(std::function<void()> f, int opc, int fpn) {
             f();
             if(test_NAN1()) {
                 cpu.fp_tmp_tv = mpfr_neg(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
-
-                store_fpr(fpn);
             }
+            store_fpr(fpn);
         };
     case 28:
         // FACOS
@@ -985,9 +942,8 @@ std::function<void()> fop_to_reg(std::function<void()> f, int opc, int fpn) {
             f();
             if(test_NAN1()) {
                 cpu.fp_tmp_tv = mpfr_acos(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
-
-                store_fpr(fpn);
             }
+            store_fpr(fpn);
         };
     case 29:
         // FCOS
@@ -996,9 +952,8 @@ std::function<void()> fop_to_reg(std::function<void()> f, int opc, int fpn) {
             f();
             if(test_NAN1()) {
                 cpu.fp_tmp_tv = mpfr_cos(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
-
-                store_fpr(fpn);
             }
+            store_fpr(fpn);
         };
     case 30:
         // FGETEXP
@@ -1010,15 +965,15 @@ std::function<void()> fop_to_reg(std::function<void()> f, int opc, int fpn) {
                     mpfr_set_nan(cpu.fp_tmp);
                     mpfr_set_nanflag();
                     cpu.fp_tmp_nan = QNAN_DEFAULT;
-                } else {
+                } else if(!mpfr_zero_p(cpu.fp_tmp)) {
                     long exp;
                     mpfr_get_d_2exp(&exp, cpu.fp_tmp, cpu.FPCR.RND);
                     // the result of mpfr_get_d_2exp  is
                     // [0.5, 1.0)
                     mpfr_set_si(cpu.fp_tmp, exp - 1, cpu.FPCR.RND);
                 }
-                store_fpr(fpn);
             }
+            store_fpr(fpn);
         };
     case 31:
         // FGETMAN
@@ -1038,35 +993,34 @@ std::function<void()> fop_to_reg(std::function<void()> f, int opc, int fpn) {
                     // [0.5, 1.0)
                     mpfr_mul_si(cpu.fp_tmp, cpu.fp_tmp, 2.0, cpu.FPCR.RND);
                 }
-                store_fpr(fpn);
             }
+            store_fpr(fpn);
         };
     case 32:
         // FDIV
         return [f, fpn]() {
             fpu_prologue();
             f();
-            if(test_NAN1()) {
+            if(test_NAN2(fpn)) {
 
                 cpu.fp_tmp_tv =
                     mpfr_div(cpu.fp_tmp, cpu.fp_tmp, cpu.FP[fpn], cpu.FPCR.RND);
-
-                store_fpr(fpn);
             }
+            store_fpr(fpn);
         };
     case 33:
         // FMOD
         return [f, fpn]() {
             fpu_prologue();
             f();
-            if(test_NAN1()) {
+            if(test_NAN2(fpn)) {
                 long q;
                 cpu.fp_tmp_tv = mpfr_fmodquo(cpu.fp_tmp, &q, cpu.fp_tmp,
                                              cpu.FP[fpn], cpu.FPCR.RND);
-                cpu.FPSR.Quat = q & 0x7f;
+                cpu.FPSR.Quat = abs(q) & 0x7f;
                 cpu.FPSR.QuatSign = q < 0;
-                store_fpr(fpn);
             }
+            store_fpr(fpn);
         };
     case 34:
         // FADD
@@ -1076,8 +1030,8 @@ std::function<void()> fop_to_reg(std::function<void()> f, int opc, int fpn) {
             if(test_NAN2(fpn)) {
                 cpu.fp_tmp_tv =
                     mpfr_add(cpu.fp_tmp, cpu.fp_tmp, cpu.FP[fpn], cpu.FPCR.RND);
-                store_fpr(fpn);
             }
+            store_fpr(fpn);
         };
     case 35:
         // FMUL
@@ -1087,8 +1041,8 @@ std::function<void()> fop_to_reg(std::function<void()> f, int opc, int fpn) {
             if(test_NAN2(fpn)) {
                 cpu.fp_tmp_tv =
                     mpfr_mul(cpu.fp_tmp, cpu.fp_tmp, cpu.FP[fpn], cpu.FPCR.RND);
-                store_fpr(fpn);
             }
+            store_fpr(fpn);
         };
     case 36:
         // FSGLDIV
@@ -1100,8 +1054,8 @@ std::function<void()> fop_to_reg(std::function<void()> f, int opc, int fpn) {
                 mpfr_prec_round(cpu.FP[fpn], 23, cpu.FPCR.RND);
                 cpu.fp_tmp_tv =
                     mpfr_div(cpu.fp_tmp, cpu.fp_tmp, cpu.FP[fpn], cpu.FPCR.RND);
-                store_fpr(fpn, FPU_PREC::S);
             }
+            store_fpr(fpn, FPU_PREC::S);
         };
     case 37:
         // FREM
@@ -1113,10 +1067,10 @@ std::function<void()> fop_to_reg(std::function<void()> f, int opc, int fpn) {
 
                 cpu.fp_tmp_tv = mpfr_remquo(cpu.fp_tmp, &q, cpu.fp_tmp,
                                             cpu.FP[fpn], cpu.FPCR.RND);
-                cpu.FPSR.Quat = q & 0x7f;
+                cpu.FPSR.Quat = abs(q) & 0x7f;
                 cpu.FPSR.QuatSign = q < 0;
-                store_fpr(fpn);
             }
+            store_fpr(fpn);
         };
     case 38:
         // FSCALE
@@ -1129,15 +1083,12 @@ std::function<void()> fop_to_reg(std::function<void()> f, int opc, int fpn) {
                     mpfr_set_nanflag();
                     cpu.fp_tmp_nan = QNAN_DEFAULT;
                 } else {
-                    MPFR_DECL_INIT(tmp2, 64);
-                    mpfr_set_si_2exp(tmp2, 1,
-                                     mpfr_get_si(cpu.fp_tmp, cpu.FPCR.RND),
-                                     cpu.FPCR.RND);
-                    cpu.fp_tmp_tv =
-                        mpfr_mul(cpu.fp_tmp, cpu.FP[fpn], tmp2, cpu.FPCR.RND);
+                    cpu.fp_tmp_tv = mpfr_mul_2si(
+                        cpu.fp_tmp, cpu.FP[fpn],
+                        mpfr_get_si(cpu.fp_tmp, cpu.FPCR.RND), cpu.FPCR.RND);
                 }
-                store_fpr(fpn);
             }
+            store_fpr(fpn);
         };
     case 39:
         // FSGLMUL
@@ -1149,8 +1100,8 @@ std::function<void()> fop_to_reg(std::function<void()> f, int opc, int fpn) {
                 mpfr_prec_round(cpu.FP[fpn], 23, cpu.FPCR.RND);
                 cpu.fp_tmp_tv =
                     mpfr_mul(cpu.fp_tmp, cpu.fp_tmp, cpu.FP[fpn], cpu.FPCR.RND);
-                store_fpr(fpn, FPU_PREC::S);
             }
+            store_fpr(fpn, FPU_PREC::S);
         };
     case 40:
         // FMUL
@@ -1160,8 +1111,8 @@ std::function<void()> fop_to_reg(std::function<void()> f, int opc, int fpn) {
             if(test_NAN2(fpn)) {
                 cpu.fp_tmp_tv =
                     mpfr_sub(cpu.fp_tmp, cpu.fp_tmp, cpu.FP[fpn], cpu.FPCR.RND);
-                store_fpr(fpn);
             }
+            store_fpr(fpn);
         };
     case 48:
     case 49:
@@ -1171,6 +1122,7 @@ std::function<void()> fop_to_reg(std::function<void()> f, int opc, int fpn) {
     case 53:
     case 54:
     case 55: {
+        // FSINCOS
         int fpc = opc & 7;
         if(fpc == fpn) {
             return [f, fpn]() {
@@ -1179,9 +1131,8 @@ std::function<void()> fop_to_reg(std::function<void()> f, int opc, int fpn) {
                 if(test_NAN1()) {
                     cpu.fp_tmp_tv =
                         mpfr_sin(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
-
-                    store_fpr(fpn);
                 }
+                store_fpr(fpn);
             };
         } else {
             return [f, fpn, fpc]() {
@@ -1190,8 +1141,8 @@ std::function<void()> fop_to_reg(std::function<void()> f, int opc, int fpn) {
                 if(test_NAN1()) {
                     cpu.fp_tmp_tv = mpfr_sin_cos(cpu.fp_tmp, cpu.FP[fpc],
                                                  cpu.fp_tmp, cpu.FPCR.RND);
-                    store_fpr(fpn);
                 }
+                store_fpr(fpn);
             };
         }
     }
@@ -1201,19 +1152,28 @@ std::function<void()> fop_to_reg(std::function<void()> f, int opc, int fpn) {
             fpu_prologue();
             f();
             if(test_NAN2(fpn)) {
-                cpu.fp_tmp_tv =
-                    mpfr_sub(cpu.fp_tmp, cpu.fp_tmp, cpu.FP[fpn], cpu.FPCR.RND);
-                store_fpr(-1);
+                cpu.FPSR.CC_Z = mpfr_equal_p(cpu.FP[fpn], cpu.fp_tmp);
+                if((mpfr_zero_p(cpu.fp_tmp) && mpfr_zero_p(cpu.FP[fpn])) ||
+                   (mpfr_inf_p(cpu.fp_tmp) && mpfr_inf_p(cpu.FP[fpn]))) {
+                    cpu.FPSR.CC_N = mpfr_signbit(cpu.FP[fpn]);
+                } else {
+                    cpu.FPSR.CC_N = mpfr_less_p(cpu.FP[fpn], cpu.fp_tmp);
+                }
+            } else {
+                cpu.FPSR.CC_NAN = true;
             }
+            fpu_testex();
         };
     case 58:
-        // FCMP
+        // FTST
         return [f]() {
             fpu_prologue();
             f();
-            if(test_NAN1()) {
-                store_fpr(-1);
-            }
+            cpu.FPSR.CC_NAN = mpfr_nan_p(cpu.fp_tmp);
+            cpu.FPSR.CC_I = mpfr_inf_p(cpu.fp_tmp);
+            cpu.FPSR.CC_N = mpfr_signbit(cpu.fp_tmp);
+            cpu.FPSR.CC_Z = mpfr_zero_p(cpu.fp_tmp);
+            fpu_testex();
         };
 
     case 64:
@@ -1230,9 +1190,8 @@ std::function<void()> fop_to_reg(std::function<void()> f, int opc, int fpn) {
             f();
             if(test_NAN1()) {
                 cpu.fp_tmp_tv = mpfr_sqrt(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
-
-                store_fpr(fpn, FPU_PREC::S);
             }
+            store_fpr(fpn, FPU_PREC::S);
         };
     case 68:
         // FDMOVE
@@ -1248,9 +1207,8 @@ std::function<void()> fop_to_reg(std::function<void()> f, int opc, int fpn) {
             f();
             if(test_NAN1()) {
                 cpu.fp_tmp_tv = mpfr_sqrt(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
-
-                store_fpr(fpn, FPU_PREC::D);
             }
+            store_fpr(fpn, FPU_PREC::D);
         };
     case 88:
         // FSABS
@@ -1259,9 +1217,8 @@ std::function<void()> fop_to_reg(std::function<void()> f, int opc, int fpn) {
             f();
             if(test_NAN1()) {
                 cpu.fp_tmp_tv = mpfr_abs(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
-
-                store_fpr(fpn, FPU_PREC::S);
             }
+            store_fpr(fpn, FPU_PREC::S);
         };
     case 90:
         // FSNEG
@@ -1270,9 +1227,8 @@ std::function<void()> fop_to_reg(std::function<void()> f, int opc, int fpn) {
             f();
             if(test_NAN1()) {
                 cpu.fp_tmp_tv = mpfr_neg(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
-
-                store_fpr(fpn, FPU_PREC::S);
             }
+            store_fpr(fpn, FPU_PREC::S);
         };
 
     case 92:
@@ -1282,9 +1238,8 @@ std::function<void()> fop_to_reg(std::function<void()> f, int opc, int fpn) {
             f();
             if(test_NAN1()) {
                 cpu.fp_tmp_tv = mpfr_abs(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
-
-                store_fpr(fpn, FPU_PREC::D);
             }
+            store_fpr(fpn, FPU_PREC::D);
         };
     case 94:
         // FDNEG
@@ -1293,9 +1248,8 @@ std::function<void()> fop_to_reg(std::function<void()> f, int opc, int fpn) {
             f();
             if(test_NAN1()) {
                 cpu.fp_tmp_tv = mpfr_neg(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
-
-                store_fpr(fpn, FPU_PREC::D);
             }
+            store_fpr(fpn, FPU_PREC::D);
         };
     case 96:
         // FSDIV
@@ -1306,9 +1260,8 @@ std::function<void()> fop_to_reg(std::function<void()> f, int opc, int fpn) {
 
                 cpu.fp_tmp_tv =
                     mpfr_div(cpu.fp_tmp, cpu.fp_tmp, cpu.FP[fpn], cpu.FPCR.RND);
-
-                store_fpr(fpn, FPU_PREC::S);
             }
+            store_fpr(fpn, FPU_PREC::S);
         };
     case 98:
         // FSADD
@@ -1319,9 +1272,8 @@ std::function<void()> fop_to_reg(std::function<void()> f, int opc, int fpn) {
 
                 cpu.fp_tmp_tv =
                     mpfr_add(cpu.fp_tmp, cpu.fp_tmp, cpu.FP[fpn], cpu.FPCR.RND);
-
-                store_fpr(fpn, FPU_PREC::S);
             }
+            store_fpr(fpn, FPU_PREC::S);
         };
     case 99:
         // FSMUL
@@ -1332,9 +1284,8 @@ std::function<void()> fop_to_reg(std::function<void()> f, int opc, int fpn) {
 
                 cpu.fp_tmp_tv =
                     mpfr_mul(cpu.fp_tmp, cpu.fp_tmp, cpu.FP[fpn], cpu.FPCR.RND);
-
-                store_fpr(fpn, FPU_PREC::S);
             }
+            store_fpr(fpn, FPU_PREC::S);
         };
 
     case 100:
@@ -1343,12 +1294,10 @@ std::function<void()> fop_to_reg(std::function<void()> f, int opc, int fpn) {
             fpu_prologue();
             f();
             if(test_NAN2(fpn)) {
-
                 cpu.fp_tmp_tv =
                     mpfr_div(cpu.fp_tmp, cpu.fp_tmp, cpu.FP[fpn], cpu.FPCR.RND);
-
-                store_fpr(fpn, FPU_PREC::D);
             }
+            store_fpr(fpn, FPU_PREC::D);
         };
     case 102:
         // FDADD
@@ -1356,12 +1305,10 @@ std::function<void()> fop_to_reg(std::function<void()> f, int opc, int fpn) {
             fpu_prologue();
             f();
             if(test_NAN2(fpn)) {
-
                 cpu.fp_tmp_tv =
                     mpfr_add(cpu.fp_tmp, cpu.fp_tmp, cpu.FP[fpn], cpu.FPCR.RND);
-
-                store_fpr(fpn, FPU_PREC::D);
             }
+            store_fpr(fpn, FPU_PREC::D);
         };
     case 103:
         // FDMUL
@@ -1372,9 +1319,8 @@ std::function<void()> fop_to_reg(std::function<void()> f, int opc, int fpn) {
 
                 cpu.fp_tmp_tv =
                     mpfr_mul(cpu.fp_tmp, cpu.fp_tmp, cpu.FP[fpn], cpu.FPCR.RND);
-
-                store_fpr(fpn, FPU_PREC::D);
             }
+            store_fpr(fpn, FPU_PREC::D);
         };
 
     case 104:
@@ -1386,9 +1332,8 @@ std::function<void()> fop_to_reg(std::function<void()> f, int opc, int fpn) {
 
                 cpu.fp_tmp_tv =
                     mpfr_sub(cpu.fp_tmp, cpu.fp_tmp, cpu.FP[fpn], cpu.FPCR.RND);
-
-                store_fpr(fpn, FPU_PREC::S);
             }
+            store_fpr(fpn, FPU_PREC::S);
         };
     case 108:
         // FDSUB
@@ -1399,9 +1344,8 @@ std::function<void()> fop_to_reg(std::function<void()> f, int opc, int fpn) {
 
                 cpu.fp_tmp_tv =
                     mpfr_sub(cpu.fp_tmp, cpu.fp_tmp, cpu.FP[fpn], cpu.FPCR.RND);
-
-                store_fpr(fpn, FPU_PREC::D);
             }
+            store_fpr(fpn, FPU_PREC::D);
         };
     }
     throw DecodeError{};
@@ -1502,19 +1446,19 @@ bool test_Fcc(uint8_t v) {
         return (cpu.FPSR.CC_Z || !(cpu.FPSR.CC_NAN || cpu.FPSR.CC_N));
     case 0B1100:
         // NGE/ULT
-        return (cpu.FPSR.CC_NAN || !(cpu.FPSR.CC_N && !cpu.FPSR.CC_Z));
+        return (cpu.FPSR.CC_NAN || (cpu.FPSR.CC_N && !cpu.FPSR.CC_Z));
     case 0B0100:
         // (O)LT
         return (cpu.FPSR.CC_N && !(cpu.FPSR.CC_NAN || cpu.FPSR.CC_Z));
     case 0B1011:
         // NLT/UGE
-        return (cpu.FPSR.CC_NAN || !(cpu.FPSR.CC_Z && !cpu.FPSR.CC_N));
+        return (cpu.FPSR.CC_NAN || (cpu.FPSR.CC_Z && !cpu.FPSR.CC_N));
     case 0B0101:
         // (O)LE
-        return (cpu.FPSR.CC_Z || !(cpu.FPSR.CC_N && !cpu.FPSR.CC_NAN));
+        return (cpu.FPSR.CC_Z || (cpu.FPSR.CC_N && !cpu.FPSR.CC_NAN));
     case 0B1010:
         // NLE/UGT
-        return (cpu.FPSR.CC_NAN || !(cpu.FPSR.CC_Z && !cpu.FPSR.CC_N));
+        return (cpu.FPSR.CC_NAN || (cpu.FPSR.CC_Z && !cpu.FPSR.CC_N));
     case 0B0110:
         // O(GL)
         return !(cpu.FPSR.CC_NAN || cpu.FPSR.CC_Z);
@@ -1556,12 +1500,12 @@ static void Set_FPSR(uint32_t v) {
 uint32_t fmovem_from_reg_rev(uint32_t base, uint8_t regs) {
     for(int i = 7; i >= 0; --i) {
         if(regs & 1 << i) {
+            base -= 12;
             mpfr_set(cpu.fp_tmp, cpu.FP[i], cpu.FPCR.RND);
             cpu.fp_tmp_nan = cpu.FP_nan[i];
             auto [frac, exp] = store_fpX();
             MMU_WriteW(base, exp);
             WriteLL(base + 4, frac);
-            base -= 12;
         }
     }
     return base;
@@ -1632,7 +1576,73 @@ std::pair<std::function<void()>, int> decode_fpu(int sz, int type, int reg) {
                 if(!rm) {
                     uint8_t regs = nextop >> 10 & 7;
                     if(!fp_k) {
-                        // fmove(M) to FPcc
+                        // Fmove(M) to FPcc
+                        switch(regs) {
+                        case 0:
+                            throw DecodeError{};
+                        case 1: // IR only
+                        {
+                            auto [r, o] = ea_read32(type, reg, 4);
+                            return {[r]() { cpu.FPIAR = r(); }, o + 2};
+                        }
+                        case 2: // FPSR only
+                        {
+                            auto [r, o] = ea_read32(type, reg, 4);
+                            return {[r]() { Set_FPSR(r()); }, o + 2};
+                        }
+                        case 3: // FPSR & IR
+                        {
+                            auto [a, o] =
+                                ea_addr(type, reg, cpu.PC + 2, 8, false);
+                            return {[a]() {
+                                        cpu.EA = a();
+                                        Set_FPSR(MMU_ReadL(cpu.EA));
+                                        cpu.FPIAR = MMU_ReadL(cpu.EA + 4);
+                                    },
+                                    o + 2};
+                        }
+                        case 4: // FPCR only
+                        {
+                            auto [r, o] = ea_read32(type, reg, 4);
+                            return {[r]() { Set_FPCR(r()); }, o + 2};
+                        }
+                        case 5: // FPCR & IR
+                        {
+                            auto [a, o] =
+                                ea_addr(type, reg, cpu.PC + 2, 8, false);
+                            return {[a]() {
+                                        cpu.EA = a();
+                                        Set_FPCR(MMU_ReadL(cpu.EA));
+                                        cpu.FPIAR = MMU_ReadL(cpu.EA + 4);
+                                    },
+                                    o + 2};
+                        }
+                        case 6: // FPCR & FPSR
+                        {
+                            auto [a, o] =
+                                ea_addr(type, reg, cpu.PC + 2, 8, false);
+                            return {[a]() {
+                                        cpu.EA = a();
+                                        Set_FPCR(MMU_ReadL(cpu.EA));
+                                        Set_FPSR(MMU_ReadL(cpu.EA + 4));
+                                    },
+                                    o + 2};
+                        }
+                        case 7: // FPCR & FPSR & UR
+                        {
+                            auto [a, o] =
+                                ea_addr(type, reg, cpu.PC + 2, 12, false);
+                            return {[a]() {
+                                        cpu.EA = a();
+                                        Set_FPCR(MMU_ReadL(cpu.EA));
+                                        Set_FPSR(MMU_ReadL(cpu.EA + 4));
+                                        cpu.FPIAR = MMU_ReadL(cpu.EA + 8);
+                                    },
+                                    o + 2};
+                        }
+                        }
+                    } else {
+                        // fmove(M) from FPcc
                         switch(regs) {
                         case 0:
                             throw DecodeError{};
@@ -1648,7 +1658,8 @@ std::pair<std::function<void()>, int> decode_fpu(int sz, int type, int reg) {
                         }
                         case 3: // FPSR & IR
                         {
-                            auto [a, o] = ea_addr(type, reg, cpu.PC + 2, 8, true);
+                            auto [a, o] =
+                                ea_addr(type, reg, cpu.PC + 2, 8, true);
                             return {[a]() {
                                         cpu.EA = a();
                                         MMU_WriteL(cpu.EA, Get_FPSR());
@@ -1663,7 +1674,8 @@ std::pair<std::function<void()>, int> decode_fpu(int sz, int type, int reg) {
                         }
                         case 5: // FPCR & IR
                         {
-                            auto [a, o] = ea_addr(type, reg, cpu.PC + 2, 8, true);
+                            auto [a, o] =
+                                ea_addr(type, reg, cpu.PC + 2, 8, true);
                             return {[a]() {
                                         cpu.EA = a();
                                         MMU_WriteL(cpu.EA, Get_FPCR());
@@ -1673,7 +1685,8 @@ std::pair<std::function<void()>, int> decode_fpu(int sz, int type, int reg) {
                         }
                         case 6: // FPCR & FPSR
                         {
-                            auto [a, o] = ea_addr(type, reg, cpu.PC + 2, 8, true);
+                            auto [a, o] =
+                                ea_addr(type, reg, cpu.PC + 2, 8, true);
                             return {[a]() {
                                         cpu.EA = a();
                                         MMU_WriteL(cpu.EA, Get_FPCR());
@@ -1683,74 +1696,13 @@ std::pair<std::function<void()>, int> decode_fpu(int sz, int type, int reg) {
                         }
                         case 7: // FPCR & FPSR & UR
                         {
-                            auto [a, o] = ea_addr(type, reg, cpu.PC + 2, 12, true);
+                            auto [a, o] =
+                                ea_addr(type, reg, cpu.PC + 2, 12, true);
                             return {[a]() {
                                         cpu.EA = a();
                                         MMU_WriteL(cpu.EA, Get_FPCR());
                                         MMU_WriteL(cpu.EA + 4, Get_FPSR());
                                         MMU_WriteL(cpu.EA + 8, cpu.FPIAR);
-                                    },
-                                    o + 2};
-                        }
-                        }
-                    } else {
-                        // Fmove(M) from FPcc
-                        switch(regs) {
-                        case 0:
-                            throw DecodeError{};
-                        case 1: // IR only
-                        {
-                            auto [r, o] = ea_read32(type, reg, 4);
-                            return {[r]() { cpu.FPIAR = r(); }, o + 2};
-                        }
-                        case 2: // FPSR only
-                        {
-                            auto [r, o] = ea_read32(type, reg, 4);
-                            return {[r]() { Set_FPCR(r()); }, o + 2};
-                        }
-                        case 3: // FPSR & IR
-                        {
-                            auto [a, o] = ea_addr(type, reg, cpu.PC + 2, 8, false);
-                            return {[a]() {
-                                        cpu.EA = a();
-                                        Set_FPSR(MMU_ReadL(cpu.EA));
-                                        cpu.FPIAR = MMU_ReadL(cpu.EA + 4);
-                                    },
-                                    o + 2};
-                        }
-                        case 4: // FPCR only
-                        {
-                            auto [r, o] = ea_read32(type, reg, 4);
-                            return {[r]() { Set_FPCR(r()); }, o + 2};
-                        }
-                        case 5: // FPCR & IR
-                        {
-                            auto [a, o] = ea_addr(type, reg, cpu.PC + 2, 8, false);
-                            return {[a]() {
-                                        cpu.EA = a();
-                                        Set_FPCR(MMU_ReadL(cpu.EA));
-                                        cpu.FPIAR = MMU_ReadL(cpu.EA + 4);
-                                    },
-                                    o + 2};
-                        }
-                        case 6: // FPCR & FPSR
-                        {
-                            auto [a, o] = ea_addr(type, reg, cpu.PC + 2, 8, false);
-                            return {[a]() {
-                                        cpu.EA = a();
-                                        Set_FPCR(MMU_ReadL(cpu.EA));
-                                        Set_FPSR(MMU_ReadL(cpu.EA + 4));
-                                    },
-                                    o + 2};
-                        }
-                        case 7: // FPCR & FPSR & UR
-                        {
-                            auto [a, o] = ea_addr(type, reg, cpu.PC + 2, 12, false);
-                            return {[a]() {
-                                        cpu.EA = a();
-                                        Set_FPCR(MMU_ReadL(cpu.EA));
-                                        Set_FPSR(MMU_ReadL(cpu.EA + 4));
-                                        cpu.FPIAR = MMU_ReadL(cpu.EA + 8);
                                     },
                                     o + 2};
                         }
@@ -1769,7 +1721,8 @@ std::pair<std::function<void()>, int> decode_fpu(int sz, int type, int reg) {
                                         },
                                         2};
                             } else {
-                                auto [a, i] = ea_addr(type, reg, cpu.PC + 2, 0, false);
+                                auto [a, i] =
+                                    ea_addr(type, reg, cpu.PC + 2, 0, false);
                                 return {[a, reglist]() {
                                             fmovem_to_reg(cpu.EA = a(),
                                                           reglist);
@@ -1787,7 +1740,8 @@ std::pair<std::function<void()>, int> decode_fpu(int sz, int type, int reg) {
                                         },
                                         2};
                             } else {
-                                auto [a, i] = ea_addr(type, reg, cpu.PC + 2, 0, false);
+                                auto [a, i] =
+                                    ea_addr(type, reg, cpu.PC + 2, 0, false);
                                 return {[a, nd]() {
                                             uint8_t reglist = cpu.D[nd];
                                             fmovem_to_reg(cpu.EA = a(),
@@ -1800,14 +1754,15 @@ std::pair<std::function<void()>, int> decode_fpu(int sz, int type, int reg) {
                         if(!(nextop & 1 << 11)) {
                             // FMOVEM from static regs
                             uint8_t reglist = nextop & 0xff;
-                            if(type == 3) {
+                            if(type == 4) {
                                 return {[reg, reglist]() {
-                                            cpu.A[reg] = fmovem_from_reg(
+                                            cpu.A[reg] = fmovem_from_reg_rev(
                                                 cpu.A[reg], reglist);
                                         },
                                         2};
                             } else {
-                                auto [a, i] = ea_addr(type, reg, cpu.PC + 2, 0, true);
+                                auto [a, i] =
+                                    ea_addr(type, reg, cpu.PC + 2, 0, true);
                                 return {[a, reglist]() {
                                             fmovem_from_reg(cpu.EA = a(),
                                                             reglist);
@@ -1825,7 +1780,8 @@ std::pair<std::function<void()>, int> decode_fpu(int sz, int type, int reg) {
                                         },
                                         2};
                             } else {
-                                auto [a, i] = ea_addr(type, reg, cpu.PC + 2, 0, true);
+                                auto [a, i] =
+                                    ea_addr(type, reg, cpu.PC + 2, 0, true);
                                 return {[a, nd]() {
                                             uint8_t reglist = cpu.D[nd];
                                             fmovem_from_reg(cpu.EA = a(),
@@ -1838,7 +1794,7 @@ std::pair<std::function<void()>, int> decode_fpu(int sz, int type, int reg) {
                 }
             }
         } else if(sz == 1) {
-            if(type == 2) {
+            if(type == 1) {
                 // FDBcc
                 uint16_t nextop = FETCH(cpu.PC + 2);
                 int16_t offset = FETCH(cpu.PC + 4);
@@ -1850,7 +1806,7 @@ std::pair<std::function<void()>, int> decode_fpu(int sz, int type, int reg) {
                                 int16_t v2 = cpu.D[reg];
                                 STORE_W(cpu.D[reg], --v2);
                                 if(v2 != -1) {
-                                    cpu.PC += 2 + offset;
+                                    JUMP(cpu.PC + 4 + offset);
                                 }
                             }
                         },
@@ -1910,30 +1866,28 @@ std::pair<std::function<void()>, int> decode_fpu(int sz, int type, int reg) {
             }
         } else if(sz == 2) {
             // FBcc.W
-            uint16_t nextop = FETCH(cpu.PC + 2);
-            int16_t offset = FETCH(cpu.PC + 4);
-            return {[reg, offset, c = nextop & 0x3f]() {
+            int16_t offset = FETCH(cpu.PC + 2);
+            return {[offset, c = type << 3 | reg]() {
                         if(c & 1 << 4) {
                             test_bsun();
                         }
                         if(test_Fcc(c & 0xf)) {
-                            cpu.PC += 2 + offset;
+                            JUMP(cpu.PC + 2 + offset);
+                        }
+                    },
+                    2};
+        } else if(sz == 3) {
+            // FBcc.L
+            int32_t offset = FETCH32(cpu.PC + 2);
+            return {[offset, c = type << 3 | reg]() {
+                        if(c & 1 << 4) {
+                            test_bsun();
+                        }
+                        if(test_Fcc(c & 0xf)) {
+                            JUMP(cpu.PC + 2 + offset);
                         }
                     },
                     4};
-        } else if(sz == 3) {
-            // FBcc.L
-            uint16_t nextop = FETCH(cpu.PC + 2);
-            int32_t offset = FETCH32(cpu.PC + 4);
-            return {[reg, offset, c = nextop & 0x3f]() {
-                        if(c & 1 << 4) {
-                            test_bsun();
-                        }
-                        if(test_Fcc(c & 0xf)) {
-                            cpu.PC += 2 + offset;
-                        }
-                    },
-                    6};
         } else if(sz == 4) {
             // FSAVE
             // always save idle

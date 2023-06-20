@@ -1,5 +1,6 @@
 project(newmacemu)
 enable_testing()
+include(CTest)
 cmake_minimum_required(VERSION 3.25)
 find_package(SDL2 REQUIRED CONFIG REQUIRED COMPONENTS SDL2)
 enable_language(CXX)
@@ -41,11 +42,27 @@ test/cpu/link.cc test/cpu/rtd.cc  test/cpu/rtr.cc test/cpu/rts.cc test/cpu/unlk.
 test/cpu/move.cc test/cpu/movea.cc test/cpu/move16.cc test/cpu/movem.cc test/cpu/movep.cc test/cpu/moveq.cc
 test/cpu/or.cc test/cpu/ori.cc
 test/cpu/tas.cc test/cpu/tst.cc
-test/store.cc test/bits.cc test/fpu.cc src/cpu/m68k_ea.cc src/cpu/68040_fpu.cc src/cpu/68040_mmu.cc src/cpu/exception.cc src/cpu/op_movem.cc src/cpu/opcodes.cc src/bus.cc src/memory.cc src/io.cc)
+src/cpu/m68k_ea.cc src/cpu/68040_fpu.cc src/cpu/68040_mmu.cc src/cpu/exception.cc src/cpu/op_movem.cc src/cpu/opcodes.cc src/bus.cc src/memory.cc src/io.cc)
+add_executable(testfpu test/test_main.cc 
+test/fpu/common.cc
+src/cpu/m68k_ea.cc src/cpu/68040_fpu.cc src/cpu/68040_mmu.cc src/cpu/exception.cc src/cpu/op_movem.cc src/cpu/opcodes.cc src/bus.cc src/memory.cc src/io.cc
+test/fpu/fabs.cc test/fpu/fneg.cc  test/fpu/fsub.cc test/fpu/ftan.cc  test/fpu/ftanh.cc
+test/fpu/facos.cc test/fpu/fasin.cc  test/fpu/fatanh.cc  test/fpu/fsinh.cc  test/fpu/fcosh.cc
+test/fpu/fcos.cc test/fpu/fsin.cc test/fpu/fsincos.cc test/fpu/fatan.cc 
+test/fpu/fetox.cc test/fpu/fetoxm1.cc test/fpu/fgetexp.cc test/fpu/fgetman.cc test/fpu/fscale.cc test/fpu/ftentox.cc 
+test/fpu/flog10.cc test/fpu/flog2.cc  test/fpu/flogn.cc test/fpu/flognp1.cc
+test/fpu/fbcc.cc test/fpu/fnop.cc test/fpu/fscc.cc test/fpu/fcmp.cc test/fpu/fdbcc.cc
+test/fpu/fadd.cc test/fpu/fdiv.cc test/fpu/fmod.cc test/fpu/fmul.cc test/fpu/frem.cc
+test/fpu/fsgldiv.cc test/fpu/fsglmul.cc
+test/fpu/fmove.cc test/fpu/fmovecr.cc test/fpu/fmovem.cc test/fpu/ftrapcc.cc test/fpu/ftwotox.cc
+test/fpu/fint.cc test/fpu/fintrz.cc test/fpu/fsqrt.cc test/fpu/ftst.cc
+)
 target_link_libraries(newmacemu gmp mpfr SDL2::SDL2 fmt)
 target_include_directories(newmacemu PRIVATE "./include")
 target_link_libraries(testcpu gmp mpfr SDL2::SDL2 fmt Boost::unit_test_framework)
 target_include_directories(testcpu PRIVATE "./include" ${Boost_INCLUDE_DIRS})
+target_link_libraries(testfpu gmp mpfr SDL2::SDL2 fmt Boost::unit_test_framework)
+target_include_directories(testfpu PRIVATE "./include" ${Boost_INCLUDE_DIRS})
 
 # add_test(NAME cpu COMMAND $<TARGET_FILE:testcpu> )
 add_test(NAME ea/r COMMAND $<TARGET_FILE:testcpu> --run_test=EA/Read/*)
@@ -135,7 +152,69 @@ add_test(NAME trap COMMAND $<TARGET_FILE:testcpu> --run_test=TRAP)
 add_test(NAME trapcc COMMAND $<TARGET_FILE:testcpu> --run_test=TRAPcc/*)
 add_test(NAME trapv COMMAND $<TARGET_FILE:testcpu> --run_test=TRAPV/*)
 add_test(NAME tst COMMAND $<TARGET_FILE:testcpu> --run_test=TST/*)
-add_test(NAME unlk COMMAND $<TARGET_FILE:testcpu> --run_test=UNLK/*)
+add_test(NAME unlk COMMAND $<TARGET_FILE:testcpu> --run_test=UNLK)
 add_test(NAME unpk COMMAND $<TARGET_FILE:testcpu> --run_test=UNPK/*)
+
+
+add_test(NAME fabs COMMAND $<TARGET_FILE:testfpu> --run_test=FABS/*)
+add_test(NAME fsabs COMMAND $<TARGET_FILE:testfpu> --run_test=FSABS/*)
+add_test(NAME fdabs COMMAND $<TARGET_FILE:testfpu> --run_test=FDABS/*)
+add_test(NAME facos COMMAND $<TARGET_FILE:testfpu> --run_test=FACOS/*)
+add_test(NAME fadd COMMAND $<TARGET_FILE:testfpu> --run_test=FADD/*)
+add_test(NAME fsadd COMMAND $<TARGET_FILE:testfpu> --run_test=FSADD/*)
+add_test(NAME fdadd COMMAND $<TARGET_FILE:testfpu> --run_test=FDADD/*)
+add_test(NAME fasin COMMAND $<TARGET_FILE:testfpu> --run_test=FASIN/*)
+add_test(NAME fatan COMMAND $<TARGET_FILE:testfpu> --run_test=FATAN/*)
+add_test(NAME fatanh COMMAND $<TARGET_FILE:testfpu> --run_test=FATANH/*)
+add_test(NAME fbcc COMMAND $<TARGET_FILE:testfpu> --run_test=FBcc/*)
+add_test(NAME fcmp COMMAND $<TARGET_FILE:testfpu> --run_test=FCMP/*)
+add_test(NAME fcos COMMAND $<TARGET_FILE:testfpu> --run_test=FCOS/*)
+add_test(NAME fcosh COMMAND $<TARGET_FILE:testfpu> --run_test=FCOSH/*)
+add_test(NAME fdbcc COMMAND $<TARGET_FILE:testfpu> --run_test=FDBcc/*)
+add_test(NAME fetox COMMAND $<TARGET_FILE:testfpu> --run_test=FETOX/*)
+add_test(NAME fetoxm1 COMMAND $<TARGET_FILE:testfpu> --run_test=FETOXM1/*)
+add_test(NAME fdiv COMMAND $<TARGET_FILE:testfpu> --run_test=FDIV/*)
+add_test(NAME fsdiv COMMAND $<TARGET_FILE:testfpu> --run_test=FSDIV/*)
+add_test(NAME fddiv COMMAND $<TARGET_FILE:testfpu> --run_test=FDDIV/*)
+add_test(NAME fgettexp COMMAND $<TARGET_FILE:testfpu> --run_test=FGETEXP/*)
+add_test(NAME fgetman COMMAND $<TARGET_FILE:testfpu> --run_test=FGETMAN/*)
+add_test(NAME fint COMMAND $<TARGET_FILE:testfpu> --run_test=FINT/*)
+add_test(NAME fintrz COMMAND $<TARGET_FILE:testfpu> --run_test=FINTRZ/*)
+add_test(NAME flog10 COMMAND $<TARGET_FILE:testfpu> --run_test=FLOG10/*)
+add_test(NAME flog2 COMMAND $<TARGET_FILE:testfpu> --run_test=FLOG2/*)
+add_test(NAME flogn COMMAND $<TARGET_FILE:testfpu> --run_test=FLOGN/*)
+add_test(NAME flognp1 COMMAND $<TARGET_FILE:testfpu> --run_test=FLOGNP1/*)
+add_test(NAME fmod COMMAND $<TARGET_FILE:testfpu> --run_test=FMOD/*)
+add_test(NAME fmove COMMAND $<TARGET_FILE:testfpu> --run_test=FMOVE/*)
+add_test(NAME fsmove COMMAND $<TARGET_FILE:testfpu> --run_test=FSMOVE/*)
+add_test(NAME fdmove COMMAND $<TARGET_FILE:testfpu> --run_test=FDMOVE/*)
+add_test(NAME fmovecr COMMAND $<TARGET_FILE:testfpu> --run_test=FMOVECR/*)
+add_test(NAME fmovem COMMAND $<TARGET_FILE:testfpu> --run_test=FMOVEM/*)
+add_test(NAME fmul COMMAND $<TARGET_FILE:testfpu> --run_test=FMUL/*)
+add_test(NAME fsmul COMMAND $<TARGET_FILE:testfpu> --run_test=FSMUL/*)
+add_test(NAME fdmul COMMAND $<TARGET_FILE:testfpu> --run_test=FDMUL/*)
+add_test(NAME fneg COMMAND $<TARGET_FILE:testfpu> --run_test=FNEG/*)
+add_test(NAME fsneg COMMAND $<TARGET_FILE:testfpu> --run_test=FSNEG/*)
+add_test(NAME fdneg COMMAND $<TARGET_FILE:testfpu> --run_test=FDNEG/*)
+add_test(NAME fnop COMMAND $<TARGET_FILE:testfpu> --run_test=FNOP)
+add_test(NAME frem COMMAND $<TARGET_FILE:testfpu> --run_test=FREM/*)
+add_test(NAME fscale COMMAND $<TARGET_FILE:testfpu> --run_test=FSCALE/*)
+add_test(NAME fsgldiv COMMAND $<TARGET_FILE:testfpu> --run_test=FSGLDIV/*)
+add_test(NAME fsglmul COMMAND $<TARGET_FILE:testfpu> --run_test=FSGLMUL/*)
+add_test(NAME fsin COMMAND $<TARGET_FILE:testfpu> --run_test=FSIN/*)
+add_test(NAME fsincos COMMAND $<TARGET_FILE:testfpu> --run_test=FSINCOS/*)
+add_test(NAME fsinh COMMAND $<TARGET_FILE:testfpu> --run_test=FSINH/*)
+add_test(NAME fsqrt COMMAND $<TARGET_FILE:testfpu> --run_test=FSQRT/*)
+add_test(NAME fssqrt COMMAND $<TARGET_FILE:testfpu> --run_test=FSSQRT/*)
+add_test(NAME fdsqrt COMMAND $<TARGET_FILE:testfpu> --run_test=FDSQRT/*)
+add_test(NAME fsub COMMAND $<TARGET_FILE:testfpu> --run_test=FSUB/*)
+add_test(NAME fssub COMMAND $<TARGET_FILE:testfpu> --run_test=FSSUB/*)
+add_test(NAME fdsub COMMAND $<TARGET_FILE:testfpu> --run_test=FDSUB/*)
+add_test(NAME ftan COMMAND $<TARGET_FILE:testfpu> --run_test=FTAN/*)
+add_test(NAME ftanh COMMAND $<TARGET_FILE:testfpu> --run_test=FTANH/*)
+add_test(NAME ftentox COMMAND $<TARGET_FILE:testfpu> --run_test=FTENTOX/*)
+add_test(NAME ftrapcc COMMAND $<TARGET_FILE:testfpu> --run_test=FTRAPcc/*)
+add_test(NAME ftst COMMAND $<TARGET_FILE:testfpu> --run_test=FTST/*)
+add_test(NAME ftwotox COMMAND $<TARGET_FILE:testfpu> --run_test=FTWOTOX/*)
 
 

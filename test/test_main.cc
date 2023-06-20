@@ -13,6 +13,9 @@ std::vector<uint8_t> RAM;
 const std::uint8_t *ROM;
 size_t ROMSize;
 Cpu cpu;
+const double sg_v[] = { -1.0, 1.0};
+const mpfr_rnd_t RND_MODES[4] = {MPFR_RNDN, MPFR_RNDZ, MPFR_RNDU, MPFR_RNDD};
+
 void initBus();
 void init_fpu();
 Prepare::Prepare() {
