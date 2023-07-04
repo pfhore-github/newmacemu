@@ -4,20 +4,10 @@
 #include <boost/test/data/monomorphic.hpp>
 #include <boost/test/data/test_case.hpp>
 #include <boost/test/unit_test.hpp>
-void trap_ng() {
-    if(setjmp(cpu.ex_buf) == 0) {
-        decode_and_run();
-        BOOST_ERROR("exception unoccured");
-    } else {
-        BOOST_TEST(cpu.ex_n == 7);
-    }
-}
-void trap_ok() {
-    decode_and_run();
-    BOOST_TEST_PASSPOINT();
-}
+void trap_ng();
+void trap_ok();
 namespace bdata = boost::unit_test::data;
-BOOST_FIXTURE_TEST_SUITE(FTAPcc, Prepare)
+BOOST_FIXTURE_TEST_SUITE(FTRAPcc, Prepare)
 BOOST_AUTO_TEST_CASE(ImmNone) {
     TEST::SET_W(0, 0171170 | 4);
     TEST::SET_W(2, 0);

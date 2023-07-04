@@ -5,11 +5,12 @@
 #include <boost/test/data/test_case.hpp>
 #include <boost/test/unit_test.hpp>
 namespace bdata = boost::unit_test::data;
-BOOST_FIXTURE_TEST_CASE(RTR, Prepare) {
+BOOST_DATA_TEST_CASE_F(Prepare, RTR, bdata::xrange(2), T) {
     TEST::SET_W(0, 0047167);
     TEST::SET_W(0x1000, 0x1F);
     TEST::SET_L(0x1002, 0x400);
     cpu.A[7] = 0x1000;
+    cpu.T = T;
     auto i = decode_and_run();
     BOOST_TEST(cpu.nextpc == 0x400);
     BOOST_TEST(cpu.A[7] == 0x1006);
@@ -19,6 +20,5 @@ BOOST_FIXTURE_TEST_CASE(RTR, Prepare) {
     BOOST_TEST(cpu.C);
     BOOST_TEST(cpu.Z);
     BOOST_TEST(i == 0);
-
+    BOOST_TEST(cpu.must_trace == !!T);
 }
-

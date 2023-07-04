@@ -1,6 +1,6 @@
 #include "68040.hpp"
 #include "exception.hpp"
-#include "inline.hpp"
+#include "proto.hpp"
 #include "memory.hpp"
 #include <errno.h>
 #include <fcntl.h>
@@ -31,7 +31,9 @@ int main() {
     initBus();
     cpu.PC = 0x2A;
     for(;;) {
-        if(setjmp(cpu.ex_buf) == 0) {
+        if(setjmp(cpu.ex_buf) == 0) {            
+            cpu.af_value.ea = 0;
+            cpu.must_trace = cpu.T == 2;
             auto o = cpu.icache.find(cpu.PC);
             if(o == cpu.icache.end()) {
                 try {
@@ -44,6 +46,9 @@ int main() {
             cpu.nextpc = cpu.PC + 2 + o->second.second;
             o->second.first();
             cpu.PC = cpu.nextpc;
+            if( cpu.T == 2) {
+                TRACE();
+            }
         } else {
            do_exception();
         }

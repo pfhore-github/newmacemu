@@ -1,20 +1,24 @@
 #include "68040.hpp"
 #include "bus.hpp"
 #include "exception.hpp"
-#include "inline.hpp"
 #include "memory.hpp"
+#include "proto.hpp"
 #include <memory>
 void MOVEM_W_TO_MEM_DECR(uint16_t regs, uint8_t reg) {
+    cpu.af_value.CM = true;
     for(int i = cpu.movem_cnt; i < 16; ++i) {
         if(regs & 1 << i) {
             MMU_WriteW(cpu.A[reg] -= 2, cpu.R(15 - i));
         }
         cpu.movem_cnt = i;
     }
+    // DONE
+    cpu.movem_cnt = 0;
+    cpu.af_value.CM = false;
 }
 
 void MOVEM_W_TO_MEM_ADDR(uint16_t regs) {
-
+    cpu.af_value.CM = true;
     for(int i = cpu.movem_cnt; i < 16; ++i) {
         if(regs & 1 << i) {
             MMU_WriteW(cpu.movem_addr, cpu.R(i));
@@ -22,9 +26,13 @@ void MOVEM_W_TO_MEM_ADDR(uint16_t regs) {
         }
         cpu.movem_cnt = i;
     }
+    // DONE
+    cpu.movem_cnt = 0;
+    cpu.af_value.CM = false;
 }
 
 void MOVEM_W_FROM_MEM_INCR(uint16_t regs, uint8_t reg) {
+    cpu.af_value.CM = true;
     for(int i = cpu.movem_cnt; i < 16; ++i) {
         if(regs & 1 << i) {
             if(i > 7) {
@@ -36,10 +44,13 @@ void MOVEM_W_FROM_MEM_INCR(uint16_t regs, uint8_t reg) {
         }
         cpu.movem_cnt = i;
     }
+    // DONE
+    cpu.movem_cnt = 0;
+    cpu.af_value.CM = false;
 }
 
 void MOVEM_W_FROM_MEM_ADDR(uint16_t regs) {
-
+    cpu.af_value.CM = true;
     for(int i = cpu.movem_cnt; i < 16; ++i) {
         if(regs & 1 << i) {
             if(i > 7) {
@@ -51,6 +62,9 @@ void MOVEM_W_FROM_MEM_ADDR(uint16_t regs) {
         }
         cpu.movem_cnt = i;
     }
+    // DONE
+    cpu.movem_cnt = 0;
+    cpu.af_value.CM = false;
 }
 
 void MOVEM_L_TO_MEM_DECR(uint16_t regs, uint8_t reg) {

@@ -32,18 +32,29 @@ inline static void writeBE16(uint8_t *base, uint32_t offset, uint16_t v) {
 inline static void writeBE32(uint8_t *base, uint32_t offset, uint32_t v) {
     *reinterpret_cast<uint32_t *>(base + offset) = SDL_SwapBE32(v);
 }
+struct AccessFault {};
 class BusBase {
   public:
-    virtual uint8_t ReadB(uint32_t address) = 0;
-    virtual uint16_t ReadW(uint32_t address) = 0;
-    virtual uint32_t ReadL(uint32_t address) = 0;
-    virtual void Read16B(uint32_t address, uint8_t *dst) = 0;
-    virtual void WriteB(uint32_t address, uint8_t from) = 0;
-    virtual void WriteW(uint32_t address, uint16_t from) = 0;
-    virtual void WriteL(uint32_t address, uint32_t from) = 0;
-    virtual void Write16B(uint32_t address, const uint8_t *dst) = 0;
+    virtual uint8_t ReadB(uint32_t /* address */) { throw AccessFault{}; }
+    virtual uint16_t ReadW(uint32_t /* address */) { throw AccessFault{}; }
+    virtual uint32_t ReadL(uint32_t /* address */) { throw AccessFault{}; }
+    virtual void Read16B(uint32_t /* address */, uint8_t * /* dst */) {
+        throw AccessFault{};
+    }
+    virtual void WriteB(uint32_t /* address */, uint8_t /* from */) {
+        throw AccessFault{};
+    }
+    virtual void WriteW(uint32_t /* address */, uint16_t /* from */) {
+        throw AccessFault{};
+    }
+    virtual void WriteL(uint32_t /* address */, uint32_t /* from */) {
+        throw AccessFault{};
+    }
+    virtual void Write16B(uint32_t /* address */, const uint8_t * /* dst */) {
+        throw AccessFault{};
+    }
+    virtual ~BusBase() {}
 };
-struct AccessFault {};
 class RomBus : public BusBase {
   public:
     uint8_t ReadB(uint32_t address) override {
@@ -64,16 +75,12 @@ class RomBus : public BusBase {
         }
         return readBE32(ROM, address);
     }
-    virtual void Read16B(uint32_t address, uint8_t *dst) {
+    void Read16B(uint32_t address, uint8_t *dst) override {
         if(address >= ROMSize) {
             throw AccessFault{};
         }
         memcpy(dst, ROM + address, 16);
     }
-    void WriteB(uint32_t, uint8_t) { throw AccessFault{}; }
-    void WriteW(uint32_t, uint16_t) { throw AccessFault{}; }
-    void WriteL(uint32_t, uint32_t) { throw AccessFault{}; }
-    void Write16B(uint32_t, const uint8_t *) { throw AccessFault{}; }
 
     RomBus() {}
 };
@@ -169,7 +176,6 @@ class IOBus : public BusBase {
     uint8_t ReadB(uint32_t address) override { return LoadIO_B(address); }
     uint16_t ReadW(uint32_t address) override { return LoadIO_W(address); }
     uint32_t ReadL(uint32_t address) override { return LoadIO_L(address); }
-    void Read16B(uint32_t, uint8_t *) override { throw AccessFault{}; }
     void WriteB(uint32_t address, uint8_t from) override {
         StoreIO_B(address, from);
     }
@@ -179,7 +185,6 @@ class IOBus : public BusBase {
     void WriteL(uint32_t address, uint32_t from) override {
         StoreIO_L(address, from);
     }
-    void Write16B(uint32_t, const uint8_t *) override { throw AccessFault{}; }
     IOBus() {}
 };
 
@@ -191,129 +196,50 @@ void initBus() {
     busMap[3] = std::make_unique<RamBus>();
     busMap[4] = std::make_unique<RomBus>();
     busMap[5] = std::make_unique<IOBus>();
+    for(int i = 6; i < 0x10; ++i) {
+        busMap[i] = std::make_unique<BusBase>();
+    }
 }
+struct __attribute__((packed)) BusAddr {
+    uint32_t offset : 28;
+    uint8_t top : 4;
+};
+static_assert(sizeof(BusAddr) == sizeof(uint32_t));
 
 uint8_t BusReadB(uint32_t addr) {
-    uint8_t top = addr >> 28;
-    uint32_t offset = addr & 0x3fffffff;
-    return busMap[top]->ReadB(offset);
+    auto ba = std::bit_cast<BusAddr>(addr);
+    return busMap[ba.top]->ReadB(ba.offset);
 }
 void BusWriteB(uint32_t addr, uint8_t v) {
-    uint8_t top = addr >> 28;
-    uint32_t offset = addr & 0x3fffffff;
-    busMap[top]->WriteB(offset, v);
+    auto ba = std::bit_cast<BusAddr>(addr);
+    busMap[ba.top]->WriteB(ba.offset, v);
 }
 uint16_t BusReadW(uint32_t addr) {
-    if(addr & 1) {
-        uint16_t v = BusReadB(addr) << 8;
-        try {
-            v |= BusReadB(addr + 1);
-        } catch(AccessFault &e) {
-            cpu.af_value.MA = true;
-            cpu.af_value.addr = addr;
-            throw e;
-        }
-        return v;
-    } else {
-        uint8_t top = addr >> 28;
-        uint32_t offset = addr & 0x3fffffff;
-        return busMap[top]->ReadW(offset);
-    }
+    auto ba = std::bit_cast<BusAddr>(addr);
+    return busMap[ba.top]->ReadW(ba.offset);
 }
+
 void BusWriteW(uint32_t addr, uint16_t v) {
-    if(addr & 1) {
-        BusWriteB(addr, v >> 8);
-        try {
-            BusWriteB(addr + 1, v);
-        } catch(AccessFault &e) {
-            cpu.af_value.addr = addr;
-            cpu.af_value.MA = true;
-            throw e;
-        }
-    } else {
-        uint8_t top = addr >> 28;
-        uint32_t offset = addr & 0x3fffffff;
-        busMap[top]->WriteW(offset, v);
-    }
+    auto ba = std::bit_cast<BusAddr>(addr);
+    busMap[ba.top]->WriteW(ba.offset, v);
 }
 uint32_t BusReadL(uint32_t addr) {
-    if(addr & 2) {
-        uint32_t v = BusReadW(addr) << 16;
-        try {
-            v |= BusReadW(addr + 2);
-        } catch(AccessFault &e) {
-            cpu.af_value.addr = addr;
-            cpu.af_value.MA = true;
-            throw e;
-        }
-        return v;
-    } else {
-        uint8_t top = addr >> 28;
-        uint32_t offset = addr & 0x3fffffff;
-        return busMap[top]->ReadL(offset);
-    }
+    auto ba = std::bit_cast<BusAddr>(addr);
+    return busMap[ba.top]->ReadL(ba.offset);
 }
 void BusWriteL(uint32_t addr, uint32_t v) {
-    if(addr & 2) {
-        BusWriteW(addr, v >> 16);
-        try {
-            BusWriteW(addr + 2, v);
-        } catch(AccessFault &e) {
-            cpu.af_value.addr = addr;
-            cpu.af_value.MA = true;
-            throw e;
-        }
-    } else {
-        uint8_t top = addr >> 28;
-        uint32_t offset = addr & 0x3fffffff;
-        busMap[top]->WriteL(offset, v);
-    }
+    auto ba = std::bit_cast<BusAddr>(addr);
+    busMap[ba.top]->WriteL(ba.offset, v);
 }
 
-void BusAccess(MemBus &bus) {
+uint32_t ptest_and_raise(uint32_t addr, bool sys, bool code, bool W);
+void MMU_Read16(uint32_t from, uint8_t *to) {
     try {
-        switch(bus.sz) {
-        case SIZ::B:
-            if(bus.RW) {
-                bus.D = BusReadB(bus.A);
-            } else {
-                BusWriteB(bus.A, bus.D);
-            }
-            break;
-        case SIZ::W:
-            if(bus.RW) {
-                bus.D = BusReadW(bus.A);
-            } else {
-                BusWriteW(bus.A, bus.D);
-            }
-            break;
-        case SIZ::L:
-            if(bus.RW) {
-                bus.D = BusReadL(bus.A);
-            } else {
-                BusWriteL(bus.A, bus.D);
-            }
-            break;
-        default:
-            ILLEGAL_OP();
-        }
-    } catch(AccessFault &e) {
-        cpu.af_value.addr = bus.A;
-        cpu.af_value.ea = 0;
-        cpu.af_value.RW = bus.RW;
-        cpu.af_value.size = bus.sz;
-        cpu.af_value.tt = TT::NORMAL;
-        cpu.af_value.tm = bus.tm;
-        ACCESS_FAULT();
-    }
-}
-
-void BusRead16(uint32_t from, uint8_t *to) {
-    try {
-        uint8_t top = from >> 28;
-        uint32_t offset = from & 0x3fffffff;
-        busMap[top]->Read16B(offset, to);
-    } catch(AccessFault &e) {
+        auto paddr = ptest_and_raise(from & 0xFFFFF000, cpu.S, false, false) |
+                     (from & 0xfff);
+        auto ba = std::bit_cast<BusAddr>(paddr);
+        busMap[ba.top]->Read16B(ba.offset, to);
+    } catch(AccessFault &) {
         cpu.af_value.addr = from;
         cpu.af_value.ea = 0;
         cpu.af_value.RW = true;
@@ -324,12 +250,13 @@ void BusRead16(uint32_t from, uint8_t *to) {
     }
 }
 
-void BusWrite16(uint32_t from, const uint8_t *to) {
+void MMU_Write16(uint32_t from, const uint8_t *to) {
     try {
-        uint8_t top = from >> 28;
-        uint32_t offset = from & 0x3fffffff;
-        busMap[top]->Write16B(offset, to);
-    } catch(AccessFault &e) {
+        auto paddr = ptest_and_raise(from & 0xFFFFF000, cpu.S, false, true) |
+                     (from & 0xfff);
+        auto ba = std::bit_cast<BusAddr>(paddr);
+        busMap[ba.top]->Write16B(ba.offset, to);
+    } catch(AccessFault &) {
         cpu.af_value.addr = from;
         cpu.af_value.ea = 0;
         cpu.af_value.RW = false;
@@ -338,4 +265,9 @@ void BusWrite16(uint32_t from, const uint8_t *to) {
         cpu.af_value.tm = TM::USER_DATA;
         ACCESS_FAULT();
     }
+}
+void MMU_Transfer16(uint32_t from, uint32_t to) {
+    uint8_t buf[16];
+    MMU_Read16(from &~ 0xf, buf);
+    MMU_Write16(to &~ 0xf, buf);
 }

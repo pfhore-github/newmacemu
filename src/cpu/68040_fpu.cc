@@ -2,7 +2,7 @@
 #include "bus.hpp"
 #include "exception.hpp"
 #include "gmp.h"
-#include "inline.hpp"
+#include "proto.hpp"
 #include "memory.hpp"
 #include "mpfr.h"
 #include <memory>
@@ -125,7 +125,7 @@ std::pair<std::function<void()>, int> fpu_load(int t, int type, int reg) {
     switch(t) {
     case 0: {
         auto [f, i] = ea_read32(type, reg, cpu.PC + 4);
-        return {[f]() {
+        return {[f = std::move(f)]() {
                     mpfr_set_si(cpu.fp_tmp, static_cast<int32_t>(f()),
                                 cpu.FPCR.RND);
                 },
@@ -133,11 +133,11 @@ std::pair<std::function<void()>, int> fpu_load(int t, int type, int reg) {
     }
     case 1: {
         auto [f, i] = ea_read32(type, reg, cpu.PC + 4);
-        return {[f]() { load_fpS(f()); }, i + 2};
+        return {[f = std::move(f)]() { load_fpS(f()); }, i + 2};
     }
     case 2: {
         auto [f, i] = ea_addr(type, reg, cpu.PC + 4, 12, false);
-        return {[f]() {
+        return {[f = std::move(f)]() {
                     cpu.EA = f();
                     uint16_t exp = MMU_ReadW(cpu.EA);
                     uint64_t frac = loadLL(cpu.EA + 4);
@@ -147,11 +147,11 @@ std::pair<std::function<void()>, int> fpu_load(int t, int type, int reg) {
     }
     case 3: {
         auto [f, i] = ea_addr(type, reg, cpu.PC + 4, 12, false);
-        return {[f]() { load_fpP(cpu.EA = f()); }, i + 2};
+        return {[f = std::move(f)]() { load_fpP(cpu.EA = f()); }, i + 2};
     }
     case 4: {
         auto [f, i] = ea_read16(type, reg, cpu.PC + 4);
-        return {[f]() {
+        return {[f = std::move(f)]() {
                     mpfr_set_si(cpu.fp_tmp, static_cast<int16_t>(f()),
                                 cpu.FPCR.RND);
                 },
@@ -159,7 +159,7 @@ std::pair<std::function<void()>, int> fpu_load(int t, int type, int reg) {
     }
     case 5: {
         auto [f, i] = ea_addr(type, reg, cpu.PC + 4, 8, false);
-        return {[f]() {
+        return {[f = std::move(f)]() {
                     uint64_t frac = loadLL(cpu.EA = f());
                     load_fpD(frac);
                 },
@@ -167,7 +167,7 @@ std::pair<std::function<void()>, int> fpu_load(int t, int type, int reg) {
     }
     case 6: {
         auto [f, i] = ea_read8(type, reg, cpu.PC + 4);
-        return {[f]() {
+        return {[f  = std::move(f)]() {
                     mpfr_set_si(cpu.fp_tmp, static_cast<int8_t>(f()),
                                 cpu.FPCR.RND);
                 },
@@ -378,7 +378,7 @@ std::pair<std::function<void()>, int> fpu_store(int t, int type, int reg,
     switch(t) {
     case 0: {
         auto [f, i] = ea_write32(type, reg, cpu.PC + 4);
-        return {[f, fpn]() {
+        return {[f = std::move(f), fpn]() {
                     mpfr_set(cpu.fp_tmp, cpu.FP[fpn], cpu.FPCR.RND);
                     cpu.fp_tmp_nan = cpu.FP_nan[fpn];
                     f(store_fpL());
@@ -388,7 +388,7 @@ std::pair<std::function<void()>, int> fpu_store(int t, int type, int reg,
     }
     case 1: {
         auto [f, i] = ea_write32(type, reg, cpu.PC + 4);
-        return {[f, fpn]() {
+        return {[f = std::move(f), fpn]() {
                     mpfr_set(cpu.fp_tmp, cpu.FP[fpn], cpu.FPCR.RND);
                     cpu.fp_tmp_nan = cpu.FP_nan[fpn];
                     f(store_fpS());
@@ -398,7 +398,7 @@ std::pair<std::function<void()>, int> fpu_store(int t, int type, int reg,
     }
     case 2: {
         auto [f, i] = ea_addr(type, reg, cpu.PC + 4, 12, true);
-        return {[f, fpn]() {
+        return {[f = std::move(f), fpn]() {
                     mpfr_set(cpu.fp_tmp, cpu.FP[fpn], cpu.FPCR.RND);
                     cpu.fp_tmp_nan = cpu.FP_nan[fpn];
                     cpu.EA = f();
@@ -411,7 +411,7 @@ std::pair<std::function<void()>, int> fpu_store(int t, int type, int reg,
     }
     case 3: {
         auto [f, i] = ea_addr(type, reg, cpu.PC + 4, 12, true);
-        return {[f, k, fpn]() {
+        return {[f = std::move(f), k, fpn]() {
                     mpfr_set(cpu.fp_tmp, cpu.FP[fpn], cpu.FPCR.RND);
                     cpu.fp_tmp_nan = cpu.FP_nan[fpn];
                     store_fpP(cpu.EA = f(), k);
@@ -421,7 +421,7 @@ std::pair<std::function<void()>, int> fpu_store(int t, int type, int reg,
     }
     case 4: {
         auto [f, i] = ea_write16(type, reg, cpu.PC + 4);
-        return {[f, fpn]() {
+        return {[f = std::move(f), fpn]() {
                     mpfr_set(cpu.fp_tmp, cpu.FP[fpn], cpu.FPCR.RND);
                     cpu.fp_tmp_nan = cpu.FP_nan[fpn];
                     f(fpu_storeW());
@@ -431,7 +431,7 @@ std::pair<std::function<void()>, int> fpu_store(int t, int type, int reg,
     }
     case 5: {
         auto [f, i] = ea_addr(type, reg, cpu.PC + 4, 8, true);
-        return {[f, fpn]() {
+        return {[f = std::move(f), fpn]() {
                     mpfr_set(cpu.fp_tmp, cpu.FP[fpn], cpu.FPCR.RND);
                     cpu.fp_tmp_nan = cpu.FP_nan[fpn];
                     WriteLL(cpu.EA = f(), store_fpD());
@@ -441,7 +441,7 @@ std::pair<std::function<void()>, int> fpu_store(int t, int type, int reg,
     }
     case 6: {
         auto [f, i] = ea_write8(type, reg, cpu.PC + 4);
-        return {[f, fpn]() {
+        return {[f = std::move(f), fpn]() {
                     mpfr_set(cpu.fp_tmp, cpu.FP[fpn], cpu.FPCR.RND);
                     cpu.fp_tmp_nan = cpu.FP_nan[fpn];
                     f(store_fpB());
@@ -451,7 +451,7 @@ std::pair<std::function<void()>, int> fpu_store(int t, int type, int reg,
     }
     case 7: {
         auto [f, i] = ea_addr(type, reg, cpu.PC + 4, 12, true);
-        return {[f, k = k >> 4, fpn]() {
+        return {[f = std::move(f), k = k >> 4, fpn]() {
                     mpfr_set(cpu.fp_tmp, cpu.FP[fpn], cpu.FPCR.RND);
                     cpu.fp_tmp_nan = cpu.FP_nan[fpn];
                     store_fpP(cpu.EA = f(), static_cast<int8_t>(cpu.D[k]));
@@ -1067,7 +1067,7 @@ std::function<void()> fop_to_reg(std::function<void()> f, int opc, int fpn) {
 
                 cpu.fp_tmp_tv = mpfr_remquo(cpu.fp_tmp, &q, cpu.fp_tmp,
                                             cpu.FP[fpn], cpu.FPCR.RND);
-                cpu.FPSR.Quat = abs(q) & 0x7f;
+                cpu.FPSR.Quat = std::abs(q) & 0x7f;
                 cpu.FPSR.QuatSign = q < 0;
             }
             store_fpr(fpn);
@@ -1583,37 +1583,61 @@ std::pair<std::function<void()>, int> decode_fpu(int sz, int type, int reg) {
                         case 1: // IR only
                         {
                             auto [r, o] = ea_read32(type, reg, 4);
-                            return {[r]() { cpu.FPIAR = r(); }, o + 2};
+                            return {[r = std::move(r)]() {
+                                        cpu.FPIAR = r();
+                                        if(cpu.T == 1) {
+                                            cpu.must_trace = true;
+                                        }
+                                    },
+                                    o + 2};
                         }
                         case 2: // FPSR only
                         {
                             auto [r, o] = ea_read32(type, reg, 4);
-                            return {[r]() { Set_FPSR(r()); }, o + 2};
+                            return {[r = std::move(r)]() {
+                                        Set_FPSR(r());
+                                        if(cpu.T == 1) {
+                                            cpu.must_trace = true;
+                                        }
+                                    },
+                                    o + 2};
                         }
                         case 3: // FPSR & IR
                         {
                             auto [a, o] =
                                 ea_addr(type, reg, cpu.PC + 2, 8, false);
-                            return {[a]() {
+                            return {[a = std::move(a)]() {
                                         cpu.EA = a();
                                         Set_FPSR(MMU_ReadL(cpu.EA));
                                         cpu.FPIAR = MMU_ReadL(cpu.EA + 4);
+                                        if(cpu.T == 1) {
+                                            cpu.must_trace = true;
+                                        }
                                     },
                                     o + 2};
                         }
                         case 4: // FPCR only
                         {
                             auto [r, o] = ea_read32(type, reg, 4);
-                            return {[r]() { Set_FPCR(r()); }, o + 2};
+                            return {[r = std::move(r)]() {
+                                        Set_FPCR(r());
+                                        if(cpu.T == 1) {
+                                            cpu.must_trace = true;
+                                        }
+                                    },
+                                    o + 2};
                         }
                         case 5: // FPCR & IR
                         {
                             auto [a, o] =
                                 ea_addr(type, reg, cpu.PC + 2, 8, false);
-                            return {[a]() {
+                            return {[a = std::move(a)]() {
                                         cpu.EA = a();
                                         Set_FPCR(MMU_ReadL(cpu.EA));
                                         cpu.FPIAR = MMU_ReadL(cpu.EA + 4);
+                                        if(cpu.T == 1) {
+                                            cpu.must_trace = true;
+                                        }
                                     },
                                     o + 2};
                         }
@@ -1621,10 +1645,13 @@ std::pair<std::function<void()>, int> decode_fpu(int sz, int type, int reg) {
                         {
                             auto [a, o] =
                                 ea_addr(type, reg, cpu.PC + 2, 8, false);
-                            return {[a]() {
+                            return {[a = std::move(a)]() {
                                         cpu.EA = a();
                                         Set_FPCR(MMU_ReadL(cpu.EA));
                                         Set_FPSR(MMU_ReadL(cpu.EA + 4));
+                                        if(cpu.T == 1) {
+                                            cpu.must_trace = true;
+                                        }
                                     },
                                     o + 2};
                         }
@@ -1632,11 +1659,14 @@ std::pair<std::function<void()>, int> decode_fpu(int sz, int type, int reg) {
                         {
                             auto [a, o] =
                                 ea_addr(type, reg, cpu.PC + 2, 12, false);
-                            return {[a]() {
+                            return {[a = std::move(a)]() {
                                         cpu.EA = a();
                                         Set_FPCR(MMU_ReadL(cpu.EA));
                                         Set_FPSR(MMU_ReadL(cpu.EA + 4));
                                         cpu.FPIAR = MMU_ReadL(cpu.EA + 8);
+                                        if(cpu.T == 1) {
+                                            cpu.must_trace = true;
+                                        }
                                     },
                                     o + 2};
                         }
@@ -1649,37 +1679,61 @@ std::pair<std::function<void()>, int> decode_fpu(int sz, int type, int reg) {
                         case 1: // IR only
                         {
                             auto [w, o] = ea_write32(type, reg, 4);
-                            return {[w]() { w(cpu.FPIAR); }, o + 2};
+                            return {[w = std::move(w)]() {
+                                        w(cpu.FPIAR);
+                                        if(cpu.T == 1) {
+                                            cpu.must_trace = true;
+                                        }
+                                    },
+                                    o + 2};
                         }
                         case 2: // FPSR only
                         {
                             auto [w, o] = ea_write32(type, reg, 4);
-                            return {[w]() { w(Get_FPSR()); }, o + 2};
+                            return {[w = std::move(w)]() {
+                                        w(Get_FPSR());
+                                        if(cpu.T == 1) {
+                                            cpu.must_trace = true;
+                                        }
+                                    },
+                                    o + 2};
                         }
                         case 3: // FPSR & IR
                         {
                             auto [a, o] =
                                 ea_addr(type, reg, cpu.PC + 2, 8, true);
-                            return {[a]() {
+                            return {[a = std::move(a)]() {
                                         cpu.EA = a();
                                         MMU_WriteL(cpu.EA, Get_FPSR());
                                         MMU_WriteL(cpu.EA + 4, cpu.FPIAR);
+                                        if(cpu.T == 1) {
+                                            cpu.must_trace = true;
+                                        }
                                     },
                                     o + 2};
                         }
                         case 4: // FPCR only
                         {
                             auto [w, o] = ea_write32(type, reg, 4);
-                            return {[w]() { w(Get_FPCR()); }, o + 2};
+                            return {[w = std::move(w)]() {
+                                        w(Get_FPCR());
+                                        if(cpu.T == 1) {
+                                            cpu.must_trace = true;
+                                        }
+                                    },
+                                    o + 2};
                         }
                         case 5: // FPCR & IR
                         {
                             auto [a, o] =
                                 ea_addr(type, reg, cpu.PC + 2, 8, true);
-                            return {[a]() {
+                            return {[a = std::move(a)]() {
                                         cpu.EA = a();
                                         MMU_WriteL(cpu.EA, Get_FPCR());
                                         MMU_WriteL(cpu.EA + 4, cpu.FPIAR);
+                                        if(cpu.T == 1) {
+                                            cpu.must_trace = true;
+                                        }
                                     },
                                     o + 2};
                         }
@@ -1687,10 +1741,13 @@ std::pair<std::function<void()>, int> decode_fpu(int sz, int type, int reg) {
                         {
                             auto [a, o] =
                                 ea_addr(type, reg, cpu.PC + 2, 8, true);
-                            return {[a]() {
+                            return {[a = std::move(a)]() {
                                         cpu.EA = a();
                                         MMU_WriteL(cpu.EA, Get_FPCR());
                                         MMU_WriteL(cpu.EA + 4, Get_FPSR());
+                                        if(cpu.T == 1) {
+                                            cpu.must_trace = true;
+                                        }
                                     },
                                     o + 2};
                         }
@@ -1698,11 +1755,14 @@ std::pair<std::function<void()>, int> decode_fpu(int sz, int type, int reg) {
                         {
                             auto [a, o] =
                                 ea_addr(type, reg, cpu.PC + 2, 12, true);
-                            return {[a]() {
+                            return {[a = std::move(a)]() {
                                         cpu.EA = a();
                                         MMU_WriteL(cpu.EA, Get_FPCR());
                                         MMU_WriteL(cpu.EA + 4, Get_FPSR());
                                         MMU_WriteL(cpu.EA + 8, cpu.FPIAR);
+                                        if(cpu.T == 1) {
+                                            cpu.must_trace = true;
+                                        }
                                     },
                                     o + 2};
                         }
@@ -1718,14 +1778,20 @@ std::pair<std::function<void()>, int> decode_fpu(int sz, int type, int reg) {
                                 return {[reg, reglist]() {
                                             cpu.A[reg] = fmovem_to_reg(
                                                 cpu.A[reg], reglist);
+                                            if(cpu.T == 1) {
+                                                cpu.must_trace = true;
+                                            }
                                         },
                                         2};
                             } else {
                                 auto [a, i] =
                                     ea_addr(type, reg, cpu.PC + 2, 0, false);
-                                return {[a, reglist]() {
+                                return {[a = std::move(a), reglist]() {
                                             fmovem_to_reg(cpu.EA = a(),
                                                           reglist);
+                                            if(cpu.T == 1) {
+                                                cpu.must_trace = true;
+                                            }
                                         },
                                         2};
                             }
@@ -1737,15 +1803,21 @@ std::pair<std::function<void()>, int> decode_fpu(int sz, int type, int reg) {
                                             uint8_t reglist = cpu.D[nd];
                                             cpu.A[reg] = fmovem_to_reg(
                                                 cpu.A[reg], reglist);
+                                            if(cpu.T == 1) {
+                                                cpu.must_trace = true;
+                                            }
                                         },
                                         2};
                             } else {
                                 auto [a, i] =
                                     ea_addr(type, reg, cpu.PC + 2, 0, false);
-                                return {[a, nd]() {
+                                return {[a = std::move(a), nd]() {
                                             uint8_t reglist = cpu.D[nd];
                                             fmovem_to_reg(cpu.EA = a(),
                                                           reglist);
+                                            if(cpu.T == 1) {
+                                                cpu.must_trace = true;
+                                            }
                                         },
                                         2};
                             }
@@ -1758,14 +1830,20 @@ std::pair<std::function<void()>, int> decode_fpu(int sz, int type, int reg) {
                                 return {[reg, reglist]() {
                                             cpu.A[reg] = fmovem_from_reg_rev(
                                                 cpu.A[reg], reglist);
+                                            if(cpu.T == 1) {
+                                                cpu.must_trace = true;
+                                            }
                                         },
                                         2};
                             } else {
                                 auto [a, i] =
                                     ea_addr(type, reg, cpu.PC + 2, 0, true);
-                                return {[a, reglist]() {
+                                return {[a = std::move(a), reglist]() {
                                             fmovem_from_reg(cpu.EA = a(),
                                                             reglist);
+                                            if(cpu.T == 1) {
+                                                cpu.must_trace = true;
+                                            }
                                         },
                                         2};
                             }
@@ -1777,15 +1855,21 @@ std::pair<std::function<void()>, int> decode_fpu(int sz, int type, int reg) {
                                             uint8_t reglist = cpu.D[nd];
                                             cpu.A[reg] = fmovem_from_reg_rev(
                                                 cpu.A[reg], reglist);
+                                            if(cpu.T == 1) {
+                                                cpu.must_trace = true;
+                                            }
                                         },
                                         2};
                             } else {
                                 auto [a, i] =
                                     ea_addr(type, reg, cpu.PC + 2, 0, true);
-                                return {[a, nd]() {
+                                return {[a = std::move(a), nd]() {
                                             uint8_t reglist = cpu.D[nd];
                                             fmovem_from_reg(cpu.EA = a(),
                                                             reglist);
+                                            if(cpu.T == 1) {
+                                                cpu.must_trace = true;
+                                            }
                                         },
                                         2};
                             }
@@ -1808,6 +1892,9 @@ std::pair<std::function<void()>, int> decode_fpu(int sz, int type, int reg) {
                                 if(v2 != -1) {
                                     JUMP(cpu.PC + 4 + offset);
                                 }
+                            }
+                            if(cpu.T == 1) {
+                                cpu.must_trace = true;
                             }
                         },
                         4};
@@ -1852,7 +1939,7 @@ std::pair<std::function<void()>, int> decode_fpu(int sz, int type, int reg) {
                 // FScc
                 uint16_t nextop = FETCH(cpu.PC + 2);
                 auto [w, i] = ea_write8(type, reg, cpu.PC + 4);
-                return {[w, c = nextop & 0x3f]() {
+                return {[w = std::move(w), c = nextop & 0x3f]() {
                             if(c & 1 << 4) {
                                 test_bsun();
                             }
@@ -1873,6 +1960,9 @@ std::pair<std::function<void()>, int> decode_fpu(int sz, int type, int reg) {
                         }
                         if(test_Fcc(c & 0xf)) {
                             JUMP(cpu.PC + 2 + offset);
+                            if(cpu.T == 1) {
+                                cpu.must_trace = true;
+                            }
                         }
                     },
                     2};
@@ -1885,6 +1975,9 @@ std::pair<std::function<void()>, int> decode_fpu(int sz, int type, int reg) {
                         }
                         if(test_Fcc(c & 0xf)) {
                             JUMP(cpu.PC + 2 + offset);
+                            if(cpu.T == 1) {
+                                cpu.must_trace = true;
+                            }
                         }
                     },
                     4};
@@ -1892,9 +1985,12 @@ std::pair<std::function<void()>, int> decode_fpu(int sz, int type, int reg) {
             // FSAVE
             // always save idle
             auto [w, i] = ea_write32(type, reg, cpu.PC + 2);
-            return {[w]() {
+            return {[w = std::move(w)]() {
                         if(!cpu.S) {
                             PRIV_ERROR();
+                        }
+                        if(cpu.T == 1) {
+                            cpu.must_trace = true;
                         }
                         w(0x41000000);
                     },
@@ -1913,6 +2009,9 @@ std::pair<std::function<void()>, int> decode_fpu(int sz, int type, int reg) {
                                 return;
                             } else if(first >> 24 != 0x41) {
                                 CPU_RAISE(14);
+                            }
+                            if(cpu.T == 1) {
+                                cpu.must_trace = true;
                             }
                             // only increment reg
                             switch(first >> 16 & 0xff) {
@@ -1933,7 +2032,7 @@ std::pair<std::function<void()>, int> decode_fpu(int sz, int type, int reg) {
                         2};
             } else {
                 auto [a, i] = ea_addr(type, reg, cpu.PC + 2, 0, false);
-                return {[a]() {
+                return {[a = std::move(a)]() {
                             if(!cpu.S) {
                                 PRIV_ERROR();
                             }

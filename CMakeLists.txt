@@ -1,25 +1,27 @@
+cmake_minimum_required(VERSION 3.26)
 project(newmacemu)
 enable_testing()
 include(CTest)
-cmake_minimum_required(VERSION 3.25)
+include(CheckIPOSupported)
+
+
+check_ipo_supported(RESULT result)
+
 find_package(SDL2 REQUIRED CONFIG REQUIRED COMPONENTS SDL2)
 enable_language(CXX)
-set(CMAKE_CXX_STANDARD 20) 
-set(CMAKE_CXX_STANDARD_REQUIRED ON) 
+set(CMAKE_CXX_STANDARD 23) 
+# set(CMAKE_CXX_STANDARD_REQUIRED ON) 
 find_package(Boost REQUIRED CONFIG REQUIRED COMPONENTS unit_test_framework)
-if(MSVC)
-  # Force to always compile with W4
-  if(CMAKE_CXX_FLAGS MATCHES "/W[0-4]")
-    string(REGEX REPLACE "/W[0-4]" "/W4" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-  else()
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W4")
-  endif()
-elseif(CMAKE_COMPILER_IS_GNUCC OR CMAKE_COMPILER_IS_GNUCXX)
+if(CMAKE_COMPILER_IS_GNUCXX)
   # Update if necessary
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra --coverage")
+  set(CMAKE_EXE_LINKER_FLAGS "--coverage")
 endif()
-add_executable(newmacemu src/cpu/m68k_ea.cc src/cpu/68040_mmu.cc src/cpu/exception.cc src/cpu/op_movem.cc src/cpu/68040_fpu.cc src/cpu/opcodes.cc src/68040.cc src/bus.cc src/memory.cc src/io.cc)
-add_executable(testcpu test/test_main.cc 
+set(SRC src/cpu/m68k_ea.cc src/cpu/bcd.cc src/cpu/arithmetic.cc src/cpu/bits.cc src/cpu/bitfield.cc
+src/cpu/68040_mmu.cc src/cpu/branch.cc
+src/cpu/exception.cc src/cpu/op_movem.cc src/cpu/68040_fpu.cc src/cpu/opcodes.cc src/bus.cc src/memory.cc src/io.cc)
+add_executable(newmacemu ${SRC} src/main.cc)
+add_executable(testcpu ${SRC} test/test_main.cc 
 test/cpu/ea.cc 
 test/cpu/abcd.cc test/cpu/nbcd.cc test/cpu/pack.cc test/cpu/sbcd.cc test/cpu/unpk.cc
 test/cpu/add.cc test/cpu/adda.cc test/cpu/addi.cc test/cpu/addq.cc test/cpu/addx.cc 
@@ -28,8 +30,8 @@ test/cpu/and.cc test/cpu/andi.cc
 test/cpu/cmp.cc test/cpu/cmpa.cc test/cpu/cmpi.cc test/cpu/cmpm.cc test/cpu/cmp2.cc
 test/cpu/asl.cc test/cpu/asr.cc test/cpu/lsl.cc  test/cpu/lsr.cc 
 test/cpu/rol.cc test/cpu/ror.cc test/cpu/roxl.cc  test/cpu/roxr.cc
-test/cpu/bcc.cc test/cpu/bra.cc test/cpu/dbcc.cc test/cpu/jmp.cc test/cpu/jsr.cc test/cpu/lea.cc test/cpu/pea.cc test/cpu/scc.cc
-test/cpu/bchg.cc test/cpu/bclr.cc test/cpu/bset.cc
+test/cpu/bcc.cc test/cpu/bra.cc test/cpu/bsr.cc test/cpu/dbcc.cc test/cpu/jmp.cc test/cpu/jsr.cc test/cpu/lea.cc test/cpu/pea.cc test/cpu/scc.cc
+test/cpu/bchg.cc test/cpu/bclr.cc test/cpu/bset.cc test/cpu/btst.cc
 test/cpu/bfchg.cc test/cpu/bfclr.cc test/cpu/bfexts.cc test/cpu/bfextu.cc test/cpu/bfffo.cc test/cpu/bfins.cc test/cpu/bfset.cc test/cpu/bftst.cc
 test/cpu/bkpt.cc test/cpu/chk.cc  test/cpu/chk2.cc
 test/cpu/cas.cc test/cpu/cas2.cc
@@ -42,10 +44,7 @@ test/cpu/link.cc test/cpu/rtd.cc  test/cpu/rtr.cc test/cpu/rts.cc test/cpu/unlk.
 test/cpu/move.cc test/cpu/movea.cc test/cpu/move16.cc test/cpu/movem.cc test/cpu/movep.cc test/cpu/moveq.cc
 test/cpu/or.cc test/cpu/ori.cc
 test/cpu/tas.cc test/cpu/tst.cc
-src/cpu/m68k_ea.cc src/cpu/68040_fpu.cc src/cpu/68040_mmu.cc src/cpu/exception.cc src/cpu/op_movem.cc src/cpu/opcodes.cc src/bus.cc src/memory.cc src/io.cc)
-add_executable(testfpu test/test_main.cc 
 test/fpu/common.cc
-src/cpu/m68k_ea.cc src/cpu/68040_fpu.cc src/cpu/68040_mmu.cc src/cpu/exception.cc src/cpu/op_movem.cc src/cpu/opcodes.cc src/bus.cc src/memory.cc src/io.cc
 test/fpu/fabs.cc test/fpu/fneg.cc  test/fpu/fsub.cc test/fpu/ftan.cc  test/fpu/ftanh.cc
 test/fpu/facos.cc test/fpu/fasin.cc  test/fpu/fatanh.cc  test/fpu/fsinh.cc  test/fpu/fcosh.cc
 test/fpu/fcos.cc test/fpu/fsin.cc test/fpu/fsincos.cc test/fpu/fatan.cc 
@@ -56,13 +55,16 @@ test/fpu/fadd.cc test/fpu/fdiv.cc test/fpu/fmod.cc test/fpu/fmul.cc test/fpu/fre
 test/fpu/fsgldiv.cc test/fpu/fsglmul.cc
 test/fpu/fmove.cc test/fpu/fmovecr.cc test/fpu/fmovem.cc test/fpu/ftrapcc.cc test/fpu/ftwotox.cc
 test/fpu/fint.cc test/fpu/fintrz.cc test/fpu/fsqrt.cc test/fpu/ftst.cc
-)
+test/mmu/ittr.cc test/mmu/dttr.cc test/mmu/disabled.cc test/mmu/atc.cc test/mmu/psearch.cc
+) 
+if(result)
+  set_property(TARGET newmacemu PROPERTY INTERPROCEDURAL_OPTIMIZATION_Release TRUE)
+  set_property(TARGET testcpu PROPERTY INTERPROCEDURAL_OPTIMIZATION_Release TRUE)
+endif()
 target_link_libraries(newmacemu gmp mpfr SDL2::SDL2 fmt)
 target_include_directories(newmacemu PRIVATE "./include")
 target_link_libraries(testcpu gmp mpfr SDL2::SDL2 fmt Boost::unit_test_framework)
 target_include_directories(testcpu PRIVATE "./include" ${Boost_INCLUDE_DIRS})
-target_link_libraries(testfpu gmp mpfr SDL2::SDL2 fmt Boost::unit_test_framework)
-target_include_directories(testfpu PRIVATE "./include" ${Boost_INCLUDE_DIRS})
 
 # add_test(NAME cpu COMMAND $<TARGET_FILE:testcpu> )
 add_test(NAME ea/r COMMAND $<TARGET_FILE:testcpu> --run_test=EA/Read/*)
@@ -91,6 +93,7 @@ add_test(NAME bfset COMMAND $<TARGET_FILE:testcpu> --run_test=BFSET/*)
 add_test(NAME bftst COMMAND $<TARGET_FILE:testcpu> --run_test=BFTST/*)
 add_test(NAME bkpt COMMAND $<TARGET_FILE:testcpu> --run_test=BKPT/*)
 add_test(NAME bra COMMAND $<TARGET_FILE:testcpu> --run_test=BRA/*)
+add_test(NAME bsr COMMAND $<TARGET_FILE:testcpu> --run_test=BSR/*)
 add_test(NAME bset COMMAND $<TARGET_FILE:testcpu> --run_test=BSET/*)
 add_test(NAME cas COMMAND $<TARGET_FILE:testcpu> --run_test=CAS/*)
 add_test(NAME cas2 COMMAND $<TARGET_FILE:testcpu> --run_test=CAS2/*)
@@ -156,65 +159,71 @@ add_test(NAME unlk COMMAND $<TARGET_FILE:testcpu> --run_test=UNLK)
 add_test(NAME unpk COMMAND $<TARGET_FILE:testcpu> --run_test=UNPK/*)
 
 
-add_test(NAME fabs COMMAND $<TARGET_FILE:testfpu> --run_test=FABS/*)
-add_test(NAME fsabs COMMAND $<TARGET_FILE:testfpu> --run_test=FSABS/*)
-add_test(NAME fdabs COMMAND $<TARGET_FILE:testfpu> --run_test=FDABS/*)
-add_test(NAME facos COMMAND $<TARGET_FILE:testfpu> --run_test=FACOS/*)
-add_test(NAME fadd COMMAND $<TARGET_FILE:testfpu> --run_test=FADD/*)
-add_test(NAME fsadd COMMAND $<TARGET_FILE:testfpu> --run_test=FSADD/*)
-add_test(NAME fdadd COMMAND $<TARGET_FILE:testfpu> --run_test=FDADD/*)
-add_test(NAME fasin COMMAND $<TARGET_FILE:testfpu> --run_test=FASIN/*)
-add_test(NAME fatan COMMAND $<TARGET_FILE:testfpu> --run_test=FATAN/*)
-add_test(NAME fatanh COMMAND $<TARGET_FILE:testfpu> --run_test=FATANH/*)
-add_test(NAME fbcc COMMAND $<TARGET_FILE:testfpu> --run_test=FBcc/*)
-add_test(NAME fcmp COMMAND $<TARGET_FILE:testfpu> --run_test=FCMP/*)
-add_test(NAME fcos COMMAND $<TARGET_FILE:testfpu> --run_test=FCOS/*)
-add_test(NAME fcosh COMMAND $<TARGET_FILE:testfpu> --run_test=FCOSH/*)
-add_test(NAME fdbcc COMMAND $<TARGET_FILE:testfpu> --run_test=FDBcc/*)
-add_test(NAME fetox COMMAND $<TARGET_FILE:testfpu> --run_test=FETOX/*)
-add_test(NAME fetoxm1 COMMAND $<TARGET_FILE:testfpu> --run_test=FETOXM1/*)
-add_test(NAME fdiv COMMAND $<TARGET_FILE:testfpu> --run_test=FDIV/*)
-add_test(NAME fsdiv COMMAND $<TARGET_FILE:testfpu> --run_test=FSDIV/*)
-add_test(NAME fddiv COMMAND $<TARGET_FILE:testfpu> --run_test=FDDIV/*)
-add_test(NAME fgettexp COMMAND $<TARGET_FILE:testfpu> --run_test=FGETEXP/*)
-add_test(NAME fgetman COMMAND $<TARGET_FILE:testfpu> --run_test=FGETMAN/*)
-add_test(NAME fint COMMAND $<TARGET_FILE:testfpu> --run_test=FINT/*)
-add_test(NAME fintrz COMMAND $<TARGET_FILE:testfpu> --run_test=FINTRZ/*)
-add_test(NAME flog10 COMMAND $<TARGET_FILE:testfpu> --run_test=FLOG10/*)
-add_test(NAME flog2 COMMAND $<TARGET_FILE:testfpu> --run_test=FLOG2/*)
-add_test(NAME flogn COMMAND $<TARGET_FILE:testfpu> --run_test=FLOGN/*)
-add_test(NAME flognp1 COMMAND $<TARGET_FILE:testfpu> --run_test=FLOGNP1/*)
-add_test(NAME fmod COMMAND $<TARGET_FILE:testfpu> --run_test=FMOD/*)
-add_test(NAME fmove COMMAND $<TARGET_FILE:testfpu> --run_test=FMOVE/*)
-add_test(NAME fsmove COMMAND $<TARGET_FILE:testfpu> --run_test=FSMOVE/*)
-add_test(NAME fdmove COMMAND $<TARGET_FILE:testfpu> --run_test=FDMOVE/*)
-add_test(NAME fmovecr COMMAND $<TARGET_FILE:testfpu> --run_test=FMOVECR/*)
-add_test(NAME fmovem COMMAND $<TARGET_FILE:testfpu> --run_test=FMOVEM/*)
-add_test(NAME fmul COMMAND $<TARGET_FILE:testfpu> --run_test=FMUL/*)
-add_test(NAME fsmul COMMAND $<TARGET_FILE:testfpu> --run_test=FSMUL/*)
-add_test(NAME fdmul COMMAND $<TARGET_FILE:testfpu> --run_test=FDMUL/*)
-add_test(NAME fneg COMMAND $<TARGET_FILE:testfpu> --run_test=FNEG/*)
-add_test(NAME fsneg COMMAND $<TARGET_FILE:testfpu> --run_test=FSNEG/*)
-add_test(NAME fdneg COMMAND $<TARGET_FILE:testfpu> --run_test=FDNEG/*)
-add_test(NAME fnop COMMAND $<TARGET_FILE:testfpu> --run_test=FNOP)
-add_test(NAME frem COMMAND $<TARGET_FILE:testfpu> --run_test=FREM/*)
-add_test(NAME fscale COMMAND $<TARGET_FILE:testfpu> --run_test=FSCALE/*)
-add_test(NAME fsgldiv COMMAND $<TARGET_FILE:testfpu> --run_test=FSGLDIV/*)
-add_test(NAME fsglmul COMMAND $<TARGET_FILE:testfpu> --run_test=FSGLMUL/*)
-add_test(NAME fsin COMMAND $<TARGET_FILE:testfpu> --run_test=FSIN/*)
-add_test(NAME fsincos COMMAND $<TARGET_FILE:testfpu> --run_test=FSINCOS/*)
-add_test(NAME fsinh COMMAND $<TARGET_FILE:testfpu> --run_test=FSINH/*)
-add_test(NAME fsqrt COMMAND $<TARGET_FILE:testfpu> --run_test=FSQRT/*)
-add_test(NAME fssqrt COMMAND $<TARGET_FILE:testfpu> --run_test=FSSQRT/*)
-add_test(NAME fdsqrt COMMAND $<TARGET_FILE:testfpu> --run_test=FDSQRT/*)
-add_test(NAME fsub COMMAND $<TARGET_FILE:testfpu> --run_test=FSUB/*)
-add_test(NAME fssub COMMAND $<TARGET_FILE:testfpu> --run_test=FSSUB/*)
-add_test(NAME fdsub COMMAND $<TARGET_FILE:testfpu> --run_test=FDSUB/*)
-add_test(NAME ftan COMMAND $<TARGET_FILE:testfpu> --run_test=FTAN/*)
-add_test(NAME ftanh COMMAND $<TARGET_FILE:testfpu> --run_test=FTANH/*)
-add_test(NAME ftentox COMMAND $<TARGET_FILE:testfpu> --run_test=FTENTOX/*)
-add_test(NAME ftrapcc COMMAND $<TARGET_FILE:testfpu> --run_test=FTRAPcc/*)
-add_test(NAME ftst COMMAND $<TARGET_FILE:testfpu> --run_test=FTST/*)
-add_test(NAME ftwotox COMMAND $<TARGET_FILE:testfpu> --run_test=FTWOTOX/*)
+add_test(NAME fabs COMMAND $<TARGET_FILE:testcpu> --run_test=FABS/*)
+add_test(NAME fsabs COMMAND $<TARGET_FILE:testcpu> --run_test=FSABS/*)
+add_test(NAME fdabs COMMAND $<TARGET_FILE:testcpu> --run_test=FDABS/*)
+add_test(NAME facos COMMAND $<TARGET_FILE:testcpu> --run_test=FACOS/*)
+add_test(NAME fadd COMMAND $<TARGET_FILE:testcpu> --run_test=FADD/*)
+add_test(NAME fsadd COMMAND $<TARGET_FILE:testcpu> --run_test=FSADD/*)
+add_test(NAME fdadd COMMAND $<TARGET_FILE:testcpu> --run_test=FDADD/*)
+add_test(NAME fasin COMMAND $<TARGET_FILE:testcpu> --run_test=FASIN/*)
+add_test(NAME fatan COMMAND $<TARGET_FILE:testcpu> --run_test=FATAN/*)
+add_test(NAME fatanh COMMAND $<TARGET_FILE:testcpu> --run_test=FATANH/*)
+add_test(NAME fbcc COMMAND $<TARGET_FILE:testcpu> --run_test=FBcc/*)
+add_test(NAME fcmp COMMAND $<TARGET_FILE:testcpu> --run_test=FCMP/*)
+add_test(NAME fcos COMMAND $<TARGET_FILE:testcpu> --run_test=FCOS/*)
+add_test(NAME fcosh COMMAND $<TARGET_FILE:testcpu> --run_test=FCOSH/*)
+add_test(NAME fdbcc COMMAND $<TARGET_FILE:testcpu> --run_test=FDBcc/*)
+add_test(NAME fetox COMMAND $<TARGET_FILE:testcpu> --run_test=FETOX/*)
+add_test(NAME fetoxm1 COMMAND $<TARGET_FILE:testcpu> --run_test=FETOXM1/*)
+add_test(NAME fdiv COMMAND $<TARGET_FILE:testcpu> --run_test=FDIV/*)
+add_test(NAME fsdiv COMMAND $<TARGET_FILE:testcpu> --run_test=FSDIV/*)
+add_test(NAME fddiv COMMAND $<TARGET_FILE:testcpu> --run_test=FDDIV/*)
+add_test(NAME fgettexp COMMAND $<TARGET_FILE:testcpu> --run_test=FGETEXP/*)
+add_test(NAME fgetman COMMAND $<TARGET_FILE:testcpu> --run_test=FGETMAN/*)
+add_test(NAME fint COMMAND $<TARGET_FILE:testcpu> --run_test=FINT/*)
+add_test(NAME fintrz COMMAND $<TARGET_FILE:testcpu> --run_test=FINTRZ/*)
+add_test(NAME flog10 COMMAND $<TARGET_FILE:testcpu> --run_test=FLOG10/*)
+add_test(NAME flog2 COMMAND $<TARGET_FILE:testcpu> --run_test=FLOG2/*)
+add_test(NAME flogn COMMAND $<TARGET_FILE:testcpu> --run_test=FLOGN/*)
+add_test(NAME flognp1 COMMAND $<TARGET_FILE:testcpu> --run_test=FLOGNP1/*)
+add_test(NAME fmod COMMAND $<TARGET_FILE:testcpu> --run_test=FMOD/*)
+add_test(NAME fmove COMMAND $<TARGET_FILE:testcpu> --run_test=FMOVE/*)
+add_test(NAME fsmove COMMAND $<TARGET_FILE:testcpu> --run_test=FSMOVE/*)
+add_test(NAME fdmove COMMAND $<TARGET_FILE:testcpu> --run_test=FDMOVE/*)
+add_test(NAME fmovecr COMMAND $<TARGET_FILE:testcpu> --run_test=FMOVECR/*)
+add_test(NAME fmovem COMMAND $<TARGET_FILE:testcpu> --run_test=FMOVEM/*)
+add_test(NAME fmul COMMAND $<TARGET_FILE:testcpu> --run_test=FMUL/*)
+add_test(NAME fsmul COMMAND $<TARGET_FILE:testcpu> --run_test=FSMUL/*)
+add_test(NAME fdmul COMMAND $<TARGET_FILE:testcpu> --run_test=FDMUL/*)
+add_test(NAME fneg COMMAND $<TARGET_FILE:testcpu> --run_test=FNEG/*)
+add_test(NAME fsneg COMMAND $<TARGET_FILE:testcpu> --run_test=FSNEG/*)
+add_test(NAME fdneg COMMAND $<TARGET_FILE:testcpu> --run_test=FDNEG/*)
+add_test(NAME fnop COMMAND $<TARGET_FILE:testcpu> --run_test=FNOP)
+add_test(NAME frem COMMAND $<TARGET_FILE:testcpu> --run_test=FREM/*)
+add_test(NAME fscale COMMAND $<TARGET_FILE:testcpu> --run_test=FSCALE/*)
+add_test(NAME fsgldiv COMMAND $<TARGET_FILE:testcpu> --run_test=FSGLDIV/*)
+add_test(NAME fsglmul COMMAND $<TARGET_FILE:testcpu> --run_test=FSGLMUL/*)
+add_test(NAME fsin COMMAND $<TARGET_FILE:testcpu> --run_test=FSIN/*)
+add_test(NAME fsincos COMMAND $<TARGET_FILE:testcpu> --run_test=FSINCOS/*)
+add_test(NAME fsinh COMMAND $<TARGET_FILE:testcpu> --run_test=FSINH/*)
+add_test(NAME fsqrt COMMAND $<TARGET_FILE:testcpu> --run_test=FSQRT/*)
+add_test(NAME fssqrt COMMAND $<TARGET_FILE:testcpu> --run_test=FSSQRT/*)
+add_test(NAME fdsqrt COMMAND $<TARGET_FILE:testcpu> --run_test=FDSQRT/*)
+add_test(NAME fsub COMMAND $<TARGET_FILE:testcpu> --run_test=FSUB/*)
+add_test(NAME fssub COMMAND $<TARGET_FILE:testcpu> --run_test=FSSUB/*)
+add_test(NAME fdsub COMMAND $<TARGET_FILE:testcpu> --run_test=FDSUB/*)
+add_test(NAME ftan COMMAND $<TARGET_FILE:testcpu> --run_test=FTAN/*)
+add_test(NAME ftanh COMMAND $<TARGET_FILE:testcpu> --run_test=FTANH/*)
+add_test(NAME ftentox COMMAND $<TARGET_FILE:testcpu> --run_test=FTENTOX/*)
+add_test(NAME ftrapcc COMMAND $<TARGET_FILE:testcpu> --run_test=FTRAPcc/*)
+add_test(NAME ftst COMMAND $<TARGET_FILE:testcpu> --run_test=FTST/*)
+add_test(NAME ftwotox COMMAND $<TARGET_FILE:testcpu> --run_test=FTWOTOX/*)
+
+add_test(NAME ittr COMMAND $<TARGET_FILE:testcpu> --run_test=ITTR/*)
+add_test(NAME dttr COMMAND $<TARGET_FILE:testcpu> --run_test=DTTR/*)
+add_test(NAME mmu_disabled COMMAND $<TARGET_FILE:testcpu> --run_test=MMU_Disabled)
+add_test(NAME atc COMMAND $<TARGET_FILE:testcpu> --run_test=ATC/*)
+add_test(NAME psearch COMMAND $<TARGET_FILE:testcpu> --run_test=PSERACH/*)
 
 

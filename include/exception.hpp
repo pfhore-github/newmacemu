@@ -26,6 +26,9 @@ inline void CHK_ERROR() {
 inline void PRIV_ERROR() {
     CPU_RAISE(8);
 }
+inline void TRACE() {
+    CPU_RAISE(9);
+}
 inline void ILLEGAL_FP() {
     CPU_RAISE(11);
 }

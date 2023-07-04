@@ -1,5 +1,5 @@
 #define BOOST_TEST_DYN_LINK
-#include "inline.hpp"
+#include "proto.hpp"
 #include <boost/test/unit_test.hpp>
 #include "test.hpp"
 #include <boost/test/data/test_case.hpp>

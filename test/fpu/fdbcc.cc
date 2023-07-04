@@ -6,38 +6,44 @@
 #include <boost/test/unit_test.hpp>
 namespace bdata = boost::unit_test::data;
 BOOST_FIXTURE_TEST_SUITE(FDBcc, Prepare)
-BOOST_AUTO_TEST_CASE(notDecement) {
+BOOST_DATA_TEST_CASE(notDecement, bdata::xrange(2), tr) {
     TEST::SET_W(0, 0171110 | 1);
     TEST::SET_W(2, 0xf);
     TEST::SET_W(4, 0x10);
     cpu.D[1] = 3;
     cpu.FPSR.CC_Z = true;
+    cpu.T = tr;
     auto i = decode_and_run();
     BOOST_TEST(cpu.nextpc == 0);
     BOOST_TEST(cpu.D[1] == 3);
     BOOST_TEST(i == 4);
+    BOOST_TEST(cpu.must_trace == !!tr);
 }
-BOOST_AUTO_TEST_CASE(countZero) {
+BOOST_DATA_TEST_CASE(countZero, bdata::xrange(2), tr) {
     TEST::SET_W(0, 0171110 | 1);
     TEST::SET_W(2, 0);
     TEST::SET_W(4, 0x10);
     cpu.D[1] = 0;
+    cpu.T = tr;
     cpu.FPSR.CC_Z = true;
     auto i = decode_and_run();
     BOOST_TEST(cpu.nextpc == 0);
     BOOST_TEST(cpu.D[1] == 0xffff);
     BOOST_TEST(i == 4);
+    BOOST_TEST(cpu.must_trace == !!tr);
 }
-BOOST_AUTO_TEST_CASE(countNonZero) {
+BOOST_DATA_TEST_CASE(countNonZero, bdata::xrange(2), tr) {
     TEST::SET_W(0, 0171110 | 1);
     TEST::SET_W(2, 0);
     TEST::SET_W(4, 0x10);
     cpu.D[1] = 4;
+     cpu.T = tr;
     cpu.FPSR.CC_Z = true;
     auto i = decode_and_run();
     BOOST_TEST(cpu.nextpc == 0x14);
     BOOST_TEST(cpu.D[1] == 3);
     BOOST_TEST(i == 4);
+    BOOST_TEST(cpu.must_trace == !!tr);
 }
 BOOST_AUTO_TEST_SUITE(EQ)
 BOOST_AUTO_TEST_CASE(F) {

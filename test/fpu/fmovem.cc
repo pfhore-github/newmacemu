@@ -30,6 +30,15 @@ static void STORE_MEMX(uint32_t addr, double value) {
 }
 BOOST_FIXTURE_TEST_SUITE(FMOVEM, Prepare)
 BOOST_AUTO_TEST_SUITE(ToReg)
+BOOST_DATA_TEST_CASE(trace_postincr, bdata::xrange(2), tr) {
+    TEST::SET_W(0, 0171030 | 3);
+    TEST::SET_W(2, 0140000 | 2 << 11 | 1);
+    cpu.A[3] = 0x1000;
+    cpu.T = tr;
+    STORE_MEMX(0x1000, 1.1);
+    decode_and_run();
+    BOOST_TEST(cpu.must_trace == !!tr);
+}
 BOOST_AUTO_TEST_CASE(static_postincr) {
     TEST::SET_W(0, 0171030 | 3);
     TEST::SET_W(2, 0140000 | 2 << 11 | 0B01010101);
@@ -47,6 +56,15 @@ BOOST_AUTO_TEST_CASE(static_postincr) {
     BOOST_TEST(i == 2);
 }
 
+BOOST_DATA_TEST_CASE(trace_addr, bdata::xrange(2), tr) {
+    TEST::SET_W(0, 0171020 | 3);
+    TEST::SET_W(2, 0140000 | 2 << 11 | 1);
+    cpu.A[3] = 0x1000;
+    cpu.T = tr;
+    STORE_MEMX(0x1000, 1.1);
+    decode_and_run();
+    BOOST_TEST(cpu.must_trace == !!tr);
+}
 BOOST_AUTO_TEST_CASE(static_addr) {
     TEST::SET_W(0, 0171020 | 3);
     TEST::SET_W(2, 0140000 | 2 << 11 | 0B01010101);
@@ -101,6 +119,15 @@ BOOST_AUTO_TEST_CASE(dynamic_addr) {
 
 BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE(FromReg)
+BOOST_DATA_TEST_CASE(trace_predecr, bdata::xrange(2), tr) {
+    TEST::SET_W(0, 0171040 | 3);
+    TEST::SET_W(2, 0160000 | 0 << 11 | 1);
+    cpu.A[3] = 0x1000;
+    cpu.T = tr;
+    TEST::SET_FP(0, 1.1);
+    decode_and_run();
+    BOOST_TEST(cpu.must_trace == !!tr);
+}
 BOOST_AUTO_TEST_CASE(static_predecr) {
     TEST::SET_W(0, 0171040 | 3);
     TEST::SET_W(2, 0160000 | 0 << 11 | 0B01010101);
@@ -117,7 +144,15 @@ BOOST_AUTO_TEST_CASE(static_predecr) {
     BOOST_TEST(cpu.A[3] == 0x1000);
     BOOST_TEST(i == 2);
 }
-
+BOOST_DATA_TEST_CASE(trace_addr, bdata::xrange(2), tr) {
+    TEST::SET_W(0, 0171020 | 3);
+    TEST::SET_W(2, 0160000 | 0 << 11 | 1);
+    cpu.A[3] = 0x1000;
+    cpu.T = tr;
+    TEST::SET_FP(0, 1.1);
+    decode_and_run();
+    BOOST_TEST(cpu.must_trace == !!tr);
+}
 BOOST_AUTO_TEST_CASE(static_addr) {
     TEST::SET_W(0, 0171020 | 3);
     TEST::SET_W(2, 0160000 | 2 << 11 | 0B01010101);

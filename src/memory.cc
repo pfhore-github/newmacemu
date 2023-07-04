@@ -11,39 +11,136 @@ inline TM GetTM(bool code) {
            : code ? TM::USER_CODE
                   : TM::USER_DATA;
 }
+struct AccessFault {};
+uint32_t ptest_and_raise(uint32_t addr, bool sys, bool code, bool W);
 uint8_t MMU_ReadB(uint32_t addr, bool code) {
-    // TODO: MMU convert
-    MemBus bus{.A = addr, .tm = GetTM(code), .sz = SIZ::B, .RW = true};
-    BusAccess(bus);
-    return bus.D;
+    try {
+        auto ret = ptest_and_raise(addr  >>12, cpu.S, code, false);
+        auto paddr = ret | (addr & 0xfff);
+        return BusReadB(paddr);
+    } catch(AccessFault &) {
+        cpu.af_value.addr = addr;
+        cpu.af_value.RW = true;
+        cpu.af_value.size = SIZ::B;
+        cpu.af_value.tt = TT::NORMAL;
+        cpu.af_value.tm = GetTM(code);
+        ACCESS_FAULT();
+        __builtin_unreachable();
+    }
 }
 uint16_t MMU_ReadW(uint32_t addr, bool code) {
-    // TODO: MMU convert
-    MemBus bus{.A = addr, .tm = GetTM(code), .sz = SIZ::W, .RW = true};
-    BusAccess(bus);
-    return bus.D;
+    try {
+        if(addr & 1) {
+            uint16_t v1 = MMU_ReadB(addr, code) << 8;
+            try {
+                v1 |= MMU_ReadB(addr + 1, code);
+            } catch(AccessFault &) {
+                cpu.af_value.MA = true;
+                throw;
+            }
+            return v1;
+        }
+        auto ret = ptest_and_raise(addr  >>12, cpu.S, code, false);
+        auto paddr = ret | (addr & 0xfff);
+        return BusReadW(paddr);
+    } catch(AccessFault &) {
+        cpu.af_value.addr = addr;
+        cpu.af_value.RW = true;
+        cpu.af_value.size = SIZ::W;
+        cpu.af_value.tt = TT::NORMAL;
+        cpu.af_value.tm = GetTM(code);
+        ACCESS_FAULT();
+        __builtin_unreachable();
+    }
 }
 uint32_t MMU_ReadL(uint32_t addr, bool code) {
-    // TODO: MMU convert
-    MemBus bus{.A = addr, .tm = GetTM(code), .sz = SIZ::L, .RW = true};
-    BusAccess(bus);
-    return bus.D;
+    try {
+        if(addr & 2) {
+            uint32_t v1 = MMU_ReadW(addr, code) << 16;
+            try {
+                v1 |= MMU_ReadW(addr + 2, code);
+            } catch(AccessFault &) {
+                cpu.af_value.MA = true;
+                throw;
+            }
+            return v1;
+        }
+        auto ret = ptest_and_raise(addr  >>12, cpu.S, code, false);
+        auto paddr = ret | (addr & 0xfff);
+        return BusReadL(paddr);
+    } catch(AccessFault &) {
+        cpu.af_value.addr = addr;
+        cpu.af_value.RW = true;
+        cpu.af_value.size = SIZ::L;
+        cpu.af_value.tt = TT::NORMAL;
+        cpu.af_value.tm = GetTM(code);
+        ACCESS_FAULT();
+        __builtin_unreachable();
+    }
 }
 void MMU_WriteB(uint32_t addr, uint8_t b) {
-    // TODO: MMU convert
-    MemBus bus{
-        .A = addr, .D = b, .tm = GetTM(false), .sz = SIZ::B, .RW = false};
-    BusAccess(bus);
+    try {
+        auto ret = ptest_and_raise(addr >>12, cpu.S, false, true);
+        auto paddr = ret | (addr & 0xfff);
+        return BusWriteB(paddr, b);
+    } catch(AccessFault &) {
+        cpu.af_value.addr = addr;
+        cpu.af_value.RW = false;
+        cpu.af_value.size = SIZ::B;
+        cpu.af_value.tt = TT::NORMAL;
+        cpu.af_value.tm = GetTM(false);
+        ACCESS_FAULT();
+        __builtin_unreachable();
+    }
 }
+
 void MMU_WriteW(uint32_t addr, uint16_t w) {
-    // TODO: MMU convert
-    MemBus bus{
-        .A = addr, .D = w, .tm = GetTM(false), .sz = SIZ::W, .RW = false};
-    BusAccess(bus);
+    try {
+        if(addr & 1) {
+            MMU_WriteB(addr, w >> 8);
+            try {
+                MMU_WriteB(addr + 1, w);
+            } catch(AccessFault &) {
+                cpu.af_value.MA = true;
+                throw;
+            }
+            return;
+        }
+        auto ret = ptest_and_raise(addr  >>12, cpu.S, false, true);
+        auto paddr = ret | (addr & 0xfff);
+        BusWriteW(paddr, w);
+    } catch(AccessFault &) {
+        cpu.af_value.addr = addr;
+        cpu.af_value.RW = false;
+        cpu.af_value.size = SIZ::W;
+        cpu.af_value.tt = TT::NORMAL;
+        cpu.af_value.tm = GetTM(false);
+        ACCESS_FAULT();
+        __builtin_unreachable();
+    }
 }
 void MMU_WriteL(uint32_t addr, uint32_t l) {
-    // TODO: MMU convert
-    MemBus bus{
-        .A = addr, .D = l, .tm = GetTM(false), .sz = SIZ::L, .RW = false};
-    BusAccess(bus);
+    try {
+        if(addr & 1) {
+            MMU_WriteW(addr, l >> 16);
+            try {
+                MMU_WriteW(addr + 2, l);
+            } catch(AccessFault &) {
+                cpu.af_value.MA = true;
+                throw;
+            }
+            return;
+        }
+        auto ret = ptest_and_raise(addr  >>12, cpu.S, false, true);
+        auto paddr = ret | (addr & 0xfff);
+        BusWriteL(paddr, l);
+    } catch(AccessFault &) {
+        cpu.af_value.addr = addr;
+        cpu.af_value.RW = false;
+        cpu.af_value.size = SIZ::L;
+        cpu.af_value.tt = TT::NORMAL;
+        cpu.af_value.tm = GetTM(false);
+        ACCESS_FAULT();
+        __builtin_unreachable();
+    }
 }

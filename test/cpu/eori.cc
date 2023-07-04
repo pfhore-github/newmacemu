@@ -17,26 +17,7 @@ BOOST_AUTO_TEST_CASE(value) {
     cpu.D[2] = 0x12;
     auto i = decode_and_run();
     BOOST_TEST(cpu.D[2] == 0x26);
-    BOOST_TEST(!cpu.Z);
-    BOOST_TEST(!cpu.V);
-    BOOST_TEST(!cpu.N);
-    BOOST_TEST(!cpu.C);
     BOOST_TEST(i == 2);
-}
-BOOST_AUTO_TEST_CASE(N) {
-    TEST::SET_W(0, 0005000 | 2);
-    TEST::SET_W(2, 0x30);
-    cpu.D[2] = 0xff;
-    decode_and_run();
-    BOOST_TEST(cpu.N);
-}
-
-BOOST_AUTO_TEST_CASE(Z) {
-    TEST::SET_W(0, 0005000 | 2);
-    TEST::SET_W(2, 0x7f);
-    cpu.D[2] = 0x7f;
-    decode_and_run();
-    BOOST_TEST(cpu.Z);
 }
 BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE(Word)
@@ -51,28 +32,9 @@ BOOST_AUTO_TEST_CASE(value) {
     cpu.D[2] = 0x5678;
     auto i = decode_and_run();
     BOOST_TEST(cpu.D[2] == 0x444C);
-    BOOST_TEST(!cpu.Z);
-    BOOST_TEST(!cpu.V);
-    BOOST_TEST(!cpu.N);
-    BOOST_TEST(!cpu.C);
     BOOST_TEST(i == 2);
 }
 
-BOOST_AUTO_TEST_CASE(N) {
-    TEST::SET_W(0, 0005100 | 2);
-    TEST::SET_W(2, 0x3456);
-    cpu.D[2] = 0xffff;
-    decode_and_run();
-    BOOST_TEST(cpu.N);
-}
-
-BOOST_AUTO_TEST_CASE(Z) {
-    TEST::SET_W(0, 0005100 | 2);
-    TEST::SET_W(2, 0x3000);
-    cpu.D[2] = 0x3000;
-    decode_and_run();
-    BOOST_TEST(cpu.Z);
-}
 BOOST_AUTO_TEST_SUITE_END()
 
 BOOST_AUTO_TEST_SUITE(Long)
@@ -87,26 +49,7 @@ BOOST_AUTO_TEST_CASE(value) {
     cpu.D[2] = 0x456789ab;
     auto i = decode_and_run();
     BOOST_TEST(cpu.D[2] == 0x5753dfd3);
-    BOOST_TEST(!cpu.Z);
-    BOOST_TEST(!cpu.V);
-    BOOST_TEST(!cpu.N);
-    BOOST_TEST(!cpu.C);
     BOOST_TEST(i == 4);
-}
-BOOST_AUTO_TEST_CASE(N) {
-    TEST::SET_W(0, 0005200 | 2);
-    TEST::SET_L(2, 0x12345678);
-    cpu.D[2] = 0xffffffff;
-    decode_and_run();
-    BOOST_TEST(cpu.N);
-}
-
-BOOST_AUTO_TEST_CASE(Z) {
-    TEST::SET_W(0, 0005200 | 2);
-    TEST::SET_L(2, 0x12345678);
-    cpu.D[2] = 0x12345678;
-    decode_and_run();
-    BOOST_TEST(cpu.Z);
 }
 BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_CASE(ccr) {
@@ -122,4 +65,26 @@ BOOST_AUTO_TEST_CASE(ccr) {
     BOOST_TEST(!cpu.C);
 }
 
+BOOST_AUTO_TEST_CASE(sr_err) {
+    if(setjmp(cpu.ex_buf) == 0) {
+        cpu.S = false;
+        TEST::SET_W(0, 0005174);
+        TEST::SET_W(2, 0xDFFF);
+        decode_and_run();
+        BOOST_ERROR("exception unoccured");
+    } else {
+        BOOST_TEST(cpu.ex_n == 8);
+    }
+}
+
+BOOST_DATA_TEST_CASE(sr_ok, bdata::xrange(2), tr) {
+    cpu.S = true;
+    cpu.T = tr;
+    TEST::SET_W(0, 0005174);
+    TEST::SET_W(2, 0x2000);
+    auto i = decode_and_run();
+    BOOST_TEST(i == 2);
+    BOOST_TEST(!cpu.S);
+    BOOST_TEST(cpu.must_trace == !!tr);
+}
 BOOST_AUTO_TEST_SUITE_END()

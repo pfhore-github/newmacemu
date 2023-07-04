@@ -90,18 +90,19 @@ struct Cpu {
         uint8_t CM;
         bool W;
     } ITTR[2], DTTR[2];
-    struct MMUSR_t {
+    uint32_t MMUSR;
+    bool CACR_DE, CACR_IE;
+
+    // ATC
+    struct atc_entry {
         uint32_t paddr;
-        bool B, G;
         uint8_t U;
         bool S;
         uint8_t CM;
-        bool M, W, T, R;
-    } MMUSR;
-    bool CACR_DE, CACR_IE;
+        bool M, W, R;
+    };
 
-
-
+    std::unordered_map<uint32_t, atc_entry> s_atc, sg_atc, u_atc, ug_atc;
 
     // internal
     uint32_t nextpc;
@@ -110,6 +111,7 @@ struct Cpu {
     int ex_n;
     AccessFault_t af_value;
     bool in_exception;
+    bool must_trace;
     std::unordered_map<uint32_t, std::pair<std::function<void()>, int> > icache;
     uint32_t EA;
     int n;
@@ -130,4 +132,5 @@ std::pair<std::function<void(uint32_t)>, int> ea_write32(int type, int reg, uint
 std::tuple<std::function<uint8_t()>, std::function<void(uint8_t)>, int> ea_rw8(int type, int reg, uint32_t pc);
 std::tuple<std::function<uint16_t()>, std::function<void(uint16_t)>, int> ea_rw16(int type, int reg, uint32_t pc);
 std::tuple<std::function<uint32_t()>, std::function<void(uint32_t)>, int> ea_rw32(int type, int reg, uint32_t pc);
+
 #endif

@@ -1,6 +1,6 @@
 #include "68040.hpp"
 #include "exception.hpp"
-#include "inline.hpp"
+#include "proto.hpp"
 #include "memory.hpp"
 #include <errno.h>
 #include <memory>
@@ -46,7 +46,7 @@ std::pair<std::function<uint8_t()>, int> ea_read8(int type, int reg,
         return {[b = FETCH(pc)]() -> uint8_t { return b; }, 2};
     } else {
         auto [f, n] = ea_addr(type, reg, pc, 1, false);
-        return {[f]() { return MMU_ReadB(cpu.EA = f()); }, n};
+        return {[f = std::move(f)]() { return MMU_ReadB(cpu.EA = f()); }, n};
     }
 }
 std::pair<std::function<uint16_t()>, int> ea_read16(int type, int reg,
@@ -59,7 +59,7 @@ std::pair<std::function<uint16_t()>, int> ea_read16(int type, int reg,
         return {[w = FETCH(pc)]() -> uint16_t { return w; }, 2};
     } else {
         auto [f, n] = ea_addr(type, reg, pc, 2, false);
-        return {[f]() { return MMU_ReadW(cpu.EA = f()); }, n};
+        return {[f = std::move(f)]() { return MMU_ReadW(cpu.EA = f()); }, n};
     }
 }
 std::pair<std::function<uint32_t()>, int> ea_read32(int type, int reg,
@@ -72,7 +72,7 @@ std::pair<std::function<uint32_t()>, int> ea_read32(int type, int reg,
         return {[l = FETCH32(pc)]() -> uint32_t { return l; }, 4};
     } else {
         auto [f, n] = ea_addr(type, reg, pc, 4, false);
-        return {[f]() { return MMU_ReadL(cpu.EA = f()); }, n};
+        return {[f = std::move(f)]() { return MMU_ReadL(cpu.EA = f()); }, n};
     }
 }
 
@@ -82,7 +82,7 @@ std::pair<std::function<void(uint8_t)>, int> ea_write8(int type, int reg,
         return {ea_Dx_W_B(reg), 0};
     } else {
         auto [f, n] = ea_addr(type, reg, pc, 1, true);
-        return {[f](uint8_t v) { MMU_WriteB(cpu.EA = f(), v); }, n};
+        return {[f = std::move(f)](uint8_t v) { MMU_WriteB(cpu.EA = f(), v); }, n};
     }
 }
 std::pair<std::function<void(uint16_t)>, int> ea_write16(int type, int reg,
@@ -93,7 +93,7 @@ std::pair<std::function<void(uint16_t)>, int> ea_write16(int type, int reg,
         return {ea_Ax_W_W(reg), 0};
     } else {
         auto [f, n] = ea_addr(type, reg, pc, 2, true);
-        return {[f](uint32_t v) { return MMU_WriteW(cpu.EA = f(), v); }, n};
+        return {[f = std::move(f)](uint32_t v) { return MMU_WriteW(cpu.EA = f(), v); }, n};
     }
 }
 std::pair<std::function<void(uint32_t)>, int> ea_write32(int type, int reg,
@@ -104,7 +104,7 @@ std::pair<std::function<void(uint32_t)>, int> ea_write32(int type, int reg,
         return {ea_Ax_W_L(reg), 0};
     } else {
         auto [f, n] = ea_addr(type, reg, pc, 4, true);
-        return {[f](uint32_t v) { MMU_WriteL(cpu.EA = f(), v); }, n};
+        return {[f = std::move(f)](uint32_t v) { MMU_WriteL(cpu.EA = f(), v); }, n};
     }
 }
 
@@ -114,7 +114,7 @@ ea_rw8(int type, int reg, uint32_t pc) {
         return {ea_Dx_R_B(reg), ea_Dx_W_B(reg), 0};
     } else {
         auto [f, n] = ea_addr(type, reg, pc, 1, true);
-        return {[f]() { return MMU_ReadB(cpu.EA = f()); },
+        return {[f = std::move(f)]() { return MMU_ReadB(cpu.EA = f()); },
                 [](uint8_t v) { MMU_WriteB(cpu.EA, v); }, n};
     }
 }
@@ -126,7 +126,7 @@ ea_rw16(int type, int reg, uint32_t pc) {
         return {ea_Ax_R_W(reg), ea_Ax_W_W(reg), 0};
     } else {
         auto [f, n] = ea_addr(type, reg, pc, 2, true);
-        return {[f]() { return MMU_ReadW(cpu.EA = f()); },
+        return {[f = std::move(f)]() { return MMU_ReadW(cpu.EA = f()); },
                 [](uint16_t v) { MMU_WriteW(cpu.EA, v); }, n};
     }
 }
@@ -138,7 +138,7 @@ ea_rw32(int type, int reg, uint32_t pc) {
         return {ea_Ax_R_L(reg), ea_Ax_W_L(reg), 0};
     } else {
         auto [f, n] = ea_addr(type, reg, pc, 4, true);
-        return {[f]() { return MMU_ReadL(cpu.EA = f()); },
+        return {[f = std::move(f)]() { return MMU_ReadL(cpu.EA = f()); },
                 [](uint32_t v) { MMU_WriteL(cpu.EA, v); }, n};
     }
 }

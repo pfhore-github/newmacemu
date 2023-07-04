@@ -1,6 +1,6 @@
 #include "exception.hpp"
 #include "68040.hpp"
-#include "inline.hpp"
+#include "proto.hpp"
 #include "memory.hpp"
 void do_exception() {
     if(cpu.in_exception) {
@@ -18,6 +18,9 @@ void do_exception() {
         cpu.A[7] += 4 * 9;
         PUSH32(cpu.af_value.addr);
         cpu.A[7] += 2 * 3;
+        if(cpu.must_trace) {
+            cpu.af_value.CT = true;
+        }
         // SSW
         PUSH16(cpu.af_value.CP << 15 | cpu.af_value.CU << 14 |
                cpu.af_value.CT << 13 | cpu.af_value.CM << 12 |
@@ -105,12 +108,16 @@ void RTE() {
     case 3:
         cpu.A[7] += 4;
         break;
-    case 7:
+    case 7: {
+        // AF 
+        uint16_t ssw = MMU_ReadL(cpu.A[7] + 0x0C);
         cpu.A[7] += 52;
         break;
+    }
     default:
         CPU_RAISE(14);
     }
+    cpu.must_trace = false;
     SetSR(sr);
     JUMP(pc);
 }

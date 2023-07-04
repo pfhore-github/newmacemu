@@ -6,6 +6,33 @@
 #include <boost/test/unit_test.hpp>
 namespace bdata = boost::unit_test::data;
 BOOST_FIXTURE_TEST_SUITE(FBcc, Prepare)
+BOOST_AUTO_TEST_CASE(untraced) {
+    TEST::SET_W(0, 0171200 | 0x1);
+    TEST::SET_W(2, 0x100);
+    cpu.T = 0;
+    cpu.FPSR.CC_Z = true;
+    decode_and_run();
+    BOOST_TEST(!cpu.must_trace);
+}
+
+BOOST_AUTO_TEST_CASE(traced) {
+    TEST::SET_W(0, 0171200 | 0x1);
+    TEST::SET_W(2, 0x100);
+    cpu.T = 1;
+    cpu.FPSR.CC_Z = true;
+    decode_and_run();
+    BOOST_TEST(cpu.must_trace);
+}
+
+BOOST_AUTO_TEST_CASE(trace_not_taken) {
+    TEST::SET_W(0, 0171200 | 0x1);
+    TEST::SET_W(2, 0x100);
+    cpu.T = 1;
+    cpu.FPSR.CC_Z = false;
+    decode_and_run();
+    BOOST_TEST(!cpu.must_trace);
+}
+
 BOOST_AUTO_TEST_CASE(offsetW) {
     TEST::SET_W(0, 0171200 | 0xF);
     TEST::SET_W(2, 0x100);

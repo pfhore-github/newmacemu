@@ -1,12 +1,34 @@
 #define BOOST_TEST_DYN_LINK
 #include "68040.hpp"
 #include "test.hpp"
+#include "proto.hpp"
 #include <boost/test/data/monomorphic.hpp>
 #include <boost/test/data/test_case.hpp>
 #include <boost/test/unit_test.hpp>
 namespace bdata = boost::unit_test::data;
 BOOST_FIXTURE_TEST_SUITE(ROXR, Prepare)
 BOOST_AUTO_TEST_SUITE(Byte)
+BOOST_DATA_TEST_CASE(value, bdata::xrange(2), old_x) {
+    BOOST_TEST(ROXR_B(0x89, 2, old_x) == (0xA2 | old_x << 6));
+    BOOST_TEST(!cpu.X);
+    BOOST_TEST(!cpu.V);
+    BOOST_TEST(!cpu.C);
+}
+
+BOOST_AUTO_TEST_CASE(CX) {
+    ROXR_B(1, 1, false);
+    BOOST_TEST(cpu.C);
+    BOOST_TEST(cpu.X);
+}
+
+BOOST_AUTO_TEST_CASE(c0) {
+    cpu.C = true;
+    cpu.X = true;
+    ROXR_B(0x80, 0, false);
+    BOOST_TEST(!cpu.C);
+    BOOST_TEST(cpu.X);
+}
+
 BOOST_DATA_TEST_CASE(byReg, bdata::xrange(2), old_x) {
     cpu.D[2] = 0x21;
     cpu.D[3] = 4;
@@ -14,11 +36,6 @@ BOOST_DATA_TEST_CASE(byReg, bdata::xrange(2), old_x) {
     TEST::SET_W(0, 0160060 | 3 << 9 | 2);
     auto i = decode_and_run();
     BOOST_TEST(cpu.D[2] == 0x22 | old_x << 5);
-    BOOST_TEST(!cpu.Z);
-    BOOST_TEST(!cpu.N);
-    BOOST_TEST(!cpu.X);
-    BOOST_TEST(!cpu.V);
-    BOOST_TEST(!cpu.C);
     BOOST_TEST(i == 0);
 }
 
@@ -45,32 +62,29 @@ BOOST_AUTO_TEST_CASE(byImm0) {
     BOOST_TEST(cpu.D[2] == 0x42);
 }
 
+BOOST_AUTO_TEST_SUITE_END()
+
+BOOST_AUTO_TEST_SUITE(Word)
+BOOST_DATA_TEST_CASE(value, bdata::xrange(2), old_x) {
+    BOOST_TEST(ROXR_W(0x4321, 4, old_x) == (0x2432 | old_x << 12));
+    BOOST_TEST(!cpu.X);
+    BOOST_TEST(!cpu.V);
+    BOOST_TEST(!cpu.C);
+}
+
 BOOST_AUTO_TEST_CASE(CX) {
-    cpu.D[2] = 1;
-    TEST::SET_W(0, 0160020 | 1 << 9 | 2);
-    decode_and_run();
+    ROXR_W(0x100, 9, false);
     BOOST_TEST(cpu.C);
     BOOST_TEST(cpu.X);
 }
 
-BOOST_AUTO_TEST_CASE(N) {
-    cpu.D[2] = 0;
+BOOST_AUTO_TEST_CASE(c0) {
+    cpu.C = true;
     cpu.X = true;
-    TEST::SET_W(0, 0160020 | 1 << 9 | 2);
-    decode_and_run();
-    BOOST_TEST(cpu.N);
+    ROXR_W(1, 0, false);
+    BOOST_TEST(!cpu.C);
+    BOOST_TEST(cpu.X);
 }
-
-BOOST_AUTO_TEST_CASE(Z) {
-    cpu.D[2] = 0;
-    TEST::SET_W(0, 0160020 | 1 << 9 | 2);
-    decode_and_run();
-    BOOST_TEST(cpu.Z);
-}
-
-BOOST_AUTO_TEST_SUITE_END()
-
-BOOST_AUTO_TEST_SUITE(Word)
 BOOST_AUTO_TEST_CASE(mem) {
     TEST::SET_W(0x1000, 0);
     cpu.X = true;
@@ -118,32 +132,30 @@ BOOST_AUTO_TEST_CASE(byImm0) {
     BOOST_TEST(cpu.D[2] == 0x6812);
 }
 
+BOOST_AUTO_TEST_SUITE_END()
+
+BOOST_AUTO_TEST_SUITE(Long)
+
+BOOST_DATA_TEST_CASE(value, bdata::xrange(2), old_x) {
+    BOOST_TEST(ROXR_L(0x87654321, 4, old_x) == (0x28765432 | old_x << 28));
+    BOOST_TEST(!cpu.X);
+    BOOST_TEST(!cpu.V);
+    BOOST_TEST(!cpu.C);
+}
+
 BOOST_AUTO_TEST_CASE(CX) {
-    cpu.D[2] = 1;
-    TEST::SET_W(0, 0160120 | 1 << 9 | 2);
-    decode_and_run();
+    ROXR_L(0x10000, 17, false);
     BOOST_TEST(cpu.C);
     BOOST_TEST(cpu.X);
 }
 
-BOOST_AUTO_TEST_CASE(N) {
-    cpu.D[2] = 0;
+BOOST_AUTO_TEST_CASE(c0) {
+    cpu.C = true;
     cpu.X = true;
-    TEST::SET_W(0, 0160120 | 1 << 9 | 2);
-    decode_and_run();
-    BOOST_TEST(cpu.N);
+    ROXR_L(1, 0, false);
+    BOOST_TEST(!cpu.C);
+    BOOST_TEST(cpu.X);
 }
-
-BOOST_AUTO_TEST_CASE(Z) {
-    cpu.D[2] = 0;
-    TEST::SET_W(0, 0160120 | 1 << 9 | 2);
-    decode_and_run();
-    BOOST_TEST(cpu.Z);
-}
-
-BOOST_AUTO_TEST_SUITE_END()
-
-BOOST_AUTO_TEST_SUITE(Long)
 BOOST_DATA_TEST_CASE(byReg, bdata::xrange(2), old_x) {
     cpu.D[2] = 0x12345670;
     cpu.D[3] = 4;
@@ -180,29 +192,6 @@ BOOST_AUTO_TEST_CASE(byImm0) {
     TEST::SET_W(0, 0160220 | 0 << 9 | 2);
     decode_and_run();
     BOOST_TEST(cpu.D[2] == 0x28123456);
-}
-
-BOOST_AUTO_TEST_CASE(CX) {
-    cpu.D[2] = 1;
-    TEST::SET_W(0, 0160220 | 1 << 9 | 2);
-    decode_and_run();
-    BOOST_TEST(cpu.C);
-    BOOST_TEST(cpu.X);
-}
-
-BOOST_AUTO_TEST_CASE(N) {
-    cpu.D[2] = 0;
-    cpu.X = true;
-    TEST::SET_W(0, 0160220 | 1 << 9 | 2);
-    decode_and_run();
-    BOOST_TEST(cpu.N);
-}
-
-BOOST_AUTO_TEST_CASE(Z) {
-    cpu.D[2] = 0;
-    TEST::SET_W(0, 0160220 | 1 << 9 | 2);
-    decode_and_run();
-    BOOST_TEST(cpu.Z);
 }
 
 BOOST_AUTO_TEST_SUITE_END()
