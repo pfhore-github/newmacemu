@@ -1,7 +1,7 @@
 #include "exception.hpp"
 #include "68040.hpp"
-#include "proto.hpp"
 #include "memory.hpp"
+#include "proto.hpp"
 void do_exception() {
     if(cpu.in_exception) {
         // Double Bus Fault
@@ -109,8 +109,29 @@ void RTE() {
         cpu.A[7] += 4;
         break;
     case 7: {
-        // AF 
-        uint16_t ssw = MMU_ReadL(cpu.A[7] + 0x0C);
+        // AF
+        uint16_t ssw = MMU_ReadL(cpu.A[7] + 0x04);
+        if( ssw & 1 << 15 ) {
+            // CP restart
+        } 
+        if( ssw & 1 << 14) {
+            // CU restart
+        }
+        if( ssw & 1 << 13) {
+            // CT restart
+            cpu.A[7] += 52;
+            
+            // restart trace
+            cpu.ex_n = 9;
+            do_exception();
+            return;
+        }
+        if( ssw & 1 << 12) {
+            // CM restart
+            cpu.EA = MMU_ReadL(cpu.A[7] + 0x00); 
+            // restart MOVEM
+            cpu.movem_run = true;
+        }
         cpu.A[7] += 52;
         break;
     }

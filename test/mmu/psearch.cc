@@ -20,7 +20,7 @@ BOOST_AUTO_TEST_CASE(User) {
     ptest(vaddr, false, false, false);
     auto found = cpu.u_atc.find(vaddr);
     BOOST_REQUIRE(!!(found != cpu.u_atc.end()));
-    BOOST_TEST(found->second.paddr == 0x4000);
+    BOOST_TEST(found->second.paddr == 4);
     BOOST_TEST(found->second.U == 1);
     BOOST_TEST(!found->second.S);
     BOOST_TEST(!found->second.M);
@@ -42,7 +42,7 @@ BOOST_AUTO_TEST_CASE(System) {
     BOOST_TEST(TEST::GET_L(0x2008) == 0x300A);
     BOOST_TEST(TEST::GET_L(0x300C) == (0x4009 | 2 << 5 | 1 << 8 | 1 << 7));
     BOOST_REQUIRE(!!(found != cpu.s_atc.end()));
-    BOOST_TEST(found->second.paddr == 0x4000);
+    BOOST_TEST(found->second.paddr == 4);
     BOOST_TEST(found->second.U == 1);
     BOOST_TEST(found->second.S);
     BOOST_TEST(!found->second.M);
@@ -65,7 +65,7 @@ BOOST_AUTO_TEST_CASE(P) {
     BOOST_TEST(TEST::GET_L(0x2008) == 0x300A);
     BOOST_TEST(TEST::GET_L(0x300C) == 0x4009);
     BOOST_REQUIRE(!!(found != cpu.u_atc.end()));
-    BOOST_TEST(found->second.paddr == 0x4000);
+    BOOST_TEST(found->second.paddr == 4);
     BOOST_TEST(found->second.R);
 }
 
@@ -85,7 +85,7 @@ BOOST_AUTO_TEST_CASE(Indirect) {
     BOOST_TEST(TEST::GET_L(0x2008) == 0x300A);
     BOOST_TEST(TEST::GET_L(0x4000) == 0x5009);
     BOOST_REQUIRE(!!(found != cpu.u_atc.end()));
-    BOOST_TEST(found->second.paddr == 0x5000);
+    BOOST_TEST(found->second.paddr == 5);
     BOOST_TEST(found->second.R);
 }
 BOOST_AUTO_TEST_SUITE(RootNotFound)

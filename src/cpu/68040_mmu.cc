@@ -75,11 +75,11 @@ struct __attribute__((packed)) page_dsc {
 };
 static_assert(sizeof(page_dsc) == 4);
 
-uint16_t Get_TTR_t(const Cpu::TTR_t &x) {
+uint32_t Get_TTR_t(const Cpu::TTR_t &x) {
     return x.logic_base << 24 | x.logic_mask << 16 | x.E << 15 | x.S << 13 |
            x.U << 8 | x.CM << 5 | x.W << 2;
 }
-void Set_TTR_t(Cpu::TTR_t &x, uint16_t v) {
+void Set_TTR_t(Cpu::TTR_t &x, uint32_t v) {
     x.logic_base = v >> 24 & 0xff;
     x.logic_mask = v >> 16 & 0xff;
     x.E = v & 1 << 15;
@@ -164,7 +164,7 @@ atc_set(uint32_t addr, uint32_t pg_addr, bool W, bool wp, bool s) {
     }
     BusWriteL(pg_addr, std::bit_cast<uint32_t>(pg));
 
-    Cpu::atc_entry e = {static_cast<uint32_t>(pg.paddr << 12),
+    Cpu::atc_entry e = {static_cast<uint32_t>(pg.paddr ),
                         static_cast<uint8_t>(pg.Ux),
                         pg.S,
                         static_cast<uint8_t>(pg.CM),
@@ -431,6 +431,9 @@ std::function<void()> from_cc(int reg, int cc) {
             if(!cpu.S) {
                 PRIV_ERROR();
             }
+            if( cpu.M ) {
+                cpu.MSP = cpu.A[7];
+            }
             cpu.R(reg) = cpu.MSP;
             if(cpu.T == 1) {
                 cpu.must_trace = true;
@@ -440,6 +443,9 @@ std::function<void()> from_cc(int reg, int cc) {
         return [reg]() {
             if(!cpu.S) {
                 PRIV_ERROR();
+            }
+            if( ! cpu.M ) {
+                cpu.ISP = cpu.A[7];
             }
             cpu.R(reg) = cpu.ISP;
             if(cpu.T == 1) {
@@ -590,6 +596,9 @@ std::function<void()> to_cc(int reg, int cc) {
                 PRIV_ERROR();
             }
             cpu.MSP = cpu.R(reg);
+            if( cpu.M) {
+                cpu.A[7] = cpu.MSP;
+            }
             if(cpu.T == 1) {
                 cpu.must_trace = true;
             }
@@ -600,6 +609,9 @@ std::function<void()> to_cc(int reg, int cc) {
                 PRIV_ERROR();
             }
             cpu.ISP = cpu.R(reg);
+            if(! cpu.M) {
+                cpu.A[7] = cpu.ISP;
+            }
             if(cpu.T == 1) {
                 cpu.must_trace = true;
             }
@@ -648,7 +660,7 @@ void op_ptest(uint32_t addr, bool w);
 std::function<void()> decode_mmu(int sz, int type, int reg) {
     switch(sz) {
     case 1:
-        // CINVL DC, *
+        // CINV/CPUSH DC, *
         return []() {
             if(!cpu.S) {
                 PRIV_ERROR();
@@ -660,11 +672,10 @@ std::function<void()> decode_mmu(int sz, int type, int reg) {
         };
     case 2:
     case 3:
-        // CINVL IC/BC
         switch(type) {
         case 1:
         case 5:
-            // CINVL/CPUSHL IC, (An)
+            // CINVL/CPUSHL IC/BC, (An)
             return [reg]() {
                 if(!cpu.S) {
                     PRIV_ERROR();
@@ -679,7 +690,7 @@ std::function<void()> decode_mmu(int sz, int type, int reg) {
             };
         case 2:
         case 6:
-            // CINVP IC, (An)
+            // CINVP/CPUSHP IC/BC, (An)
             return [reg]() {
                 if(!cpu.S) {
                     PRIV_ERROR();
@@ -695,7 +706,7 @@ std::function<void()> decode_mmu(int sz, int type, int reg) {
             };
         case 3:
         case 7:
-            // CINVPA
+            // CINVA/CPUSHA IC/BC
             return [reg]() {
                 if(!cpu.S) {
                     PRIV_ERROR();
@@ -758,7 +769,7 @@ std::function<void()> decode_mmu(int sz, int type, int reg) {
                 if(!cpu.S) {
                     PRIV_ERROR();
                 }
-                op_ptest(cpu.A[reg], false);
+                op_ptest(cpu.A[reg], true);
                 if(cpu.T == 1) {
                     cpu.must_trace = true;
                 }
@@ -768,7 +779,7 @@ std::function<void()> decode_mmu(int sz, int type, int reg) {
                 if(!cpu.S) {
                     PRIV_ERROR();
                 }
-                op_ptest(cpu.A[reg], true);
+                op_ptest(cpu.A[reg], false);
                 if(cpu.T == 1) {
                     cpu.must_trace = true;
                 }
@@ -779,7 +790,7 @@ std::function<void()> decode_mmu(int sz, int type, int reg) {
 }
 
 void pflushn(uint32_t an) {
-    an &= ~0xFFF;
+    an >>= 12;
     if(cpu.DFC == 1 || cpu.DFC == 2) {
         cpu.u_atc.erase(an);
     } else if(cpu.DFC == 5 || cpu.DFC == 6) {
@@ -787,7 +798,7 @@ void pflushn(uint32_t an) {
     }
 }
 void pflush(uint32_t an) {
-    an &= ~0xFFF;
+    an >>= 12;
     if(cpu.DFC == 1 || cpu.DFC == 2) {
         cpu.u_atc.erase(an);
         cpu.ug_atc.erase(an);
@@ -813,7 +824,7 @@ void pflusha() {
     }
 }
 void op_ptest(uint32_t addr, bool w) {
-    addr &= ~0xfff;
+    addr >>= 12;
     switch(cpu.DFC) {
     case 1:
         // USER_DATA

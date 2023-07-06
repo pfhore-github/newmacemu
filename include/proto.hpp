@@ -225,6 +225,7 @@ void do_rtd(int16_t disp);
 void do_rtr();
 void do_rts();
 
+void save_register(uint16_t regs, bool inv = false) ;
 void MOVEM_W_TO_MEM_DECR(uint16_t regs, uint8_t reg);
 void MOVEM_W_TO_MEM_ADDR(uint16_t regs);
 void MOVEM_W_FROM_MEM_INCR(uint16_t regs, uint8_t reg);

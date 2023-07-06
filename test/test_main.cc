@@ -25,8 +25,12 @@ Prepare::Prepare() {
     }
     cpu.nextpc = 0;
     cpu.Z = cpu.X = cpu.V = cpu.C = cpu.N = false;
+    cpu.T = 0;
     memset(RAM.data(), 0, 0x2000);
     cpu.PC = 0;
+    cpu.EA = 0;
+    cpu.movem_run = false;
+
     cpu.TCR_E = false;
     cpu.TCR_P = false;
     cpu.must_trace = false;
@@ -59,7 +63,7 @@ struct MyGlobalFixture {
         rom_is_overlay = false;
         if(setjmp(cpu.ex_buf) != 0) {
             BOOST_ERROR("unexpected exception occured");
-        } 
+        }
     }
 };
 

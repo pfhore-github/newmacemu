@@ -2,14 +2,15 @@
 #include "bus.hpp"
 #include "exception.hpp"
 #include "gmp.h"
-#include "proto.hpp"
 #include "memory.hpp"
 #include "mpfr.h"
+#include "proto.hpp"
 #include <memory>
 #include <string.h>
 #include <utility>
 constexpr uint64_t QNAN_DEFAULT = ~0LLU;
 void reset_fpu();
+
 void init_fpu() {
     for(int i = 0; i < 8; ++i) {
         mpfr_init2(cpu.FP[i], 64);
@@ -167,7 +168,7 @@ std::pair<std::function<void()>, int> fpu_load(int t, int type, int reg) {
     }
     case 6: {
         auto [f, i] = ea_read8(type, reg, cpu.PC + 4);
-        return {[f  = std::move(f)]() {
+        return {[f = std::move(f)]() {
                     mpfr_set_si(cpu.fp_tmp, static_cast<int8_t>(f()),
                                 cpu.FPCR.RND);
                 },
@@ -243,7 +244,19 @@ uint64_t store_fpD() {
     }
     return std::bit_cast<uint64_t>(mpfr_get_d(cpu.fp_tmp, cpu.FPCR.RND));
 }
-
+uint32_t do_frestore_common() {
+    uint32_t first = MMU_ReadL(cpu.EA);
+    if(first >> 24 == 00) {
+        reset_fpu();
+        return 0;
+    } else if(first >> 24 != 0x41) {
+        CPU_RAISE(14);
+    }
+    if(cpu.T == 1) {
+        cpu.must_trace = true;
+    }
+    return first;
+}
 std::pair<uint64_t, uint16_t> store_fpX() {
     normalize_fp(FPU_PREC::X);
     if(mpfr_nan_p(cpu.fp_tmp)) {
@@ -2003,15 +2016,10 @@ std::pair<std::function<void()>, int> decode_fpu(int sz, int type, int reg) {
                                 PRIV_ERROR();
                             }
                             cpu.EA = cpu.A[reg];
-                            uint32_t first = MMU_ReadL(cpu.EA);
-                            if(first >> 24 == 00) {
-                                reset_fpu();
+                            auto first = do_frestore_common();
+                            if( ! first) {
+                                 cpu.A[reg] += 4;
                                 return;
-                            } else if(first >> 24 != 0x41) {
-                                CPU_RAISE(14);
-                            }
-                            if(cpu.T == 1) {
-                                cpu.must_trace = true;
                             }
                             // only increment reg
                             switch(first >> 16 & 0xff) {
@@ -2029,7 +2037,7 @@ std::pair<std::function<void()>, int> decode_fpu(int sz, int type, int reg) {
                                 CPU_RAISE(14);
                             }
                         },
-                        2};
+                        0};
             } else {
                 auto [a, i] = ea_addr(type, reg, cpu.PC + 2, 0, false);
                 return {[a = std::move(a)]() {
@@ -2037,14 +2045,20 @@ std::pair<std::function<void()>, int> decode_fpu(int sz, int type, int reg) {
                                 PRIV_ERROR();
                             }
                             cpu.EA = a();
-                            uint32_t first = MMU_ReadL(cpu.EA);
-                            if(first >> 24 == 00) {
-                                reset_fpu();
+                            auto first = do_frestore_common();
+                            if( ! first) {
                                 return;
-                            } else if(first >> 24 != 0x41) {
+                            }
+                            // only check format
+                            switch(first >> 16 & 0xff) {
+                            case 0x60: // BUSY
+                            case 0x30: // UNIMPLEMNET
+                            case 0x00: // IDLE
+                                break;
+                            default:
+                                // unknown frame
                                 CPU_RAISE(14);
                             }
-                            // actually nop
                         },
                         i};
             }

@@ -56,6 +56,8 @@ test/fpu/fsgldiv.cc test/fpu/fsglmul.cc
 test/fpu/fmove.cc test/fpu/fmovecr.cc test/fpu/fmovem.cc test/fpu/ftrapcc.cc test/fpu/ftwotox.cc
 test/fpu/fint.cc test/fpu/fintrz.cc test/fpu/fsqrt.cc test/fpu/ftst.cc
 test/mmu/ittr.cc test/mmu/dttr.cc test/mmu/disabled.cc test/mmu/atc.cc test/mmu/psearch.cc
+test/cpu/cinv.cc test/cpu/cpush.cc test/fpu/frestore.cc test/fpu/fsave.cc
+test/cpu/movec.cc test/cpu/moves.cc test/mmu/pflush.cc test/mmu/ptest.cc
 ) 
 if(result)
   set_property(TARGET newmacemu PROPERTY INTERPROCEDURAL_OPTIMIZATION_Release TRUE)
@@ -66,7 +68,6 @@ target_include_directories(newmacemu PRIVATE "./include")
 target_link_libraries(testcpu gmp mpfr SDL2::SDL2 fmt Boost::unit_test_framework)
 target_include_directories(testcpu PRIVATE "./include" ${Boost_INCLUDE_DIRS})
 
-# add_test(NAME cpu COMMAND $<TARGET_FILE:testcpu> )
 add_test(NAME ea/r COMMAND $<TARGET_FILE:testcpu> --run_test=EA/Read/*)
 add_test(NAME ea/w COMMAND $<TARGET_FILE:testcpu> --run_test=EA/Write/*)
 add_test(NAME ea/addr COMMAND $<TARGET_FILE:testcpu> --run_test=EA/ADDR/*)
@@ -226,4 +227,12 @@ add_test(NAME mmu_disabled COMMAND $<TARGET_FILE:testcpu> --run_test=MMU_Disable
 add_test(NAME atc COMMAND $<TARGET_FILE:testcpu> --run_test=ATC/*)
 add_test(NAME psearch COMMAND $<TARGET_FILE:testcpu> --run_test=PSERACH/*)
 
+add_test(NAME cinv COMMAND $<TARGET_FILE:testcpu> --run_test=CINV/*)
+add_test(NAME cpush COMMAND $<TARGET_FILE:testcpu> --run_test=CPUSH/*)
+add_test(NAME frestore COMMAND $<TARGET_FILE:testcpu> --run_test=FRESTORE/*)
+add_test(NAME fsave COMMAND $<TARGET_FILE:testcpu> --run_test=FSAVE/*)
+add_test(NAME movec COMMAND $<TARGET_FILE:testcpu> --run_test=MOVEC/*)
+add_test(NAME moves COMMAND $<TARGET_FILE:testcpu> --run_test=MOVES/*)
+add_test(NAME pflush COMMAND $<TARGET_FILE:testcpu> --run_test=PFLUSH*/*)
+add_test(NAME ptest COMMAND $<TARGET_FILE:testcpu> --run_test=PTEST*/*)
 

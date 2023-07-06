@@ -30,6 +30,7 @@ int main() {
         mmap(nullptr, ROMSize, PROT_READ, MAP_SHARED, fd, 0));
     initBus();
     cpu.PC = 0x2A;
+    cpu.movem_run = false;
     for(;;) {
         if(setjmp(cpu.ex_buf) == 0) {            
             cpu.af_value.ea = 0;

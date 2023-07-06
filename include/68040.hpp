@@ -116,8 +116,7 @@ struct Cpu {
     uint32_t EA;
     int n;
     std::atomic<bool> sleep;
-    uint32_t movem_addr;
-    int movem_cnt;
+    bool movem_run;
 };
 struct DecodeError {};
 // Mac 68K has no multi CPU, so doesn't support multi CPU!
