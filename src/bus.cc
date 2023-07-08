@@ -15,22 +15,28 @@ inline static uint8_t readBE8(const uint8_t *base, uint32_t offset) {
     return *(base + offset);
 }
 inline static uint16_t readBE16(const uint8_t *base, uint32_t offset) {
-    return SDL_SwapBE16(*reinterpret_cast<const uint16_t *>(base + offset));
+    uint16_t v;
+    memcpy(&v, base + offset, 2);
+    return SDL_SwapBE16(v);
 }
 
 inline static uint32_t readBE32(const uint8_t *base, uint32_t offset) {
-    return SDL_SwapBE32(*reinterpret_cast<const uint32_t *>(base + offset));
+    uint32_t v;
+    memcpy(&v, base + offset, 4);
+    return SDL_SwapBE32(v);
 }
 inline static void writeBE8(uint8_t *base, uint32_t offset, uint8_t v) {
     *(base + offset) = v;
 }
 
 inline static void writeBE16(uint8_t *base, uint32_t offset, uint16_t v) {
-    *reinterpret_cast<uint16_t *>(base + offset) = SDL_SwapBE16(v);
+    v = SDL_SwapBE16(v);
+    memcpy(base + offset, &v, 2);
 }
 
 inline static void writeBE32(uint8_t *base, uint32_t offset, uint32_t v) {
-    *reinterpret_cast<uint32_t *>(base + offset) = SDL_SwapBE32(v);
+    v = SDL_SwapBE32(v);
+    memcpy(base + offset, &v, 4);
 }
 struct AccessFault {};
 class BusBase {

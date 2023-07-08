@@ -7,14 +7,10 @@
 namespace bdata = boost::unit_test::data;
 BOOST_FIXTURE_TEST_SUITE(PFLUSHN, Prepare)
 BOOST_AUTO_TEST_CASE(err) {
-    if(setjmp(cpu.ex_buf) == 0) {
-        cpu.S = false;
-        TEST::SET_W(0, 0172403);
-        decode_and_run();
-        BOOST_ERROR("exception unoccured");
-    } else {
-        BOOST_TEST(cpu.ex_n == 8);
-    }
+    cpu.S = false;
+    TEST::SET_W(0, 0172403);
+    decode_and_run();
+    BOOST_TEST(GET_EXCEPTION() == 8);
 }
 
 BOOST_DATA_TEST_CASE(user, bdata::xrange(2), T) {
@@ -71,14 +67,10 @@ BOOST_AUTO_TEST_SUITE_END()
 
 BOOST_FIXTURE_TEST_SUITE(PFLUSH, Prepare)
 BOOST_AUTO_TEST_CASE(err) {
-    if(setjmp(cpu.ex_buf) == 0) {
-        cpu.S = false;
-        TEST::SET_W(0, 0172413);
-        decode_and_run();
-        BOOST_ERROR("exception unoccured");
-    } else {
-        BOOST_TEST(cpu.ex_n == 8);
-    }
+    cpu.S = false;
+    TEST::SET_W(0, 0172413);
+    decode_and_run();
+    BOOST_TEST(GET_EXCEPTION() == 8);
 }
 
 BOOST_DATA_TEST_CASE(user, bdata::xrange(2), T) {
@@ -139,14 +131,10 @@ BOOST_AUTO_TEST_SUITE_END()
 
 BOOST_FIXTURE_TEST_SUITE(PFLUSHAN, Prepare)
 BOOST_AUTO_TEST_CASE(err) {
-    if(setjmp(cpu.ex_buf) == 0) {
-        cpu.S = false;
-        TEST::SET_W(0, 0172423);
-        decode_and_run();
-        BOOST_ERROR("exception unoccured");
-    } else {
-        BOOST_TEST(cpu.ex_n == 8);
-    }
+    cpu.S = false;
+    TEST::SET_W(0, 0172423);
+    decode_and_run();
+    BOOST_TEST(GET_EXCEPTION() == 8);
 }
 
 BOOST_DATA_TEST_CASE(user, bdata::xrange(2), T) {
@@ -205,14 +193,10 @@ BOOST_AUTO_TEST_SUITE_END()
 
 BOOST_FIXTURE_TEST_SUITE(PFLUSHA, Prepare)
 BOOST_AUTO_TEST_CASE(err) {
-    if(setjmp(cpu.ex_buf) == 0) {
-        cpu.S = false;
-        TEST::SET_W(0, 0172433);
-        decode_and_run();
-        BOOST_ERROR("exception unoccured");
-    } else {
-        BOOST_TEST(cpu.ex_n == 8);
-    }
+    cpu.S = false;
+    TEST::SET_W(0, 0172433);
+    decode_and_run();
+    BOOST_TEST(GET_EXCEPTION() == 8);
 }
 
 BOOST_DATA_TEST_CASE(user, bdata::xrange(2), T) {

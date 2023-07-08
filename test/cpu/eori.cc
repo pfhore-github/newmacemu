@@ -66,15 +66,11 @@ BOOST_AUTO_TEST_CASE(ccr) {
 }
 
 BOOST_AUTO_TEST_CASE(sr_err) {
-    if(setjmp(cpu.ex_buf) == 0) {
-        cpu.S = false;
-        TEST::SET_W(0, 0005174);
-        TEST::SET_W(2, 0xDFFF);
-        decode_and_run();
-        BOOST_ERROR("exception unoccured");
-    } else {
-        BOOST_TEST(cpu.ex_n == 8);
-    }
+    cpu.S = false;
+    TEST::SET_W(0, 0005174);
+    TEST::SET_W(2, 0xDFFF);
+    decode_and_run();
+    BOOST_TEST(GET_EXCEPTION() == 8);
 }
 
 BOOST_DATA_TEST_CASE(sr_ok, bdata::xrange(2), tr) {

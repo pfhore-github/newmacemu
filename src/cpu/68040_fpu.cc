@@ -250,7 +250,7 @@ uint32_t do_frestore_common() {
         reset_fpu();
         return 0;
     } else if(first >> 24 != 0x41) {
-        CPU_RAISE(14);
+        FORMAT_ERROR();
     }
     if(cpu.T == 1) {
         cpu.must_trace = true;
@@ -302,25 +302,25 @@ void fpu_testex() {
     cpu.FPSR.EXC_INEX |= (cpu.FPSR.INEX1 || cpu.FPSR.INEX2 || cpu.FPSR.OVFL);
 
     if(cpu.FPSR.S_NAN && cpu.FPCR.S_NAN) {
-        CPU_RAISE(54);
+        FP_EX_SNAN();
     }
     if(cpu.FPSR.OPERR && cpu.FPCR.OPERR) {
-        CPU_RAISE(52);
+        FP_EX_OPERR();
     }
     if(cpu.FPSR.OVFL && cpu.FPCR.OVFL) {
-        CPU_RAISE(53);
+        FP_EX_OVFL();
     }
     if(cpu.FPSR.UNFL && cpu.FPCR.UNFL) {
-        CPU_RAISE(51);
+        FP_EX_UNFL();
     }
     if(cpu.FPSR.DZ && cpu.FPCR.DZ) {
-        CPU_RAISE(50);
+        FP_EX_DIV0();
     }
     if(cpu.FPSR.INEX1 && cpu.FPCR.INEX1) {
-        CPU_RAISE(49);
+        FP_EX_INEX();
     }
     if(cpu.FPSR.INEX2 && cpu.FPCR.INEX2) {
-        CPU_RAISE(49);
+        FP_EX_INEX();
     }
 }
 long mpfr_digit10() {
@@ -1429,7 +1429,7 @@ void test_bsun() {
     if(cpu.FPSR.CC_NAN) {
         cpu.FPSR.BSUN = true;
         if(cpu.FPCR.BSUN) {
-            CPU_RAISE(48);
+            FP_EX_BSUN();
         }
     }
 }
@@ -1897,7 +1897,7 @@ std::pair<std::function<void()>, int> decode_fpu(int sz, int type, int reg) {
                 int16_t offset = FETCH(cpu.PC + 4);
                 return {[reg, offset, c = nextop & 0x3f]() {
                             if(c & 1 << 4) {
-                                test_bsun();
+                                 test_bsun();
                             }
                             if(!test_Fcc(c & 0xf)) {
                                 int16_t v2 = cpu.D[reg];
@@ -1917,10 +1917,10 @@ std::pair<std::function<void()>, int> decode_fpu(int sz, int type, int reg) {
                 uint16_t nextop = FETCH(cpu.PC + 2);
                 return {[c = nextop & 0x3f]() {
                             if(c & 1 << 4) {
-                                test_bsun();
+                                 test_bsun();
                             }
                             if(test_Fcc(c & 0xf)) {
-                                TRAPX();
+                                TRAPX_ERROR() ;
                             }
                         },
                         4};
@@ -1929,10 +1929,10 @@ std::pair<std::function<void()>, int> decode_fpu(int sz, int type, int reg) {
                 uint16_t nextop = FETCH(cpu.PC + 2);
                 return {[c = nextop & 0x3f]() {
                             if(c & 1 << 4) {
-                                test_bsun();
+                                 test_bsun();
                             }
                             if(test_Fcc(c & 0xf)) {
-                                TRAPX();
+                                TRAPX_ERROR();
                             }
                         },
                         6};
@@ -1941,10 +1941,10 @@ std::pair<std::function<void()>, int> decode_fpu(int sz, int type, int reg) {
                 uint16_t nextop = FETCH(cpu.PC + 2);
                 return {[c = nextop & 0x3f]() {
                             if(c & 1 << 4) {
-                                test_bsun();
+                                 test_bsun();
                             }
                             if(test_Fcc(c & 0xf)) {
-                                TRAPX();
+                                TRAPX_ERROR();
                             }
                         },
                         2};
@@ -1954,7 +1954,7 @@ std::pair<std::function<void()>, int> decode_fpu(int sz, int type, int reg) {
                 auto [w, i] = ea_write8(type, reg, cpu.PC + 4);
                 return {[w = std::move(w), c = nextop & 0x3f]() {
                             if(c & 1 << 4) {
-                                test_bsun();
+                                 test_bsun();
                             }
                             if(test_Fcc(c & 0xf)) {
                                 w(0xff);
@@ -1969,7 +1969,7 @@ std::pair<std::function<void()>, int> decode_fpu(int sz, int type, int reg) {
             int16_t offset = FETCH(cpu.PC + 2);
             return {[offset, c = type << 3 | reg]() {
                         if(c & 1 << 4) {
-                            test_bsun();
+                             test_bsun();
                         }
                         if(test_Fcc(c & 0xf)) {
                             JUMP(cpu.PC + 2 + offset);
@@ -1984,7 +1984,7 @@ std::pair<std::function<void()>, int> decode_fpu(int sz, int type, int reg) {
             int32_t offset = FETCH32(cpu.PC + 2);
             return {[offset, c = type << 3 | reg]() {
                         if(c & 1 << 4) {
-                            test_bsun();
+                             test_bsun();
                         }
                         if(test_Fcc(c & 0xf)) {
                             JUMP(cpu.PC + 2 + offset);
@@ -2017,8 +2017,8 @@ std::pair<std::function<void()>, int> decode_fpu(int sz, int type, int reg) {
                             }
                             cpu.EA = cpu.A[reg];
                             auto first = do_frestore_common();
-                            if( ! first) {
-                                 cpu.A[reg] += 4;
+                            if(!first) {
+                                cpu.A[reg] += 4;
                                 return;
                             }
                             // only increment reg
@@ -2034,7 +2034,7 @@ std::pair<std::function<void()>, int> decode_fpu(int sz, int type, int reg) {
                                 break;
                             default:
                                 // unknown frame
-                                CPU_RAISE(14);
+                                FORMAT_ERROR();
                             }
                         },
                         0};
@@ -2046,7 +2046,7 @@ std::pair<std::function<void()>, int> decode_fpu(int sz, int type, int reg) {
                             }
                             cpu.EA = a();
                             auto first = do_frestore_common();
-                            if( ! first) {
+                            if(!first) {
                                 return;
                             }
                             // only check format
@@ -2057,15 +2057,15 @@ std::pair<std::function<void()>, int> decode_fpu(int sz, int type, int reg) {
                                 break;
                             default:
                                 // unknown frame
-                                CPU_RAISE(14);
+                                FORMAT_ERROR();
                             }
                         },
                         i};
             }
         }
-        return {[]() { ILLEGAL_FP(); }, 2};
+        return {FLINE, 2};
     } catch(DecodeError &) {
-        return {[]() { ILLEGAL_FP(); }, 2};
+        return {FLINE, 2};
     }
 }
 

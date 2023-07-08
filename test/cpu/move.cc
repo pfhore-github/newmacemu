@@ -74,14 +74,10 @@ BOOST_AUTO_TEST_CASE(ToCcr) {
 }
 
 BOOST_AUTO_TEST_CASE(FromSrErr) {
-    if(setjmp(cpu.ex_buf) == 0) {
-        cpu.S = false;
-        TEST::SET_W(0, 0040300);
-        decode_and_run();
-        BOOST_ERROR("exception unoccured");
-    } else {
-        BOOST_TEST(cpu.ex_n == 8);
-    }
+    cpu.S = false;
+    TEST::SET_W(0, 0040300);
+    decode_and_run();
+    BOOST_TEST(GET_EXCEPTION() == 8);
 }
 
 BOOST_AUTO_TEST_CASE(FromSr) {
@@ -96,14 +92,10 @@ BOOST_AUTO_TEST_CASE(FromSr) {
 }
 
 BOOST_AUTO_TEST_CASE(ToSrErr) {
-    if(setjmp(cpu.ex_buf) == 0) {
-        cpu.S = false;
-        TEST::SET_W(0, 0043300);
-        decode_and_run();
-        BOOST_ERROR("exception unoccured");
-    } else {
-        BOOST_TEST(cpu.ex_n == 8);
-    }
+    cpu.S = false;
+    TEST::SET_W(0, 0043300);
+    decode_and_run();
+    BOOST_TEST(GET_EXCEPTION() == 8);
 }
 
 BOOST_AUTO_TEST_CASE(ToSr) {
@@ -144,14 +136,10 @@ BOOST_AUTO_TEST_CASE(imm) {
 }
 
 BOOST_AUTO_TEST_CASE(FromUSPErr) {
-    if(setjmp(cpu.ex_buf) == 0) {
-        cpu.S = false;
-        TEST::SET_W(0, 0047150);
-        decode_and_run();
-        BOOST_ERROR("exception unoccured");
-    } else {
-        BOOST_TEST(cpu.ex_n == 8);
-    }
+    cpu.S = false;
+    TEST::SET_W(0, 0047150);
+    decode_and_run();
+    BOOST_TEST(GET_EXCEPTION() == 8);
 }
 
 BOOST_DATA_TEST_CASE(FromUSP, bdata::xrange(2), T) {
@@ -166,14 +154,10 @@ BOOST_DATA_TEST_CASE(FromUSP, bdata::xrange(2), T) {
 }
 
 BOOST_AUTO_TEST_CASE(ToUSPErr) {
-    if(setjmp(cpu.ex_buf) == 0) {
-        cpu.S = false;
-        TEST::SET_W(0, 0047140);
-        decode_and_run();
-        BOOST_ERROR("exception unoccured");
-    } else {
-        BOOST_TEST(cpu.ex_n == 8);
-    }
+    cpu.S = false;
+    TEST::SET_W(0, 0047140);
+    decode_and_run();
+    BOOST_TEST(GET_EXCEPTION() == 8);
 }
 
 BOOST_DATA_TEST_CASE(ToUSP, bdata::xrange(2), T) {

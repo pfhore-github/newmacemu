@@ -47,13 +47,9 @@ inline void SET_L(uint32_t addr, uint32_t v) {
 extern const double sg_v[2];
 extern const mpfr_rnd_t RND_MODES[4];
 
-inline int decode_and_run() {
-    auto [f, i] = decode();
-    f();
-    return i;
-}
+ int decode_and_run() ;
 
 void qnan_test(uint16_t op) ;
 void snan_test(uint16_t op) ;
-
+int GET_EXCEPTION() ;
 #endif

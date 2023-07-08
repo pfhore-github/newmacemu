@@ -15,14 +15,12 @@ BOOST_DATA_TEST_CASE(DC, bdata::xrange(2) * bdata::xrange(2), tr, s) {
     cpu.S = s;
     cpu.T = tr;
     TEST::SET_W(0, 0172130);
-    if(setjmp(cpu.ex_buf) == 0) {
-        auto i = decode_and_run();
-        BOOST_TEST(i == 0);
-        BOOST_TEST(s);
+    auto i = decode_and_run();
+    BOOST_TEST(i == 0);
+    if(s) {
         BOOST_TEST(cpu.must_trace == !!tr);
     } else {
-        BOOST_TEST(!s);
-        BOOST_TEST(cpu.ex_n == 8);
+        BOOST_TEST(GET_EXCEPTION() == 8);
     }
 }
 
@@ -30,14 +28,12 @@ BOOST_DATA_TEST_CASE(IC, bdata::xrange(2) * bdata::xrange(2), tr, s) {
     cpu.S = s;
     cpu.T = tr;
     TEST::SET_W(0, 0172230);
-    if(setjmp(cpu.ex_buf) == 0) {
-        auto i = decode_and_run();
-        BOOST_TEST(i == 0);
-        BOOST_TEST(s);
+    auto i = decode_and_run();
+    BOOST_TEST(i == 0);
+    if(s) {
         BOOST_TEST(cpu.must_trace == !!tr);
     } else {
-        BOOST_TEST(!s);
-        BOOST_TEST(cpu.ex_n == 8);
+        BOOST_TEST(GET_EXCEPTION() == 8);
     }
 }
 
@@ -45,14 +41,12 @@ BOOST_DATA_TEST_CASE(BC, bdata::xrange(2) * bdata::xrange(2), tr, s) {
     cpu.S = s;
     cpu.T = tr;
     TEST::SET_W(0, 0172330);
-    if(setjmp(cpu.ex_buf) == 0) {
-        auto i = decode_and_run();
-        BOOST_TEST(i == 0);
-        BOOST_TEST(s);
+    auto i = decode_and_run();
+    BOOST_TEST(i == 0);
+    if(s) {
         BOOST_TEST(cpu.must_trace == !!tr);
     } else {
-        BOOST_TEST(!s);
-        BOOST_TEST(cpu.ex_n == 8);
+        BOOST_TEST(GET_EXCEPTION() == 8);
     }
 }
 
@@ -60,14 +54,12 @@ BOOST_DATA_TEST_CASE(Line, bdata::xrange(2) * bdata::xrange(2), tr, s) {
     cpu.S = s;
     cpu.T = tr;
     TEST::SET_W(0, 0172223);
-    if(setjmp(cpu.ex_buf) == 0) {
-        auto i = decode_and_run();
-        BOOST_TEST(i == 0);
-        BOOST_TEST(s);
+    auto i = decode_and_run();
+    BOOST_TEST(i == 0);
+    if(s) {
         BOOST_TEST(cpu.must_trace == !!tr);
     } else {
-        BOOST_TEST(!s);
-        BOOST_TEST(cpu.ex_n == 8);
+        BOOST_TEST(GET_EXCEPTION() == 8);
     }
 }
 
@@ -75,14 +67,12 @@ BOOST_DATA_TEST_CASE(Page, bdata::xrange(2) * bdata::xrange(2), tr, s) {
     cpu.S = s;
     cpu.T = tr;
     TEST::SET_W(0, 0172213);
-    if(setjmp(cpu.ex_buf) == 0) {
-        auto i = decode_and_run();
-        BOOST_TEST(i == 0);
-        BOOST_TEST(s);
+    auto i = decode_and_run();
+    BOOST_TEST(i == 0);
+    if(s) {
         BOOST_TEST(cpu.must_trace == !!tr);
     } else {
-        BOOST_TEST(!s);
-        BOOST_TEST(cpu.ex_n == 8);
+        BOOST_TEST(GET_EXCEPTION() == 8);
     }
 }
 

@@ -40,7 +40,7 @@ BOOST_AUTO_TEST_CASE(Div0) {
         DIVS_W(3, 0);
         BOOST_ERROR("exception unoccured");
     } else {
-        BOOST_TEST(cpu.ex_n == 5);
+        BOOST_TEST(GET_EXCEPTION()  == 5);
     }
 }
 
@@ -81,7 +81,7 @@ BOOST_AUTO_TEST_CASE(Div0) {
         DIVS_L(3, 0);
         BOOST_ERROR("exception unoccured");
     } else {
-        BOOST_TEST(cpu.ex_n == 5);
+        BOOST_TEST(GET_EXCEPTION()  == 5);
     }
 }
 
@@ -137,7 +137,7 @@ BOOST_AUTO_TEST_CASE(Div0) {
         DIVS_LL(3, 0);
         BOOST_ERROR("exception unoccured");
     } else {
-        BOOST_TEST(cpu.ex_n == 5);
+        BOOST_TEST(GET_EXCEPTION()  == 5);
     }
 }
 BOOST_AUTO_TEST_CASE(operand) {

@@ -23,10 +23,11 @@ Prepare::Prepare() {
     for(int i = 0; i < 8; ++i) {
         cpu.D[i] = cpu.A[i] = 0;
     }
+    cpu.ISP = cpu.USP = cpu.MSP = cpu.A[7] = 0x6C00;
     cpu.nextpc = 0;
     cpu.Z = cpu.X = cpu.V = cpu.C = cpu.N = false;
     cpu.T = 0;
-    memset(RAM.data(), 0, 0x2000);
+    memset(RAM.data(), 0, 0x8000);
     cpu.PC = 0;
     cpu.EA = 0;
     cpu.movem_run = false;
@@ -42,7 +43,14 @@ Prepare::Prepare() {
     cpu.DTTR[1].E = false;
     cpu.ITTR[0].E = false;
     cpu.ITTR[1].E = false;
+
+    // EXCEPTION TABLE
+    cpu.VBR = 0x400;
+    for(int i = 0; i < 64; ++i) {
+        TEST::SET_L(0x400 + (i << 2), 0x5000 + (i << 2));
+    }
 }
+int GET_EXCEPTION() { return (cpu.nextpc - 0x5000) >> 2; }
 extern bool rom_is_overlay;
 struct MyGlobalFixture {
     MyGlobalFixture() {
@@ -61,10 +69,23 @@ struct MyGlobalFixture {
         initBus();
         init_fpu();
         rom_is_overlay = false;
-        if(setjmp(cpu.ex_buf) != 0) {
-            BOOST_ERROR("unexpected exception occured");
-        }
     }
 };
 
 BOOST_TEST_GLOBAL_FIXTURE(MyGlobalFixture);
+
+uint8_t LoadIO_B(uint32_t) { return 0; }
+uint16_t LoadIO_W(uint32_t) { return 0; }
+uint32_t LoadIO_L(uint32_t) { return 0; }
+void StoreIO_B(uint32_t, uint8_t) {}
+void StoreIO_W(uint32_t, uint16_t) {}
+void StoreIO_L(uint32_t, uint32_t) {}
+
+int decode_and_run() {
+    cpu.in_exception = false;
+    auto [f, i] = decode();
+    if(setjmp(cpu.ex_buf) == 0) {
+        f();
+    }
+    return i;
+}

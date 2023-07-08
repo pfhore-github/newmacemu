@@ -6,12 +6,8 @@
 #include <boost/test/unit_test.hpp>
 namespace bdata = boost::unit_test::data;
 void trap_ng() {
-    if(setjmp(cpu.ex_buf) == 0) {
-        decode_and_run();
-        BOOST_ERROR("exception unoccured");
-    } else {
-        BOOST_TEST(cpu.ex_n == 7);
-    }
+    decode_and_run();
+    BOOST_TEST(GET_EXCEPTION() == 7);
 }
 void trap_ok() {
     decode_and_run();
@@ -21,18 +17,18 @@ BOOST_FIXTURE_TEST_SUITE(TRAPcc, Prepare)
 BOOST_AUTO_TEST_CASE(noext) {
     TEST::SET_W(0, 0050370 | 1 << 8 | 4);
     auto i = decode_and_run();
-    BOOST_TEST(i==0);
+    BOOST_TEST(i == 0);
 }
 
 BOOST_AUTO_TEST_CASE(extW) {
     TEST::SET_W(0, 0050370 | 1 << 8 | 2);
     auto i = decode_and_run();
-    BOOST_TEST(i==2);
+    BOOST_TEST(i == 2);
 }
 BOOST_AUTO_TEST_CASE(extL) {
     TEST::SET_W(0, 0050370 | 1 << 8 | 3);
     auto i = decode_and_run();
-    BOOST_TEST(i==4);
+    BOOST_TEST(i == 4);
 }
 BOOST_AUTO_TEST_CASE(T) {
     TEST::SET_W(0, 0050370 | 0 << 8 | 4);

@@ -7,25 +7,22 @@
 uint32_t ptest(uint32_t addr, bool sys, bool code, bool W);
 namespace bdata = boost::unit_test::data;
 struct AccessFault {};
-struct MMU_Dafault: Prepare {
+struct MMU_Dafault : Prepare {
     MMU_Dafault() {
         cpu.TCR_E = true;
         cpu.ITTR[0].E = true;
+        cpu.ITTR[0].S = 2;
         cpu.ITTR[0].logic_base = 0;
         cpu.ITTR[0].logic_mask = 0;
     }
 };
 BOOST_FIXTURE_TEST_SUITE(PTESTR, MMU_Dafault)
 BOOST_AUTO_TEST_CASE(err) {
-    if(setjmp(cpu.ex_buf) == 0) {
-        cpu.S = false;
-        cpu.TCR_E = false;
-        TEST::SET_W(0, 0172550);
-        decode_and_run();
-        BOOST_ERROR("exception unoccured");
-    } else {
-        BOOST_TEST(cpu.ex_n == 8);
-    }
+    cpu.S = false;
+    cpu.TCR_E = false;
+    TEST::SET_W(0, 0172550);
+    decode_and_run();
+    BOOST_TEST(GET_EXCEPTION() == 8);
 }
 BOOST_DATA_TEST_CASE(user_data, bdata::xrange(2), T) {
     cpu.TCR_E = true;
@@ -40,7 +37,7 @@ BOOST_DATA_TEST_CASE(user_data, bdata::xrange(2), T) {
     TEST::SET_W(0, 0172552);
     auto i = decode_and_run();
     BOOST_TEST(i == 0);
-    BOOST_TEST(cpu.MMUSR == 0x4001 );
+    BOOST_TEST(cpu.MMUSR == 0x4001);
     BOOST_TEST(cpu.must_trace == !!T);
 }
 
@@ -57,10 +54,9 @@ BOOST_DATA_TEST_CASE(user_code, bdata::xrange(2), T) {
     TEST::SET_W(0, 0172552);
     auto i = decode_and_run();
     BOOST_TEST(i == 0);
-    BOOST_TEST(cpu.MMUSR == 0x4001 );
+    BOOST_TEST(cpu.MMUSR == 0x4001);
     BOOST_TEST(cpu.must_trace == !!T);
 }
-
 
 BOOST_DATA_TEST_CASE(sys_data, bdata::xrange(2), T) {
     cpu.TCR_E = true;
@@ -92,24 +88,19 @@ BOOST_DATA_TEST_CASE(sys_code, bdata::xrange(2), T) {
     TEST::SET_W(0, 0172552);
     auto i = decode_and_run();
     BOOST_TEST(i == 0);
-    BOOST_TEST(cpu.MMUSR == 0x4001 );
+    BOOST_TEST(cpu.MMUSR == 0x4001);
     BOOST_TEST(cpu.must_trace == !!T);
 }
 
 BOOST_AUTO_TEST_SUITE_END()
 
-
 BOOST_FIXTURE_TEST_SUITE(PTESTW, MMU_Dafault)
 BOOST_AUTO_TEST_CASE(err) {
-    if(setjmp(cpu.ex_buf) == 0) {
-        cpu.S = false;
-        cpu.TCR_E = false;
-        TEST::SET_W(0, 0172510);
-        decode_and_run();
-        BOOST_ERROR("exception unoccured");
-    } else {
-        BOOST_TEST(cpu.ex_n == 8);
-    }
+    cpu.S = false;
+    cpu.TCR_E = false;
+    TEST::SET_W(0, 0172510);
+    decode_and_run();
+    BOOST_TEST(GET_EXCEPTION() == 8);
 }
 BOOST_DATA_TEST_CASE(user_data, bdata::xrange(2), T) {
     cpu.TCR_E = true;
@@ -144,7 +135,6 @@ BOOST_DATA_TEST_CASE(user_code, bdata::xrange(2), T) {
     BOOST_TEST(cpu.MMUSR == (0x4001 | 1 << 4));
     BOOST_TEST(cpu.must_trace == !!T);
 }
-
 
 BOOST_DATA_TEST_CASE(sys_data, bdata::xrange(2), T) {
     cpu.TCR_E = true;

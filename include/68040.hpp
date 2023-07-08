@@ -7,6 +7,7 @@
 #include <atomic>
 #include <setjmp.h>
 #include "mpfr.h"
+#include "exception.hpp"
 enum class TT {
     NORMAL = 0, MOVE16, ALT, ACK
 };
@@ -45,6 +46,7 @@ struct AccessFault_t {
 enum class FPU_PREC {
     X, S, D, AUTO,
 };
+
 struct Cpu {
     uint32_t D[8];
     uint32_t A[8];
@@ -105,11 +107,12 @@ struct Cpu {
     std::unordered_map<uint32_t, atc_entry> s_atc, sg_atc, u_atc, ug_atc;
 
     // internal
-    uint32_t nextpc;
     jmp_buf ex_buf;
+    uint32_t nextpc;
 
-    int ex_n;
     AccessFault_t af_value;
+
+    int n_mask = 0;
     bool in_exception;
     bool must_trace;
     std::unordered_map<uint32_t, std::pair<std::function<void()>, int> > icache;

@@ -134,7 +134,7 @@ int8_t ASL_B(int8_t v, uint8_t c) {
     cpu.C = (v << (c - 1)) & 0x80;
     TEST_B(re);
     cpu.X = cpu.C;
-    int8_t so = v >> (7 - c);
+    int8_t so = c == 8 ? v : v >> (7 - c);
     cpu.V = so != (v >> 7);
     return re;
 }
@@ -431,7 +431,7 @@ uint32_t ROXL_L(uint32_t v, uint8_t c, bool old_x) {
         cpu.C = old_x;
         return v;
     }
-    uint32_t re = v << c | old_x << (c - 1) | v >> (33 - c);
+    uint32_t re = v << c | old_x << (c - 1) | (c == 1 ? 0 : v >> (33 - c));
     cpu.X = cpu.C = v >> (32 - c) & 1;
     TEST_L(re);
     return re;

@@ -5,21 +5,23 @@
 #include <boost/test/data/test_case.hpp>
 #include <boost/test/unit_test.hpp>
 namespace bdata = boost::unit_test::data;
-BOOST_FIXTURE_TEST_SUITE(FSAVE, Prepare)
-BOOST_AUTO_TEST_CASE(err) {
+static bool is_reset = false;
+void bus_reset() { is_reset = true; }
+BOOST_FIXTURE_TEST_SUITE(RESET, Prepare)
+BOOST_AUTO_TEST_CASE(user) {
+    is_reset = false;
     cpu.S = false;
-    TEST::SET_W(0, 0171420);
+    TEST::SET_W(0, 0047160);
     decode_and_run();
     BOOST_TEST(GET_EXCEPTION() == 8);
 }
 
-BOOST_AUTO_TEST_CASE(normal) {
+BOOST_AUTO_TEST_CASE(sys) {
+    is_reset = false;
     cpu.S = true;
-    cpu.A[2] = 0x1000;
-    TEST::SET_W(0, 0171422);
+    TEST::SET_W(0, 0047160);
     auto i = decode_and_run();
-    BOOST_TEST(TEST::GET_L(0x1000) == 0x41000000);
     BOOST_TEST(i == 0);
+    BOOST_TEST(is_reset);
 }
-
 BOOST_AUTO_TEST_SUITE_END()

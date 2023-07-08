@@ -14,6 +14,12 @@ BOOST_DATA_TEST_CASE(traced, bdata::xrange(2), T) {
     BOOST_TEST(cpu.must_trace == !!T);
 }
 
+BOOST_AUTO_TEST_CASE(addressError) {
+    TEST::SET_W(0, 0060000 | 5);
+    decode_and_run();
+    BOOST_TEST(GET_EXCEPTION() == 3);
+}
+
 BOOST_AUTO_TEST_CASE(offset1) {
     TEST::SET_W(0, 0060000 | 4);
     auto i = decode_and_run();

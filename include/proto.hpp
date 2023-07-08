@@ -13,10 +13,10 @@ inline uint16_t POP16() {
     return v;
 }
 inline void JUMP(uint32_t next) {
-    cpu.nextpc = next;
     if(next & 1) {
-        ADDRESS_ERROR();
+        ADDRESS_ERROR(next);
     }
+    cpu.nextpc = next;
 }
 inline uint16_t POP32() {
     uint32_t v = MMU_ReadL(cpu.A[7]);
@@ -77,6 +77,11 @@ inline void TEST_L(int32_t v) {
     cpu.Z = v == 0;
 }
 
+inline void TRACE_BRANCH() {
+    if(cpu.T == 1) {
+        cpu.must_trace = true;
+    }
+}
 inline void STORE_B(uint32_t &v, uint8_t b) { v = (v & 0xffffff00) | b; }
 inline void STORE_W(uint32_t &v, uint16_t w) { v = (v & 0xffff0000) | w; }
 uint8_t AND_B(uint8_t a, uint8_t b);
@@ -90,8 +95,6 @@ uint32_t XOR_L(uint32_t a, uint32_t b);
 uint8_t OR_B(uint8_t a, uint8_t b);
 uint16_t OR_W(uint16_t a, uint16_t b);
 uint32_t OR_L(uint32_t a, uint32_t b);
-
-
 
 uint8_t NOT_B(uint8_t v);
 uint16_t NOT_W(uint16_t v);
@@ -126,9 +129,9 @@ uint32_t BCLR_L(uint32_t v, uint8_t b);
 uint8_t BSET_B(uint8_t v, uint8_t b);
 uint32_t BSET_L(uint32_t v, uint8_t b);
 
-uint64_t MULU_LL(uint32_t a, uint32_t b); 
+uint64_t MULU_LL(uint32_t a, uint32_t b);
 int64_t MULS_LL(int32_t a, int32_t b);
-uint32_t MULU_L(uint32_t a, uint32_t b) ;
+uint32_t MULU_L(uint32_t a, uint32_t b);
 int32_t MULS_L(int32_t a, int32_t b);
 uint32_t MULU_W(uint16_t a, uint16_t b);
 int32_t MULS_W(int16_t a, int16_t b);
@@ -164,22 +167,21 @@ uint8_t LSL_B(uint8_t v, uint8_t c);
 uint16_t LSL_W(uint16_t v, uint8_t c);
 uint32_t LSL_L(uint32_t v, uint8_t c);
 
+uint8_t ROR_B(uint8_t v, uint8_t c);
+uint16_t ROR_W(uint16_t v, uint8_t c);
+uint32_t ROR_L(uint32_t v, uint8_t c);
 
-uint8_t ROR_B(uint8_t v, uint8_t c) ;
-uint16_t ROR_W(uint16_t v, uint8_t c) ;
-uint32_t ROR_L(uint32_t v, uint8_t c) ;
+uint8_t ROL_B(uint8_t v, uint8_t c);
+uint16_t ROL_W(uint16_t v, uint8_t c);
+uint32_t ROL_L(uint32_t v, uint8_t c);
 
-uint8_t ROL_B(uint8_t v, uint8_t c) ;
-uint16_t ROL_W(uint16_t v, uint8_t c) ;
-uint32_t ROL_L(uint32_t v, uint8_t c) ;
+uint8_t ROXR_B(uint8_t v, uint8_t c, bool old_x);
+uint16_t ROXR_W(uint16_t v, uint8_t c, bool old_x);
+uint32_t ROXR_L(uint32_t v, uint8_t c, bool old_x);
 
-uint8_t ROXR_B(uint8_t v, uint8_t c, bool old_x) ;
-uint16_t ROXR_W(uint16_t v, uint8_t c, bool old_x) ;
-uint32_t ROXR_L(uint32_t v, uint8_t c, bool old_x) ;
-
-uint8_t ROXL_B(uint8_t v, uint8_t c, bool old_x) ;
-uint16_t ROXL_W(uint16_t v, uint8_t c, bool old_x) ;
-uint32_t ROXL_L(uint32_t v, uint8_t c, bool old_x) ;
+uint8_t ROXL_B(uint8_t v, uint8_t c, bool old_x);
+uint16_t ROXL_W(uint16_t v, uint8_t c, bool old_x);
+uint32_t ROXL_L(uint32_t v, uint8_t c, bool old_x);
 
 int32_t BFTST_D(uint32_t v, int offset, int width);
 int32_t BFTST_M(uint32_t addr, int offset, int width);
@@ -219,13 +221,13 @@ void CMP2_SL(int32_t v, uint32_t rangeAddr);
 
 void do_bra(int32_t ix);
 void do_bsr(int32_t ix, int off);
-void do_bcc(bool cond, int ix) ;
+void do_bcc(bool cond, int ix);
 void do_dbcc(bool cond, int reg, int16_t d);
 void do_rtd(int16_t disp);
 void do_rtr();
 void do_rts();
 
-void save_register(uint16_t regs, bool inv = false) ;
+void save_register(uint16_t regs, bool inv = false);
 void MOVEM_W_TO_MEM_DECR(uint16_t regs, uint8_t reg);
 void MOVEM_W_TO_MEM_ADDR(uint16_t regs);
 void MOVEM_W_FROM_MEM_INCR(uint16_t regs, uint8_t reg);

@@ -7,16 +7,11 @@
 namespace bdata = boost::unit_test::data;
 BOOST_FIXTURE_TEST_SUITE(TRAPV, Prepare)
 BOOST_AUTO_TEST_CASE(t) {
-    if(setjmp(cpu.ex_buf) == 0) {
-        cpu.V = true;
-        TEST::SET_W(0, 0047166);
-        auto [f, i] = decode();
-        BOOST_TEST(i == 0);
-        f();
-        BOOST_ERROR("exception unoccured");
-    } else {
-        BOOST_TEST(cpu.ex_n == 7);
-    }
+    cpu.V = true;
+    TEST::SET_W(0, 0047166);
+    auto i = decode_and_run();
+    BOOST_TEST(i == 0);
+    BOOST_TEST(GET_EXCEPTION() == 7);
 }
 BOOST_AUTO_TEST_CASE(f) {
     cpu.V = false;
