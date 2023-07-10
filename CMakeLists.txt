@@ -55,6 +55,8 @@ test/fpu/fadd.cc test/fpu/fdiv.cc test/fpu/fmod.cc test/fpu/fmul.cc test/fpu/fre
 test/fpu/fsgldiv.cc test/fpu/fsglmul.cc
 test/fpu/fmove.cc test/fpu/fmovecr.cc test/fpu/fmovem.cc test/fpu/ftrapcc.cc test/fpu/ftwotox.cc
 test/fpu/fint.cc test/fpu/fintrz.cc test/fpu/fsqrt.cc test/fpu/ftst.cc
+test/fpu/fpexcept.cc
+
 test/mmu/ittr.cc test/mmu/dttr.cc test/mmu/disabled.cc test/mmu/atc.cc test/mmu/psearch.cc
 test/cpu/cinv.cc test/cpu/cpush.cc test/fpu/frestore.cc test/fpu/fsave.cc
 test/cpu/movec.cc test/cpu/moves.cc test/mmu/pflush.cc test/mmu/ptest.cc
@@ -221,6 +223,7 @@ add_test(NAME ftentox COMMAND $<TARGET_FILE:testcpu> -t "FTENTOX/*")
 add_test(NAME ftrapcc COMMAND $<TARGET_FILE:testcpu> -t "FTRAPcc/*")
 add_test(NAME ftst COMMAND $<TARGET_FILE:testcpu> -t "FTST/*")
 add_test(NAME ftwotox COMMAND $<TARGET_FILE:testcpu> -t "FTWOTOX/*")
+add_test(NAME fp_exception COMMAND $<TARGET_FILE:testcpu> -t "FP_exception/*")
 
 add_test(NAME ittr COMMAND $<TARGET_FILE:testcpu> -t "ITTR/*")
 add_test(NAME dttr COMMAND $<TARGET_FILE:testcpu> -t "DTTR/*")

@@ -121,7 +121,7 @@ void IRQ(int n) {
         PUSH32(0x01 << 12 | (n << 2));
         PUSH32(cpu.nextpc);
         PUSH16(sr);
-    } 
+    }
     JUMP(MMU_ReadL(cpu.VBR + (n << 2)));
 }
 
@@ -141,7 +141,7 @@ void RTE() {
         break;
     case 7: {
         // AF
-        uint16_t ssw = MMU_ReadL(cpu.A[7] + 0x04);
+        uint16_t ssw = MMU_ReadW(cpu.A[7] + 0x04);
         if(ssw & 1 << 15) {
             // CP restart
         }
@@ -151,9 +151,10 @@ void RTE() {
         if(ssw & 1 << 13) {
             // CT restart
             cpu.A[7] += 52;
-
             // restart trace
+            SetSR(sr);
             cpu.must_trace = false;
+            cpu.nextpc = pc;
             TRACE();
         }
         if(ssw & 1 << 12) {
@@ -166,11 +167,12 @@ void RTE() {
         break;
     }
     default:
-        return FORMAT_ERROR();
+        FORMAT_ERROR();
     }
     SetSR(sr);
     if(cpu.T == 1) {
         cpu.must_trace = true;
     }
+    cpu.in_exception = false;
     JUMP(pc);
 }

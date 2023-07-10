@@ -16,11 +16,9 @@ void run_op() {
     cpu.nextpc = cpu.PC + 2 + o->second.second;
     if(setjmp(cpu.ex_buf) == 0) {
         o->second.first();
-    } else {
-        return;
+        if(std::exchange(cpu.must_trace, false)) {
+            TRACE();
+        }   
     }
     cpu.PC = cpu.nextpc;
-    if(std::exchange(cpu.must_trace, false)) {
-        TRACE();
-    }
 }
