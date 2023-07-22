@@ -5,10 +5,10 @@
 #include "memory.hpp"
 #include <limits>
 #include <stdint.h>
-inline void PUSH16(uint16_t v) { MMU_WriteW(cpu.A[7] -= 2, v); }
-inline void PUSH32(uint32_t v) { MMU_WriteL(cpu.A[7] -= 4, v); }
+inline void PUSH16(uint16_t v) { WriteW(cpu.A[7] -= 2, v); }
+inline void PUSH32(uint32_t v) { WriteL(cpu.A[7] -= 4, v); }
 inline uint16_t POP16() {
-    uint16_t v = MMU_ReadW(cpu.A[7]);
+    uint16_t v = ReadW(cpu.A[7]);
     cpu.A[7] += 2;
     return v;
 }
@@ -16,10 +16,10 @@ inline void JUMP(uint32_t next) {
     if(next & 1) {
         ADDRESS_ERROR(next);
     }
-    cpu.nextpc = next;
+    cpu.PC = next;
 }
 inline uint16_t POP32() {
-    uint32_t v = MMU_ReadL(cpu.A[7]);
+    uint32_t v = ReadL(cpu.A[7]);
     cpu.A[7] += 4;
     return v;
 }
@@ -84,6 +84,7 @@ inline void TRACE_BRANCH() {
 }
 inline void STORE_B(uint32_t &v, uint8_t b) { v = (v & 0xffffff00) | b; }
 inline void STORE_W(uint32_t &v, uint16_t w) { v = (v & 0xffff0000) | w; }
+inline void STORE_L(uint32_t &v, uint32_t l) { v = l; }
 uint8_t AND_B(uint8_t a, uint8_t b);
 uint16_t AND_W(uint16_t a, uint16_t b);
 uint32_t AND_L(uint32_t a, uint32_t b);
@@ -143,13 +144,13 @@ uint8_t NEGX_B(uint8_t v, bool old_x);
 uint16_t NEGX_W(uint16_t v, bool old_x);
 uint32_t NEGX_L(uint32_t v, bool old_x);
 
-std::pair<uint32_t, uint32_t> DIVU_LL(uint64_t a, uint32_t b);
-std::pair<int32_t, int32_t> DIVS_LL(int64_t a, int32_t b);
-std::pair<uint32_t, uint32_t> DIVU_L(uint32_t a, uint32_t b);
+std::tuple<uint32_t, uint32_t> DIVU_LL(uint64_t a, uint32_t b);
+std::tuple<int32_t, int32_t> DIVS_LL(int64_t a, int32_t b);
+std::tuple<uint32_t, uint32_t> DIVU_L(uint32_t a, uint32_t b);
 
-std::pair<int32_t, int32_t> DIVS_L(int32_t a, int32_t b);
-std::pair<uint16_t, uint16_t> DIVU_W(uint32_t a, uint16_t b);
-std::pair<int16_t, int16_t> DIVS_W(int32_t a, int16_t b);
+std::tuple<int32_t, int32_t> DIVS_L(int32_t a, int32_t b);
+std::tuple<uint16_t, uint16_t> DIVU_W(uint32_t a, uint16_t b);
+std::tuple<int16_t, int16_t> DIVS_W(int32_t a, int16_t b);
 
 int8_t ASR_B(int8_t v, uint8_t c);
 int16_t ASR_W(int16_t v, uint8_t c);
@@ -213,14 +214,14 @@ void CHK_W(int16_t v, int16_t range);
 void CHK_L(int32_t v, int32_t range);
 
 void CMP2_B(uint8_t v, uint32_t rangeAddr);
-void CMP2_SB(int32_t v, uint32_t rangeAddr);
+void CMP2_SB(int8_t v, uint32_t rangeAddr);
 void CMP2_W(uint16_t v, uint32_t rangeAddr);
-void CMP2_SW(int32_t v, uint32_t rangeAddr);
+void CMP2_SW(int16_t v, uint32_t rangeAddr);
 void CMP2_L(uint32_t v, uint32_t rangeAddr);
 void CMP2_SL(int32_t v, uint32_t rangeAddr);
 
 void do_bra(int32_t ix);
-void do_bsr(int32_t ix, int off);
+void do_bsr(int32_t ix);
 void do_bcc(bool cond, int ix);
 void do_dbcc(bool cond, int reg, int16_t d);
 void do_rtd(int16_t disp);
@@ -240,6 +241,7 @@ void MOVEM_L_FROM_MEM_ADDR(uint16_t regs);
 uint8_t do_abcd(uint8_t v1, uint8_t v2, bool old_x);
 uint8_t do_nbcd(uint8_t v1, bool old_x);
 uint8_t do_pack(uint16_t v, int16_t adj);
+uint16_t do_unpk(uint8_t v, int16_t adj);
 uint8_t do_sbcd(uint8_t v1, uint8_t v2, bool old_x);
 
 #endif

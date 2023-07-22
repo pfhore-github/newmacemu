@@ -4,21 +4,21 @@
 #include "proto.hpp"
 #include <utility>
 
-std::pair<std::function<void()>, int> decode();
+std::unique_ptr<Opcode> decode();
+extern run_t run_table[0x10000];
 void run_op() {
     cpu.af_value.ea = 0;
     cpu.must_trace = cpu.T == 2;
-    auto o = cpu.icache.find(cpu.PC);
-    if(o == cpu.icache.end()) {
-        auto next = decode();
-        std::tie(o, std::ignore) = cpu.icache.emplace(cpu.PC, next);
-    }
-    cpu.nextpc = cpu.PC + 2 + o->second.second;
+    cpu.oldpc = cpu.PC;
+    uint16_t op = FETCH();
     if(setjmp(cpu.ex_buf) == 0) {
-        o->second.first();
+        if(auto p = run_table[op]) {
+            (*p)(op, op >> 9 & 7, op >> 3 & 7, op & 7);
+        } else {
+            ILLEGAL_OP();
+        }
         if(std::exchange(cpu.must_trace, false)) {
             TRACE();
-        }   
+        }
     }
-    cpu.PC = cpu.nextpc;
 }

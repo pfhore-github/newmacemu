@@ -19,8 +19,7 @@ BOOST_DATA_TEST_CASE(SFC, bdata::xrange(2) * bdata::xrange(2), S, T) {
     cpu.SFC = 2;
     TEST::SET_W(0, 0047172);
     TEST::SET_W(2, 0 | 3 << 12);
-    auto i = decode_and_run();
-    BOOST_TEST(i == 2);
+    decode_and_run();
     if(S) {
         BOOST_TEST(cpu.D[3] == 2);
         BOOST_TEST(cpu.must_trace == !!T);
@@ -289,8 +288,7 @@ BOOST_DATA_TEST_CASE(SFC, bdata::xrange(2) * bdata::xrange(2), S, T) {
     cpu.SFC = 2;
     TEST::SET_W(0, 0047173);
     TEST::SET_W(2, 0 | 3 << 12);
-    auto i = decode_and_run();
-    BOOST_TEST(i == 2);
+    decode_and_run();
     if(S) {
         BOOST_TEST(cpu.SFC == 2);
         BOOST_TEST(cpu.must_trace == !!T);

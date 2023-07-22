@@ -5,6 +5,7 @@
 #include "proto.hpp"
 #include <memory>
 #include <utility>
+
 uint8_t ADD_B(uint8_t a, uint8_t b) {
     uint16_t c = a + b;
     cpu.X = cpu.C = c & 0x100;
@@ -173,7 +174,7 @@ int32_t MULS_W(int16_t a, int16_t b) {
     return v;
 }
 
-std::pair<uint32_t, uint32_t> DIVU_LL(uint64_t a, uint32_t b) {
+std::tuple<uint32_t, uint32_t> DIVU_LL(uint64_t a, uint32_t b) {
     if(b == 0) {
         DIV0_ERROR();
     }
@@ -185,7 +186,7 @@ std::pair<uint32_t, uint32_t> DIVU_LL(uint64_t a, uint32_t b) {
     return {static_cast<uint32_t>(q), r};
 }
 
-std::pair<int32_t, int32_t> DIVS_LL(int64_t a, int32_t b) {
+std::tuple<int32_t, int32_t> DIVS_LL(int64_t a, int32_t b) {
     if(b == 0) {
         DIV0_ERROR();
     }
@@ -198,7 +199,7 @@ std::pair<int32_t, int32_t> DIVS_LL(int64_t a, int32_t b) {
     return {static_cast<uint32_t>(q), r};
 }
 
-std::pair<uint32_t, uint32_t> DIVU_L(uint32_t a, uint32_t b) {
+std::tuple<uint32_t, uint32_t> DIVU_L(uint32_t a, uint32_t b) {
     if(b == 0) {
         DIV0_ERROR();
     }
@@ -210,7 +211,7 @@ std::pair<uint32_t, uint32_t> DIVU_L(uint32_t a, uint32_t b) {
     return {q, r};
 }
 
-std::pair<int32_t, int32_t> DIVS_L(int32_t a, int32_t b) {
+std::tuple<int32_t, int32_t> DIVS_L(int32_t a, int32_t b) {
     if(b == 0) {
         DIV0_ERROR();
     }
@@ -225,7 +226,7 @@ std::pair<int32_t, int32_t> DIVS_L(int32_t a, int32_t b) {
     return {q, r};
 }
 
-std::pair<uint16_t, uint16_t> DIVU_W(uint32_t a, uint16_t b) {
+std::tuple<uint16_t, uint16_t> DIVU_W(uint32_t a, uint16_t b) {
     if(b == 0) {
         DIV0_ERROR();
     }
@@ -237,7 +238,7 @@ std::pair<uint16_t, uint16_t> DIVU_W(uint32_t a, uint16_t b) {
     return {static_cast<uint16_t>(q), r};
 }
 
-std::pair<int16_t, int16_t> DIVS_W(int32_t a, int16_t b) {
+std::tuple<int16_t, int16_t> DIVS_W(int32_t a, int16_t b) {
     if(b == 0) {
         DIV0_ERROR();
     }
@@ -255,10 +256,10 @@ std::pair<int16_t, int16_t> DIVS_W(int32_t a, int16_t b) {
 }
 
 void CAS_B(uint32_t addr, int dc, uint8_t du) {
-    uint8_t v = MMU_ReadB(addr);
+    uint8_t v = ReadB(addr);
     CMP_B(v, cpu.D[dc]);
     if(cpu.Z) {
-        MMU_WriteB(cpu.EA, du);
+        WriteB(cpu.EA, du);
     } else {
         STORE_B(cpu.D[dc], v);
     }
@@ -268,10 +269,10 @@ void CAS_B(uint32_t addr, int dc, uint8_t du) {
 }
 
 void CAS_W(uint32_t addr, int dc, uint16_t du) {
-    uint16_t v = MMU_ReadW(addr);
+    uint16_t v = ReadW(addr);
     CMP_W(v, cpu.D[dc]);
     if(cpu.Z) {
-        MMU_WriteW(cpu.EA, du);
+        WriteW(cpu.EA, du);
     } else {
         STORE_W(cpu.D[dc], v);
     }
@@ -281,10 +282,10 @@ void CAS_W(uint32_t addr, int dc, uint16_t du) {
 }
 
 void CAS_L(uint32_t addr, int dc, uint32_t du) {
-    uint32_t v = MMU_ReadL(addr);
+    uint32_t v = ReadL(addr);
     CMP_L(v, cpu.D[dc]);
     if(cpu.Z) {
-        MMU_WriteL(cpu.EA, du);
+        WriteL(cpu.EA, du);
     } else {
         cpu.D[dc] = v;
     }
@@ -295,15 +296,15 @@ void CAS_L(uint32_t addr, int dc, uint32_t du) {
 
 void CAS2_W(uint32_t addr1, int dc1, uint16_t du1, uint32_t addr2, int dc2,
             uint16_t du2) {
-    uint16_t v1 = MMU_ReadW(addr1);
-    uint16_t v2 = MMU_ReadW(addr2);
+    uint16_t v1 = ReadW(addr1);
+    uint16_t v2 = ReadW(addr2);
     CMP_W(v1, cpu.D[dc1]);
     if(cpu.Z) {
         CMP_W(v2, cpu.D[dc2]);
     }
     if(cpu.Z) {
-        MMU_WriteW(addr1, du1);
-        MMU_WriteW(addr2, du2);
+        WriteW(addr1, du1);
+        WriteW(addr2, du2);
     } else {
         STORE_W(cpu.D[dc1], v1);
         STORE_W(cpu.D[dc2], v2);
@@ -315,15 +316,15 @@ void CAS2_W(uint32_t addr1, int dc1, uint16_t du1, uint32_t addr2, int dc2,
 
 void CAS2_L(uint32_t addr1, int dc1, uint32_t du1, uint32_t addr2, int dc2,
             uint32_t du2) {
-    uint32_t v1 = MMU_ReadL(addr1);
-    uint32_t v2 = MMU_ReadL(addr2);
+    uint32_t v1 = ReadL(addr1);
+    uint32_t v2 = ReadL(addr2);
     CMP_L(v1, cpu.D[dc1]);
     if(cpu.Z) {
         CMP_L(v2, cpu.D[dc2]);
     }
     if(cpu.Z) {
-        MMU_WriteL(addr1, du1);
-        MMU_WriteL(addr2, du2);
+        WriteL(addr1, du1);
+        WriteL(addr2, du2);
     } else {
         cpu.D[dc1] = v1;
         cpu.D[dc2] = v2;
@@ -349,38 +350,38 @@ void CHK_L(int32_t v, int32_t range) {
 }
 
 void CMP2_B(uint8_t v, uint32_t rangeAddr) {
-    uint8_t l = MMU_ReadB(rangeAddr);
-    uint8_t h = MMU_ReadB(rangeAddr + 1);
+    uint8_t l = ReadB(rangeAddr);
+    uint8_t h = ReadB(rangeAddr + 1);
     cpu.Z = (l == v) || (h == v);
     cpu.C = (l > v) || (h < v);
 }
-void CMP2_SB(int32_t v, uint32_t rangeAddr) {
-    int8_t l = MMU_ReadB(rangeAddr);
-    int8_t h = MMU_ReadB(rangeAddr + 1);
+void CMP2_SB(int8_t v, uint32_t rangeAddr) {
+    int8_t l = ReadB(rangeAddr);
+    int8_t h = ReadB(rangeAddr + 1);
     cpu.Z = (l == v) || (h == v);
     cpu.C = (l > v) || (h < v);
 }
 void CMP2_W(uint16_t v, uint32_t rangeAddr) {
-    uint16_t l = MMU_ReadW(rangeAddr);
-    uint16_t h = MMU_ReadW(rangeAddr + 2);
+    uint16_t l = ReadW(rangeAddr);
+    uint16_t h = ReadW(rangeAddr + 2);
     cpu.Z = (l == v) || (h == v);
     cpu.C = (l > v) || (h < v);
 }
-void CMP2_SW(int32_t v, uint32_t rangeAddr) {
-    int16_t l = MMU_ReadW(rangeAddr);
-    int16_t h = MMU_ReadW(rangeAddr + 2);
+void CMP2_SW(int16_t v, uint32_t rangeAddr) {
+    int16_t l = ReadW(rangeAddr);
+    int16_t h = ReadW(rangeAddr + 2);
     cpu.Z = (l == v) || (h == v);
     cpu.C = (l > v) || (h < v);
 }
 void CMP2_L(uint32_t v, uint32_t rangeAddr) {
-    uint32_t l = MMU_ReadL(rangeAddr);
-    uint32_t h = MMU_ReadL(rangeAddr + 4);
+    uint32_t l = ReadL(rangeAddr);
+    uint32_t h = ReadL(rangeAddr + 4);
     cpu.Z = (l == v) || (h == v);
     cpu.C = (l > v) || (h < v);
 }
 void CMP2_SL(int32_t v, uint32_t rangeAddr) {
-    int32_t l = MMU_ReadL(rangeAddr);
-    int32_t h = MMU_ReadL(rangeAddr + 4);
+    int32_t l = ReadL(rangeAddr);
+    int32_t h = ReadL(rangeAddr + 4);
     cpu.Z = (l == v) || (h == v);
     cpu.C = (l > v) || (h < v);
 }

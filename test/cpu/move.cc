@@ -7,10 +7,6 @@
 namespace bdata = boost::unit_test::data;
 BOOST_FIXTURE_TEST_SUITE(MOVE, Prepare)
 BOOST_AUTO_TEST_SUITE(Byte)
-BOOST_AUTO_TEST_CASE(err) {
-    TEST::SET_W(0, 0010000 | 027 << 6 | 2);
-    BOOST_CHECK_THROW(decode(), DecodeError);
-}
 BOOST_AUTO_TEST_CASE(value) {
     TEST::SET_W(0, 0010000 | 3 << 9 | 2);
     cpu.D[3] = 0x12345678;

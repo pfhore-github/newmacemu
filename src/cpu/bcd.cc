@@ -47,3 +47,8 @@ uint8_t do_pack(uint16_t v, int16_t adj) {
     uint16_t d = v + adj;
     return (d & 0xf) | (d & 0xf00) >> 4;
 }
+
+uint16_t do_unpk(uint8_t v, int16_t adj) {
+    uint16_t d = ((v & 0xf0) << 4 | (v & 0xf));
+    return static_cast<int16_t>(d) + adj;
+}

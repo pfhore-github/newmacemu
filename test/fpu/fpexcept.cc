@@ -15,7 +15,7 @@ BOOST_AUTO_TEST_CASE(BSUN) {
     TEST::SET_L(0x2000 | (48 << 2), 0x3000);
     cpu.ISP = cpu.MSP = 0x100C;
     cpu.EA = 0x4500;
-    cpu.nextpc = 0x4;
+    cpu.PC = 0;
     TEST::SET_W(0, 0171200 | 0x12);
     TEST::SET_W(2, 0x100);
     cpu.FPCR.BSUN = true;
@@ -27,7 +27,7 @@ BOOST_AUTO_TEST_CASE(BSUN) {
     BOOST_TEST(TEST::GET_L(0x1002) == 0x4);
     BOOST_TEST(TEST::GET_W(0x1006) == (0x3000 | (48 << 2)));
     BOOST_TEST(TEST::GET_L(0x1008) == 0x4500);
-    BOOST_TEST(cpu.nextpc == 0x3000);
+    BOOST_TEST(cpu.PC == 0x3000);
 }
 
 BOOST_AUTO_TEST_CASE(INEX1) {
@@ -37,7 +37,6 @@ BOOST_AUTO_TEST_CASE(INEX1) {
     TEST::SET_L(0x2000 | (49 << 2), 0x3000);
     cpu.ISP = cpu.MSP = 0x100C;
     cpu.PC = 0;
-    cpu.nextpc = 0x4;
     cpu.FPCR.INEX1 = true;
 
     TEST::SET_W(0, 0171020 | 4);
@@ -53,7 +52,7 @@ BOOST_AUTO_TEST_CASE(INEX1) {
     BOOST_TEST(TEST::GET_L(0x1002) == 0x4);
     BOOST_TEST(TEST::GET_W(0x1006) == (0x3000 | (49 << 2)));
     BOOST_TEST(TEST::GET_L(0x1008) == 0x1000);
-    BOOST_TEST(cpu.nextpc == 0x3000);
+    BOOST_TEST(cpu.PC == 0x3000);
 }
 
 BOOST_AUTO_TEST_CASE(INEX2) {
@@ -63,7 +62,6 @@ BOOST_AUTO_TEST_CASE(INEX2) {
     TEST::SET_L(0x2000 | (49 << 2), 0x3000);
     cpu.ISP = cpu.MSP = 0x100C;
     cpu.PC = 0;
-    cpu.nextpc = 0x4;
     cpu.FPCR.INEX2 = true;
 
     TEST::SET_FP(3, 1.1);
@@ -77,7 +75,7 @@ BOOST_AUTO_TEST_CASE(INEX2) {
     BOOST_TEST(TEST::GET_L(0x1002) == 0x4);
     BOOST_TEST(TEST::GET_W(0x1006) == (0x3000 | (49 << 2)));
     BOOST_TEST(TEST::GET_L(0x1008) == 0x1000);
-    BOOST_TEST(cpu.nextpc == 0x3000);
+    BOOST_TEST(cpu.PC == 0x3000);
 }
 BOOST_AUTO_TEST_CASE(DV0) {
     cpu.in_exception = false;
@@ -86,7 +84,6 @@ BOOST_AUTO_TEST_CASE(DV0) {
     TEST::SET_L(0x2000 | (50 << 2), 0x3000);
     cpu.ISP = cpu.MSP = 0x100C;
     cpu.PC = 0;
-    cpu.nextpc = 0x4;
     cpu.EA = 0x4500;
 
     cpu.FPCR.DZ = true;
@@ -102,7 +99,7 @@ BOOST_AUTO_TEST_CASE(DV0) {
     BOOST_TEST(TEST::GET_L(0x1002) == 0x4);
     BOOST_TEST(TEST::GET_W(0x1006) == (0x3000 | (50 << 2)));
     BOOST_TEST(TEST::GET_L(0x1008) == 0x4500);
-    BOOST_TEST(cpu.nextpc == 0x3000);
+    BOOST_TEST(cpu.PC == 0x3000);
 }
 
 BOOST_AUTO_TEST_CASE(UNFL) {
@@ -112,7 +109,6 @@ BOOST_AUTO_TEST_CASE(UNFL) {
     TEST::SET_L(0x2000 | (51 << 2), 0x3000);
     cpu.ISP = cpu.MSP = 0x100C;
     cpu.PC = 0;
-    cpu.nextpc = 0x4;
     cpu.EA = 0x4500;
 
     cpu.FPCR.UNFL = true;
@@ -127,7 +123,7 @@ BOOST_AUTO_TEST_CASE(UNFL) {
     BOOST_TEST(TEST::GET_L(0x1002) == 0x4);
     BOOST_TEST(TEST::GET_W(0x1006) == (0x3000 | (51 << 2)));
     BOOST_TEST(TEST::GET_L(0x1008) == 0x4500);
-    BOOST_TEST(cpu.nextpc == 0x3000);
+    BOOST_TEST(cpu.PC == 0x3000);
 }
 
 BOOST_AUTO_TEST_CASE(OPERR) {
@@ -137,7 +133,6 @@ BOOST_AUTO_TEST_CASE(OPERR) {
     TEST::SET_L(0x2000 | (52 << 2), 0x3000);
     cpu.ISP = cpu.MSP = 0x100C;
     cpu.PC = 0;
-    cpu.nextpc = 0x4;
     cpu.EA = 0x4500;
 
     cpu.FPCR.OPERR = true;
@@ -152,7 +147,7 @@ BOOST_AUTO_TEST_CASE(OPERR) {
     BOOST_TEST(TEST::GET_L(0x1002) == 0x4);
     BOOST_TEST(TEST::GET_W(0x1006) == (0x3000 | (52 << 2)));
     BOOST_TEST(TEST::GET_L(0x1008) == 0x4500);
-    BOOST_TEST(cpu.nextpc == 0x3000);
+    BOOST_TEST(cpu.PC == 0x3000);
 }
 
 BOOST_AUTO_TEST_CASE(OVFL) {
@@ -162,7 +157,6 @@ BOOST_AUTO_TEST_CASE(OVFL) {
     TEST::SET_L(0x2000 | (53 << 2), 0x3000);
     cpu.ISP = cpu.MSP = 0x100C;
     cpu.PC = 0;
-    cpu.nextpc = 0x4;
     cpu.EA = 0x4500;
 
     cpu.FPCR.OVFL = true;
@@ -177,7 +171,7 @@ BOOST_AUTO_TEST_CASE(OVFL) {
     BOOST_TEST(TEST::GET_L(0x1002) == 0x4);
     BOOST_TEST(TEST::GET_W(0x1006) == (0x3000 | (53 << 2)));
     BOOST_TEST(TEST::GET_L(0x1008) == 0x4500);
-    BOOST_TEST(cpu.nextpc == 0x3000);
+    BOOST_TEST(cpu.PC == 0x3000);
 }
 
 BOOST_AUTO_TEST_CASE(SNAN_) {
@@ -187,7 +181,6 @@ BOOST_AUTO_TEST_CASE(SNAN_) {
     TEST::SET_L(0x2000 | (54 << 2), 0x3000);
     cpu.ISP = cpu.MSP = 0x100C;
     cpu.PC = 0;
-    cpu.nextpc = 0x4;
     cpu.EA = 0x4500;
 
     cpu.FPCR.S_NAN = true;
@@ -202,6 +195,6 @@ BOOST_AUTO_TEST_CASE(SNAN_) {
     BOOST_TEST(TEST::GET_L(0x1002) == 0x4);
     BOOST_TEST(TEST::GET_W(0x1006) == (0x3000 | (54 << 2)));
     BOOST_TEST(TEST::GET_L(0x1008) == 0x4500);
-    BOOST_TEST(cpu.nextpc == 0x3000);
+    BOOST_TEST(cpu.PC == 0x3000);
 }
 BOOST_AUTO_TEST_SUITE_END()

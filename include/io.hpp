@@ -1,5 +1,5 @@
-#ifndef IO_
-#define IO_ 1
+#ifndef IO_HPP_
+#define IO_HPP_
 #include <stdint.h>
 #include <optional>
 uint8_t LoadIO_B(uint32_t addr);

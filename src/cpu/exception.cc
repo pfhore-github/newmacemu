@@ -20,7 +20,7 @@ static uint16_t exception_entry() {
     PUSH16(n << 2);
     PUSH32(contpc);
     PUSH16(sr);
-    JUMP(MMU_ReadL(cpu.VBR + (n << 2)));
+    JUMP(ReadL(cpu.VBR + (n << 2)));
     longjmp(cpu.ex_buf, 1);
 }
 
@@ -30,7 +30,7 @@ static uint16_t exception_entry() {
     PUSH16(0x2 << 12 | n << 2);
     PUSH32(contpc);
     PUSH16(sr);
-    JUMP(MMU_ReadL(cpu.VBR + (n << 2)));
+    JUMP(ReadL(cpu.VBR + (n << 2)));
     longjmp(cpu.ex_buf, 1);
 }
 
@@ -38,9 +38,9 @@ static uint16_t exception_entry() {
     uint16_t sr = exception_entry();
     PUSH32(cpu.EA);
     PUSH16(0x3 << 12 | n << 2);
-    PUSH32(cpu.nextpc);
+    PUSH32(cpu.PC);
     PUSH16(sr);
-    JUMP(MMU_ReadL(cpu.VBR + (n << 2)));
+    JUMP(ReadL(cpu.VBR + (n << 2)));
     longjmp(cpu.ex_buf, 1);
 }
 
@@ -61,31 +61,31 @@ void ACCESS_FAULT() {
            int(cpu.af_value.tm));
     PUSH32(cpu.af_value.ea);
     PUSH16(0x7 << 12 | 2 << 2);
-    PUSH32(cpu.nextpc);
+    PUSH32(cpu.PC);
     PUSH16(sr);
-    JUMP(MMU_ReadL(cpu.VBR + (2 << 2)));
+    JUMP(ReadL(cpu.VBR + (2 << 2)));
     longjmp(cpu.ex_buf, 1);
 }
 
-void ADDRESS_ERROR(uint32_t next) { exception2(3, cpu.PC, next & ~1); }
-void ILLEGAL_OP() { exception0(4, cpu.PC); }
+void ADDRESS_ERROR(uint32_t next) { exception2(3, cpu.oldpc, next & ~1); }
+void ILLEGAL_OP() { exception0(4, cpu.oldpc); }
 
-void DIV0_ERROR() { exception2(5, cpu.nextpc, cpu.PC); }
-void CHK_ERROR() { exception2(6, cpu.nextpc, cpu.PC); }
+void DIV0_ERROR() { exception2(5, cpu.PC, cpu.oldpc); }
+void CHK_ERROR() { exception2(6, cpu.PC, cpu.oldpc); }
 
-void TRAPX_ERROR() { exception2(7, cpu.nextpc, cpu.PC); }
+void TRAPX_ERROR() { exception2(7, cpu.PC, cpu.oldpc); }
 
-void PRIV_ERROR() { exception0(8, cpu.PC); }
+void PRIV_ERROR() { exception0(8, cpu.oldpc); }
 
-void TRACE() { exception2(9, cpu.nextpc, cpu.PC); }
+void TRACE() { exception2(9, cpu.PC, cpu.oldpc); }
 
-void ALINE() { exception0(10, cpu.PC); }
+void ALINE() { exception0(10, cpu.oldpc); }
 
-void FLINE() { exception0(11, cpu.PC); }
+void FLINE() { exception0(11, cpu.oldpc); }
 
-void FORMAT_ERROR() { exception0(14, cpu.PC); }
+void FORMAT_ERROR() { exception0(14, cpu.oldpc); }
 
-void TRAP_ERROR(int n) { exception0(32 + n, cpu.nextpc); }
+void TRAP_ERROR(int n) { exception0(32 + n, cpu.PC); }
 
 void FP_EX_BSUN() { exception3(48); }
 
@@ -99,10 +99,10 @@ void FP_EX_OVFL() { exception3(53); }
 void FP_EX_SNAN() { exception3(54); }
 
 void IRQ(int n) {
-    if(n != 7 && n <= cpu.n_mask) {
+    if(n != 7 && n <= cpu.I) {
         return;
     }
-    cpu.n_mask = n;
+    cpu.I = n;
     n += 24;
     if(cpu.in_exception) {
         // Double Bus Fault
@@ -113,19 +113,19 @@ void IRQ(int n) {
     cpu.S = true;
     LoadSP();
     PUSH16(n << 2);
-    PUSH32(cpu.nextpc);
+    PUSH32(cpu.PC);
     PUSH16(sr);
     if(cpu.M) {
         cpu.M = false;
         LoadSP();
         PUSH32(0x01 << 12 | (n << 2));
-        PUSH32(cpu.nextpc);
+        PUSH32(cpu.PC);
         PUSH16(sr);
     }
-    JUMP(MMU_ReadL(cpu.VBR + (n << 2)));
+    JUMP(ReadL(cpu.VBR + (n << 2)));
 }
 
-void RTE() {
+void do_rte() {
     uint16_t sr = POP16();
     uint32_t pc = POP32();
     uint16_t vec = POP16();
@@ -134,14 +134,14 @@ void RTE() {
         break;
     case 1:
         SetSR(sr);
-        return RTE();
+        return do_rte();
     case 2:
     case 3:
         cpu.A[7] += 4;
         break;
     case 7: {
         // AF
-        uint16_t ssw = MMU_ReadW(cpu.A[7] + 0x04);
+        uint16_t ssw = ReadW(cpu.A[7] + 0x04);
         if(ssw & 1 << 15) {
             // CP restart
         }
@@ -154,12 +154,12 @@ void RTE() {
             // restart trace
             SetSR(sr);
             cpu.must_trace = false;
-            cpu.nextpc = pc;
+            cpu.PC = pc;
             TRACE();
         }
         if(ssw & 1 << 12) {
             // CM restart
-            cpu.EA = MMU_ReadL(cpu.A[7] + 0x00);
+            cpu.EA = ReadL(cpu.A[7] + 0x00);
             // restart MOVEM
             cpu.movem_run = true;
         }
@@ -175,4 +175,20 @@ void RTE() {
     }
     cpu.in_exception = false;
     JUMP(pc);
+}
+
+void RESET() {
+    cpu.S = true;
+    cpu.M = false;
+    cpu.T = 0;
+    cpu.I = 7;
+    cpu.VBR = 0;
+    cpu.CACR_DE = cpu.CACR_IE = false;
+    cpu.DTTR[0].E = 0;
+    cpu.DTTR[1].E = 0;
+    cpu.ITTR[0].E = 0;
+    cpu.ITTR[1].E = 0;
+    LoadSP();
+    cpu.A[7] = ReadL(0);
+    JUMP(ReadL(4));
 }

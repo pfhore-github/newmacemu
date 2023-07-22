@@ -1,8 +1,8 @@
 #include "68040.hpp"
 #include "bus.hpp"
 #include "exception.hpp"
-#include "proto.hpp"
 #include "memory.hpp"
+#include "proto.hpp"
 #include <memory>
 #include <utility>
 
@@ -30,7 +30,6 @@ uint32_t AND_L(uint32_t a, uint32_t b) {
     return re;
 }
 
-
 uint8_t OR_B(uint8_t a, uint8_t b) {
     uint8_t re = a | b;
     TEST_B(re);
@@ -54,7 +53,6 @@ uint32_t OR_L(uint32_t a, uint32_t b) {
     cpu.C = false;
     return re;
 }
-
 
 uint8_t XOR_B(uint8_t a, uint8_t b) {
     uint8_t re = a ^ b;
@@ -279,7 +277,6 @@ uint32_t LSL_L(uint32_t v, uint8_t c) {
     return re;
 }
 
-
 uint8_t ROR_B(uint8_t v, uint8_t c) {
     cpu.V = false;
     if(c == 0) {
@@ -358,7 +355,6 @@ uint32_t ROL_L(uint32_t v, uint8_t c) {
     return re;
 }
 
-
 uint8_t ROXR_B(uint8_t v, uint8_t c, bool old_x) {
     cpu.V = false;
     if(c == 0) {
@@ -405,7 +401,7 @@ uint8_t ROXL_B(uint8_t v, uint8_t c, bool old_x) {
         cpu.C = old_x;
         return v;
     }
-    uint8_t re = v << c | old_x<< (c - 1) | v >> (9 - c);
+    uint8_t re = v << c | old_x << (c - 1) | v >> (9 - c);
     cpu.X = cpu.C = v >> (8 - c) & 1;
     TEST_B(re);
     return re;
@@ -436,3 +432,6 @@ uint32_t ROXL_L(uint32_t v, uint8_t c, bool old_x) {
     TEST_L(re);
     return re;
 }
+
+
+

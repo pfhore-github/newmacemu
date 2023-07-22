@@ -210,8 +210,8 @@ BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE(FromCR)
 
 BOOST_AUTO_TEST_CASE(All) {
-    TEST::SET_W(0, 0171040 | 3);
-    TEST::SET_W(2, 0120000 | 7 << 10);
+    TEST::SET_W(0x2000, 0171040 | 3);
+    TEST::SET_W(0x2002, 0120000 | 7 << 10);
     cpu.A[3] = 0x100C;
     cpu.FPCR.OPERR = true;
     cpu.FPCR.DZ = true;
@@ -224,12 +224,12 @@ BOOST_AUTO_TEST_CASE(All) {
     cpu.FPSR.OVFL = true;
     cpu.FPSR.EXC_IOP = true;
 
-    cpu.FPIAR = 0x1000;
+    cpu.PC = 0x2000;
 
     auto i = decode_and_run();
     BOOST_TEST(TEST::GET_L(0x1000) == 0x2450);
     BOOST_TEST(TEST::GET_L(0x1004) == (0x4801080 | 22 << 16));
-    BOOST_TEST(TEST::GET_L(0x1008) == 0x1000);
+    BOOST_TEST(TEST::GET_L(0x1008) == 0x2000);
     BOOST_TEST(cpu.A[3] == 0x1000);
     BOOST_TEST(i == 2);
 }
@@ -249,7 +249,6 @@ BOOST_AUTO_TEST_CASE(CR_SR) {
     cpu.FPSR.OVFL = true;
     cpu.FPSR.EXC_IOP = true;
 
-    cpu.FPIAR = 0x1000;
 
     auto i = decode_and_run();
     BOOST_TEST(TEST::GET_L(0x1000) == 0x2450);
@@ -259,8 +258,8 @@ BOOST_AUTO_TEST_CASE(CR_SR) {
 }
 
 BOOST_AUTO_TEST_CASE(CR_IAR) {
-    TEST::SET_W(0, 0171040 | 3);
-    TEST::SET_W(2, 0120000 | 5 << 10);
+    TEST::SET_W(0x2000, 0171040 | 3);
+    TEST::SET_W(0x2002, 0120000 | 5 << 10);
     cpu.A[3] = 0x1008;
     cpu.FPCR.OPERR = true;
     cpu.FPCR.DZ = true;
@@ -273,18 +272,17 @@ BOOST_AUTO_TEST_CASE(CR_IAR) {
     cpu.FPSR.OVFL = true;
     cpu.FPSR.EXC_IOP = true;
 
-    cpu.FPIAR = 0x1000;
-
+    cpu.PC = 0x2000;
     auto i = decode_and_run();
     BOOST_TEST(TEST::GET_L(0x1000) == 0x2450);
-    BOOST_TEST(TEST::GET_L(0x1004) == 0x1000);
+    BOOST_TEST(TEST::GET_L(0x1004) == 0x2000);
     BOOST_TEST(cpu.A[3] == 0x1000);
     BOOST_TEST(i == 2);
 }
 
 BOOST_AUTO_TEST_CASE(SR_IAR) {
-    TEST::SET_W(0, 0171040 | 3);
-    TEST::SET_W(2, 0120000 | 3 << 10);
+    TEST::SET_W(0x2000, 0171040 | 3);
+    TEST::SET_W(0x2002, 0120000 | 3 << 10);
     cpu.A[3] = 0x1008;
     cpu.FPCR.OPERR = true;
     cpu.FPCR.DZ = true;
@@ -297,11 +295,11 @@ BOOST_AUTO_TEST_CASE(SR_IAR) {
     cpu.FPSR.OVFL = true;
     cpu.FPSR.EXC_IOP = true;
 
-    cpu.FPIAR = 0x1000;
+    cpu.PC = 0x2000;
 
     auto i = decode_and_run();
     BOOST_TEST(TEST::GET_L(0x1000) == (0x4801080 | 22 << 16));
-    BOOST_TEST(TEST::GET_L(0x1004) == 0x1000);
+    BOOST_TEST(TEST::GET_L(0x1004) == 0x2000);
     BOOST_TEST(cpu.A[3] == 0x1000);
     BOOST_TEST(i == 2);
 }

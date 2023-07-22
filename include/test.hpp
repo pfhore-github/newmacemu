@@ -8,7 +8,7 @@
 #include "mpfr.h"
 extern std::vector<uint8_t> RAM;
 void reset_fpu();
-std::pair<std::function<void()>, int> decode();
+void decode();
 struct Prepare {
     Prepare() ;
 };

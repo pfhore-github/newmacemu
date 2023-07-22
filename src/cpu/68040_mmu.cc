@@ -1,7 +1,7 @@
 #include "68040.hpp"
 #include "exception.hpp"
-#include "proto.hpp"
 #include "memory.hpp"
+#include "proto.hpp"
 
 struct __attribute__((packed)) mmu_result {
     bool R : 1 = false;
@@ -164,7 +164,7 @@ atc_set(uint32_t addr, uint32_t pg_addr, bool W, bool wp, bool s) {
     }
     BusWriteL(pg_addr, std::bit_cast<uint32_t>(pg));
 
-    Cpu::atc_entry e = {static_cast<uint32_t>(pg.paddr ),
+    Cpu::atc_entry e = {static_cast<uint32_t>(pg.paddr),
                         static_cast<uint8_t>(pg.Ux),
                         pg.S,
                         static_cast<uint8_t>(pg.CM),
@@ -279,7 +279,7 @@ ATC_SEARCH:
     }
 FOUND : {
     auto &entry = atc_found->second;
-    if(W && !entry.W && ! entry.M && !(entry.S && !sys))  {
+    if(W && !entry.W && !entry.M && !(entry.S && !sys)) {
         if(sys) {
             cpu.s_atc.erase(addr);
             cpu.sg_atc.erase(addr);
@@ -324,497 +324,225 @@ uint32_t ptest_and_raise(uint32_t addr, bool sys, bool code, bool W) {
     return ret.paddr << 12;
 }
 
-std::function<void()> from_cc(int reg, int cc) {
-    switch(cc) {
-    case 0:
-        return [reg]() {
-            if(!cpu.S) {
-                PRIV_ERROR();
-            }
-            cpu.R(reg) = cpu.SFC;
-            if(cpu.T == 1) {
-                cpu.must_trace = true;
-            }
-        };
-    case 1:
-        return [reg]() {
-            if(!cpu.S) {
-                PRIV_ERROR();
-            }
-            cpu.R(reg) = cpu.DFC;
-            if(cpu.T == 1) {
-                cpu.must_trace = true;
-            }
-        };
-    case 2:
-        return [reg]() {
-            if(!cpu.S) {
-                PRIV_ERROR();
-            }
-            cpu.R(reg) = cpu.CACR_DE << 31 | cpu.CACR_IE << 15;
-            if(cpu.T == 1) {
-                cpu.must_trace = true;
-            }
-        };
-    case 3:
-        return [reg]() {
-            if(!cpu.S) {
-                PRIV_ERROR();
-            }
-            cpu.R(reg) = cpu.TCR_E << 15 | cpu.TCR_P << 14;
-            if(cpu.T == 1) {
-                cpu.must_trace = true;
-            }
-        };
-    case 4:
-        return [reg]() {
-            if(!cpu.S) {
-                PRIV_ERROR();
-            }
-            cpu.R(reg) = Get_TTR_t(cpu.ITTR[0]);
-            if(cpu.T == 1) {
-                cpu.must_trace = true;
-            }
-        };
-    case 5:
-        return [reg]() {
-            if(!cpu.S) {
-                PRIV_ERROR();
-            }
-            cpu.R(reg) = Get_TTR_t(cpu.ITTR[1]);
-            if(cpu.T == 1) {
-                cpu.must_trace = true;
-            }
-        };
-    case 6:
-        return [reg]() {
-            if(!cpu.S) {
-                PRIV_ERROR();
-            }
-            cpu.R(reg) = Get_TTR_t(cpu.DTTR[0]);
-            if(cpu.T == 1) {
-                cpu.must_trace = true;
-            }
-        };
-    case 7:
-        return [reg]() {
-            if(!cpu.S) {
-                PRIV_ERROR();
-            }
-            cpu.R(reg) = Get_TTR_t(cpu.DTTR[1]);
-            if(cpu.T == 1) {
-                cpu.must_trace = true;
-            }
-        };
-    case 0x800:
-        return [reg]() {
-            if(!cpu.S) {
-                PRIV_ERROR();
-            }
-            cpu.R(reg) = cpu.USP;
-            if(cpu.T == 1) {
-                cpu.must_trace = true;
-            }
-        };
-    case 0x801:
-        return [reg]() {
-            if(!cpu.S) {
-                PRIV_ERROR();
-            }
-            cpu.R(reg) = cpu.VBR;
-            if(cpu.T == 1) {
-                cpu.must_trace = true;
-            }
-        };
-    case 0x803:
-        return [reg]() {
-            if(!cpu.S) {
-                PRIV_ERROR();
-            }
-            if( cpu.M ) {
-                cpu.MSP = cpu.A[7];
-            }
-            cpu.R(reg) = cpu.MSP;
-            if(cpu.T == 1) {
-                cpu.must_trace = true;
-            }
-        };
-    case 0x804:
-        return [reg]() {
-            if(!cpu.S) {
-                PRIV_ERROR();
-            }
-            if( ! cpu.M ) {
-                cpu.ISP = cpu.A[7];
-            }
-            cpu.R(reg) = cpu.ISP;
-            if(cpu.T == 1) {
-                cpu.must_trace = true;
-            }
-        };
-    case 0x805:
-        return [reg]() {
-            if(!cpu.S) {
-                PRIV_ERROR();
-            }
-            cpu.R(reg) = cpu.MMUSR;
-            if(cpu.T == 1) {
-                cpu.must_trace = true;
-            }
-        };
-    case 0x806:
-        return [reg]() {
-            if(!cpu.S) {
-                PRIV_ERROR();
-            }
-            cpu.R(reg) = cpu.URP;
-            if(cpu.T == 1) {
-                cpu.must_trace = true;
-            }
-        };
-    case 0x807:
-        return [reg]() {
-            if(!cpu.S) {
-                PRIV_ERROR();
-            }
-            cpu.R(reg) = cpu.SRP;
-            if(cpu.T == 1) {
-                cpu.must_trace = true;
-            }
-        };
-    default:
-        throw DecodeError{};
-    }
-}
-std::function<void()> to_cc(int reg, int cc) {
-    switch(cc) {
-    case 0:
-        return [reg]() {
-            if(!cpu.S) {
-                PRIV_ERROR();
-            }
-            cpu.SFC = cpu.R(reg) & 7;
-            if(cpu.T == 1) {
-                cpu.must_trace = true;
-            }
-        };
-    case 1:
-        return [reg]() {
-            if(!cpu.S) {
-                PRIV_ERROR();
-            }
-            cpu.DFC = cpu.R(reg) & 7;
-            if(cpu.T == 1) {
-                cpu.must_trace = true;
-            }
-        };
-    case 2:
-        return [reg]() {
-            if(!cpu.S) {
-                PRIV_ERROR();
-            }
-            cpu.CACR_DE = cpu.R(reg) >> 31 & 1;
-            cpu.CACR_IE = cpu.R(reg) >> 15 & 1;
-            if(cpu.T == 1) {
-                cpu.must_trace = true;
-            }
-        };
-    case 3:
-        return [reg]() {
-            if(!cpu.S) {
-                PRIV_ERROR();
-            }
-            cpu.TCR_E = cpu.R(reg) >> 15 & 1;
-            cpu.TCR_P = cpu.R(reg) >> 14 & 1;
-            if(cpu.T == 1) {
-                cpu.must_trace = true;
-            }
-        };
-    case 4:
-        return [reg]() {
-            if(!cpu.S) {
-                PRIV_ERROR();
-            }
-            Set_TTR_t(cpu.ITTR[0], cpu.R(reg));
-            if(cpu.T == 1) {
-                cpu.must_trace = true;
-            }
-        };
-    case 5:
-        return [reg]() {
-            if(!cpu.S) {
-                PRIV_ERROR();
-            }
-            Set_TTR_t(cpu.ITTR[1], cpu.R(reg));
-            if(cpu.T == 1) {
-                cpu.must_trace = true;
-            }
-        };
-    case 6:
-        return [reg]() {
-            if(!cpu.S) {
-                PRIV_ERROR();
-            }
-            Set_TTR_t(cpu.DTTR[0], cpu.R(reg));
-            if(cpu.T == 1) {
-                cpu.must_trace = true;
-            }
-        };
-    case 7:
-        return [reg]() {
-            if(!cpu.S) {
-                PRIV_ERROR();
-            }
-            Set_TTR_t(cpu.DTTR[1], cpu.R(reg));
-            if(cpu.T == 1) {
-                cpu.must_trace = true;
-            }
-        };
-    case 0x800:
-        return [reg]() {
-            if(!cpu.S) {
-                PRIV_ERROR();
-            }
-            cpu.USP = cpu.R(reg);
-            if(cpu.T == 1) {
-                cpu.must_trace = true;
-            }
-        };
-    case 0x801:
-        return [reg]() {
-            if(!cpu.S) {
-                PRIV_ERROR();
-            }
-            cpu.VBR = cpu.R(reg);
-            if(cpu.T == 1) {
-                cpu.must_trace = true;
-            }
-        };
-    case 0x803:
-        return [reg]() {
-            if(!cpu.S) {
-                PRIV_ERROR();
-            }
-            cpu.MSP = cpu.R(reg);
-            if( cpu.M) {
-                cpu.A[7] = cpu.MSP;
-            }
-            if(cpu.T == 1) {
-                cpu.must_trace = true;
-            }
-        };
-    case 0x804:
-        return [reg]() {
-            if(!cpu.S) {
-                PRIV_ERROR();
-            }
-            cpu.ISP = cpu.R(reg);
-            if(! cpu.M) {
-                cpu.A[7] = cpu.ISP;
-            }
-            if(cpu.T == 1) {
-                cpu.must_trace = true;
-            }
-        };
-    case 0x805:
-        return [reg]() {
-            if(!cpu.S) {
-                PRIV_ERROR();
-            }
-            cpu.MMUSR = cpu.R(reg);
-            if(cpu.T == 1) {
-                cpu.must_trace = true;
-            }
-        };
-    case 0x806:
-        return [reg]() {
-            if(!cpu.S) {
-                PRIV_ERROR();
-            }
-            cpu.URP = cpu.R(reg) & ~0x1ff;
-            if(cpu.T == 1) {
-                cpu.must_trace = true;
-            }
-        };
-    case 0x807:
-        return [reg]() {
-            if(!cpu.S) {
-                PRIV_ERROR();
-            }
-            cpu.SRP = cpu.R(reg) & ~0x1ff;
-
-            if(cpu.T == 1) {
-                cpu.must_trace = true;
-            }
-        };
-    default:
-        throw DecodeError{};
-    }
-}
-static uint32_t page_mask() { return cpu.TCR_P ? 0x1FFF : 0xFFF; }
-void pflushn(uint32_t an);
-void pflush(uint32_t an);
-void pflushan();
-void pflusha();
+static uint32_t page_size() { return cpu.TCR_P ? 0x2000 : 0x100; }
 void op_ptest(uint32_t addr, bool w);
-std::function<void()> decode_mmu(int sz, int type, int reg) {
-    switch(sz) {
-    case 1:
-        // CINV/CPUSH DC, *
-        return []() {
-            if(!cpu.S) {
-                PRIV_ERROR();
-            }
-            // date cache is not implemented
-            if(cpu.T == 1) {
-                cpu.must_trace = true;
-            }
-        };
-    case 2:
-    case 3:
-        switch(type) {
-        case 1:
-        case 5:
-            // CINVL/CPUSHL IC/BC, (An)
-            return [reg]() {
-                if(!cpu.S) {
-                    PRIV_ERROR();
-                }
-                uint32_t addr = cpu.A[reg] & ~0xf;
-                for(uint32_t i = 0; i < 16; i += 2) {
-                    cpu.icache.erase(addr + i);
-                }
-                if(cpu.T == 1) {
-                    cpu.must_trace = true;
-                }
-            };
-        case 2:
-        case 6:
-            // CINVP/CPUSHP IC/BC, (An)
-            return [reg]() {
-                if(!cpu.S) {
-                    PRIV_ERROR();
-                }
-                uint32_t next = page_mask();
-                uint32_t addr = cpu.A[reg] & ~next;
-                for(uint32_t a = 0; a < next; a += 2) {
-                    cpu.icache.erase(addr + a);
-                }
-                if(cpu.T == 1) {
-                    cpu.must_trace = true;
-                }
-            };
-        case 3:
-        case 7:
-            // CINVA/CPUSHA IC/BC
-            return [reg]() {
-                if(!cpu.S) {
-                    PRIV_ERROR();
-                }
-                cpu.icache.clear();
-                if(cpu.T == 1) {
-                    cpu.must_trace = true;
-                }
-            };
-        }
-        break;
-    case 4:
-        switch(type) {
-        case 0:
-            return [reg]() {
-                if(!cpu.S) {
-                    PRIV_ERROR();
-                }
-                pflushn(cpu.A[reg]);
-                if(cpu.T == 1) {
-                    cpu.must_trace = true;
-                }
-            };
-        case 1:
-            return [reg]() {
-                if(!cpu.S) {
-                    PRIV_ERROR();
-                }
-                pflush(cpu.A[reg]);
-                if(cpu.T == 1) {
-                    cpu.must_trace = true;
-                }
-            };
-        case 2:
-            return []() {
-                if(!cpu.S) {
-                    PRIV_ERROR();
-                }
-                pflushan();
-                if(cpu.T == 1) {
-                    cpu.must_trace = true;
-                }
-            };
-        case 3:
-            return []() {
-                if(!cpu.S) {
-                    PRIV_ERROR();
-                }
-                pflusha();
-                if(cpu.T == 1) {
-                    cpu.must_trace = true;
-                }
-            };
-        }
-        break;
-    case 5:
-        switch(type) {
-        case 1:
-            return [reg]() {
-                if(!cpu.S) {
-                    PRIV_ERROR();
-                }
-                op_ptest(cpu.A[reg], true);
-                if(cpu.T == 1) {
-                    cpu.must_trace = true;
-                }
-            };
-        case 5:
-            return [reg]() {
-                if(!cpu.S) {
-                    PRIV_ERROR();
-                }
-                op_ptest(cpu.A[reg], false);
-                if(cpu.T == 1) {
-                    cpu.must_trace = true;
-                }
-            };
-        }
-    }
-    throw DecodeError{};
+extern run_t run_table[0x10000];
+
+void cinvl_d(uint32_t base) {
+    base &= ~0xf;
+    (void) base;
+    // date cache is not implemented
 }
 
-void pflushn(uint32_t an) {
-    an >>= 12;
-    if(cpu.DFC == 1 || cpu.DFC == 2) {
-        cpu.u_atc.erase(an);
-    } else if(cpu.DFC == 5 || cpu.DFC == 6) {
-        cpu.s_atc.erase(an);
-    }
+void cinvp_d(uint32_t base) {
+    base &= ~(page_size() - 1);
+    (void) base;
+    // date cache is not implemented
 }
-void pflush(uint32_t an) {
-    an >>= 12;
-    if(cpu.DFC == 1 || cpu.DFC == 2) {
-        cpu.u_atc.erase(an);
-        cpu.ug_atc.erase(an);
-    } else if(cpu.DFC == 5 || cpu.DFC == 6) {
-        cpu.s_atc.erase(an);
-        cpu.sg_atc.erase(an);
-    }
+
+void cinva_d() {
+    // date cache is not implemented
 }
-void pflushan() {
+
+void cpushl_d(uint32_t base) {
+    base &= ~0xf;
+    (void) base;
+    // date cache is not implemented
+}
+
+void cpushp_d(uint32_t base) {
+    base &= ~(page_size() - 1);
+    (void) base;
+    // date cache is not implemented
+}
+
+void cpusha_d() {
+    // date cache is not implemented
+}
+
+void cinvl_i(uint32_t base) {
+    base &= ~0xf;
+    (void) base;
+    // TODO: JIT cache must be refreshed
+}
+
+void cinvp_i(uint32_t base) {
+    base &= ~(page_size() - 1);
+    (void) base;
+    // TODO: JIT cache must be refreshed
+}
+
+void cinva_i() {
+    // TODO: JIT cache must be refreshed
+}
+
+void cpushl_i(uint32_t base) {
+    base &= ~0xf;
+    (void) base;
+    // TODO: JIT cache must be refreshed
+}
+
+void cpushp_i(uint32_t base) {
+    base &= ~(page_size() - 1);
+    (void) base;
+    // TODO: JIT cache must be refreshed
+}
+
+void cpusha_i() {
+    // TODO: JIT cache must be refreshed
+}
+
+namespace OP {
+void cinvl_dc(uint16_t, int, int, int reg) {
+    PRIV_CHECK();
+    cinvl_d(cpu.A[reg]);
+    TRACE_BRANCH();
+}
+
+void cinvp_dc(uint16_t, int, int, int reg) {
+    PRIV_CHECK();
+    cinvp_d(cpu.A[reg]);
+    TRACE_BRANCH();
+}
+
+void cinva_dc(uint16_t, int, int, int) {
+    PRIV_CHECK();
+    cinva_d();
+    TRACE_BRANCH();
+}
+
+void cpushl_dc(uint16_t, int, int, int reg) {
+    PRIV_CHECK();
+    cpushl_d(cpu.A[reg]);
+    TRACE_BRANCH();
+}
+
+void cpushp_dc(uint16_t, int, int, int reg) {
+    PRIV_CHECK();
+    cpushp_d(cpu.A[reg]);
+    TRACE_BRANCH();
+}
+
+void cpusha_dc(uint16_t, int, int, int) {
+    PRIV_CHECK();
+    cpusha_d();
+    TRACE_BRANCH();
+}
+
+void cinvl_ic(uint16_t, int, int, int reg) {
+    PRIV_CHECK();
+    cinvl_i(cpu.A[reg]);
+    TRACE_BRANCH();
+}
+
+void cinvp_ic(uint16_t, int, int, int reg) {
+    PRIV_CHECK();
+    cinvp_i(cpu.A[reg]);
+    TRACE_BRANCH();
+}
+
+void cinva_ic(uint16_t, int, int, int) {
+    PRIV_CHECK();
+    cinva_i();
+    TRACE_BRANCH();
+}
+
+void cpushl_ic(uint16_t, int, int, int reg) {
+    PRIV_CHECK();
+    cpushl_i(cpu.A[reg]);
+    TRACE_BRANCH();
+}
+
+void cpushp_ic(uint16_t, int, int, int reg) {
+    PRIV_CHECK();
+    cpushp_i(cpu.A[reg]);
+    TRACE_BRANCH();
+}
+
+void cpusha_ic(uint16_t, int, int, int) {
+    PRIV_CHECK();
+    cpusha_i();
+    TRACE_BRANCH();
+}
+
+void cinvl_bc(uint16_t, int, int, int reg) {
+    PRIV_CHECK();
+    cinvl_d(cpu.A[reg]);
+    cinvl_i(cpu.A[reg]);
+    TRACE_BRANCH();
+}
+
+void cinvp_bc(uint16_t, int, int, int reg) {
+    PRIV_CHECK();
+    cinvp_d(cpu.A[reg]);
+    cinvp_i(cpu.A[reg]);
+    TRACE_BRANCH();
+}
+
+void cinva_bc(uint16_t, int, int, int) {
+    PRIV_CHECK();
+    cinva_d();
+    cinva_i();
+    TRACE_BRANCH();
+}
+
+void cpushl_bc(uint16_t, int, int, int reg) {
+    PRIV_CHECK();
+    cpushl_d(cpu.A[reg]);
+    cpushl_i(cpu.A[reg]);
+    TRACE_BRANCH();
+}
+
+void cpushp_bc(uint16_t, int, int, int reg) {
+    PRIV_CHECK();
+    cpushp_d(cpu.A[reg]);
+    cpushp_i(cpu.A[reg]);
+    TRACE_BRANCH();
+}
+
+void cpusha_bc(uint16_t, int, int, int) {
+    PRIV_CHECK();
+    cpusha_d();
+    cpusha_i();
+    TRACE_BRANCH();
+}
+
+void pflushn(uint16_t, int, int, int reg) {
+    PRIV_CHECK();
+    uint32_t addr = cpu.A[reg] >> 12;
+    if(cpu.DFC == 1 || cpu.DFC == 2) {
+        cpu.u_atc.erase(addr);
+    } else if(cpu.DFC == 5 || cpu.DFC == 6) {
+        cpu.s_atc.erase(addr);
+    }
+    TRACE_BRANCH();
+}
+
+void pflush(uint16_t, int, int, int reg) {
+    PRIV_CHECK();
+    uint32_t addr = cpu.A[reg] >> 12;
+    if(cpu.DFC == 1 || cpu.DFC == 2) {
+        cpu.u_atc.erase(addr);
+        cpu.ug_atc.erase(addr);
+    } else if(cpu.DFC == 5 || cpu.DFC == 6) {
+        cpu.s_atc.erase(addr);
+        cpu.sg_atc.erase(addr);
+    }
+    TRACE_BRANCH();
+}
+
+void pflushan(uint16_t, int, int, int) {
+    PRIV_CHECK();
     if(cpu.DFC == 1 || cpu.DFC == 2) {
         cpu.u_atc.clear();
     } else if(cpu.DFC == 5 || cpu.DFC == 6) {
         cpu.s_atc.clear();
     }
+    TRACE_BRANCH();
 }
-void pflusha() {
+
+void pflusha(uint16_t, int, int, int) {
+    PRIV_CHECK();
     if(cpu.DFC == 1 || cpu.DFC == 2) {
         cpu.u_atc.clear();
         cpu.ug_atc.clear();
@@ -822,7 +550,56 @@ void pflusha() {
         cpu.s_atc.clear();
         cpu.sg_atc.clear();
     }
+    TRACE_BRANCH();
 }
+
+void ptestr(uint16_t, int, int, int reg) {
+    PRIV_CHECK();
+    op_ptest(cpu.A[reg], false);
+    TRACE_BRANCH();
+}
+
+void ptestw(uint16_t, int, int, int reg) {
+    PRIV_CHECK();
+    op_ptest(cpu.A[reg], true);
+    TRACE_BRANCH();
+}
+
+} // namespace OP
+void init_run_table_mmu() {
+    for(int r = 0; r < 8; ++r) {
+        run_table[0172110 | r] = OP::cinvl_dc;
+        run_table[0172120 | r] = OP::cinvp_dc;
+        run_table[0172130 | r] = OP::cinva_dc;
+        run_table[0172150 | r] = OP::cpushl_dc;
+        run_table[0172160 | r] = OP::cpushp_dc;
+        run_table[0172170 | r] = OP::cpusha_dc;
+
+        run_table[0172210 | r] = OP::cinvl_ic;
+        run_table[0172220 | r] = OP::cinvp_ic;
+        run_table[0172230 | r] = OP::cinva_ic;
+        run_table[0172250 | r] = OP::cpushl_ic;
+        run_table[0172260 | r] = OP::cpushp_ic;
+        run_table[0172270 | r] = OP::cpusha_ic;
+
+        run_table[0172310 | r] = OP::cinvl_bc;
+        run_table[0172320 | r] = OP::cinvp_bc;
+        run_table[0172330 | r] = OP::cinva_bc;
+        run_table[0172350 | r] = OP::cpushl_bc;
+        run_table[0172360 | r] = OP::cpushp_bc;
+        run_table[0172370 | r] = OP::cpusha_bc;
+
+        run_table[0172400 | r] = OP::pflushn;
+        run_table[0172410 | r] = OP::pflush;
+        run_table[0172420 | r] = OP::pflushan;
+        run_table[0172430 | r] = OP::pflusha;
+
+        run_table[0172510 | r] = OP::ptestw;
+        run_table[0172550 | r] = OP::ptestr;
+    }
+}
+
+
 void op_ptest(uint32_t addr, bool w) {
     addr >>= 12;
     switch(cpu.DFC) {
@@ -852,3 +629,130 @@ void op_ptest(uint32_t addr, bool w) {
         break;
     }
 }
+
+namespace OP {
+void movec_from_cr(uint16_t, int, int, int) {
+    PRIV_CHECK();
+    uint16_t extw = FETCH();
+    int rn = extw >> 12 & 15;
+    switch(extw & 0xfff) {
+    case 0:
+        cpu.R(rn) = cpu.SFC;
+        break;
+    case 1:
+        cpu.R(rn) = cpu.DFC;
+        break;
+    case 2:
+        cpu.R(rn) = cpu.CACR_DE << 31 | cpu.CACR_IE << 15;
+        break;
+    case 3:
+        cpu.R(rn) = cpu.TCR_E << 15 | cpu.TCR_P << 14;
+        break;
+    case 4:
+        cpu.R(rn) = Get_TTR_t(cpu.ITTR[0]);
+        break;
+    case 5:
+        cpu.R(rn) = Get_TTR_t(cpu.ITTR[1]);
+        break;
+    case 6:
+        cpu.R(rn) = Get_TTR_t(cpu.DTTR[0]);
+        break;
+    case 7:
+        cpu.R(rn) = Get_TTR_t(cpu.DTTR[1]);
+        break;
+    case 0x800:
+        cpu.R(rn) = cpu.USP;
+        break;
+    case 0x801:
+        cpu.R(rn) = cpu.VBR;
+        break;
+    case 0x803:
+        if(cpu.M) {
+            cpu.MSP = cpu.A[7];
+        }
+        cpu.R(rn) = cpu.MSP;
+        break;
+    case 0x804:
+        if(!cpu.M) {
+            cpu.ISP = cpu.A[7];
+        }
+        cpu.R(rn) = cpu.ISP;
+        break;
+    case 0x805:
+        cpu.R(rn) = cpu.MMUSR;
+        break;
+    case 0x806:
+        cpu.R(rn) = cpu.URP;
+        break;
+    case 0x807:
+        cpu.R(rn) = cpu.SRP;
+        break;
+    default:
+        ILLEGAL_OP();
+    }
+    TRACE_BRANCH();
+}
+void movec_to_cr(uint16_t, int, int, int) {
+    PRIV_CHECK();
+    uint16_t extw = FETCH();
+    int rn = extw >> 12 & 15;
+    switch(extw & 0xfff) {
+    case 0:
+        cpu.SFC = cpu.R(rn) & 7;
+        break;
+    case 1:
+        cpu.DFC = cpu.R(rn) & 7;
+        break;
+    case 2:
+        cpu.CACR_DE = cpu.R(rn) >> 31 & 1;
+        cpu.CACR_IE = cpu.R(rn) >> 15 & 1;
+        break;
+    case 3:
+        cpu.TCR_E = cpu.R(rn) >> 15 & 1;
+        cpu.TCR_P = cpu.R(rn) >> 14 & 1;
+        break;
+    case 4:
+        Set_TTR_t(cpu.ITTR[0], cpu.R(rn));
+        break;
+    case 5:
+        Set_TTR_t(cpu.ITTR[1], cpu.R(rn));
+        break;
+    case 6:
+        Set_TTR_t(cpu.DTTR[0], cpu.R(rn));
+        break;
+    case 7:
+        Set_TTR_t(cpu.DTTR[1], cpu.R(rn));
+        break;
+    case 0x800:
+        cpu.USP = cpu.R(rn);
+        break;
+    case 0x801:
+        cpu.VBR = cpu.R(rn);
+        break;
+    case 0x803:
+        cpu.MSP = cpu.R(rn);
+        if(cpu.M) {
+            cpu.A[7] = cpu.MSP;
+        }
+        break;
+    case 0x804:
+        cpu.ISP = cpu.R(rn);
+        if(!cpu.M) {
+            cpu.A[7] = cpu.ISP;
+        }
+        break;
+    case 0x805:
+        cpu.MMUSR = cpu.R(rn);
+        break;
+    case 0x806:
+        cpu.URP = cpu.R(rn) & ~0x1ff;
+        break;
+    case 0x807:
+        cpu.SRP = cpu.R(rn) & ~0x1ff;
+        break;
+    default:
+        ILLEGAL_OP();
+    }
+    TRACE_BRANCH();
+}
+} // namespace OP

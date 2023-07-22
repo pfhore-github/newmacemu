@@ -11,10 +11,9 @@ BOOST_DATA_TEST_CASE_F(Prepare, RTD, bdata::xrange(2), T) {
     TEST::SET_L(0x1000, 0x400);
     cpu.A[7] = 0x1000;
     cpu.T = T;
-    auto i = decode_and_run();
-    BOOST_TEST(cpu.nextpc == 0x400);
+    decode_and_run();
+    BOOST_TEST(cpu.PC == 0x400);
     BOOST_TEST(cpu.A[7] == 0x1014);
-    BOOST_TEST(i == 2);
     BOOST_TEST(cpu.must_trace == !!T);
 
 }

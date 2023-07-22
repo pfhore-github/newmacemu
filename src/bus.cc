@@ -179,17 +179,17 @@ class RamBus : public BusBase {
 
 class IOBus : public BusBase {
   public:
-    uint8_t ReadB(uint32_t address) override { return LoadIO_B(address); }
-    uint16_t ReadW(uint32_t address) override { return LoadIO_W(address); }
-    uint32_t ReadL(uint32_t address) override { return LoadIO_L(address); }
+    uint8_t ReadB(uint32_t address) override { return LoadIO_B(address & 0x3ffff); }
+    uint16_t ReadW(uint32_t address) override { return LoadIO_W(address& 0x3ffff); }
+    uint32_t ReadL(uint32_t address) override { return LoadIO_L(address& 0x3ffff); }
     void WriteB(uint32_t address, uint8_t from) override {
-        StoreIO_B(address, from);
+        StoreIO_B(address& 0x3ffff, from);
     }
     void WriteW(uint32_t address, uint16_t from) override {
-        StoreIO_W(address, from);
+        StoreIO_W(address& 0x3ffff, from);
     }
     void WriteL(uint32_t address, uint32_t from) override {
-        StoreIO_L(address, from);
+        StoreIO_L(address& 0x3ffff, from);
     }
     IOBus() {}
 };
@@ -239,7 +239,7 @@ void BusWriteL(uint32_t addr, uint32_t v) {
 }
 
 uint32_t ptest_and_raise(uint32_t addr, bool sys, bool code, bool W);
-void MMU_Read16(uint32_t from, uint8_t *to) {
+void Read16(uint32_t from, uint8_t *to) {
     try {
         auto paddr = ptest_and_raise(from & 0xFFFFF000, cpu.S, false, false) |
                      (from & 0xfff);
@@ -256,7 +256,7 @@ void MMU_Read16(uint32_t from, uint8_t *to) {
     }
 }
 
-void MMU_Write16(uint32_t from, const uint8_t *to) {
+void Write16(uint32_t from, const uint8_t *to) {
     try {
         auto paddr = ptest_and_raise(from & 0xFFFFF000, cpu.S, false, true) |
                      (from & 0xfff);
@@ -274,6 +274,6 @@ void MMU_Write16(uint32_t from, const uint8_t *to) {
 }
 void MMU_Transfer16(uint32_t from, uint32_t to) {
     uint8_t buf[16];
-    MMU_Read16(from &~ 0xf, buf);
-    MMU_Write16(to &~ 0xf, buf);
+    Read16(from &~ 0xf, buf);
+    Write16(to &~ 0xf, buf);
 }

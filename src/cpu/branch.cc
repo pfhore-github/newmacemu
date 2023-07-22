@@ -6,18 +6,18 @@
 #include <memory>
 #include <utility>
 void do_bra(int32_t ix) {
-    JUMP(cpu.PC + 2 + ix);
+    JUMP(cpu.oldpc + 2 + ix);
     TRACE_BRANCH();
 }
-void do_bsr(int32_t ix, int off) {
-    PUSH32(cpu.PC + off + 2);
-    JUMP(cpu.PC + 2 + ix);
+void do_bsr(int32_t ix) {
+    PUSH32(cpu.PC);
+    JUMP(cpu.oldpc + 2 + ix);
     TRACE_BRANCH();
 }
 
 void do_bcc(bool cond, int ix) {
     if(cond) {
-        JUMP(cpu.PC + 2 + ix);
+        JUMP(cpu.oldpc + 2 + ix);
         TRACE_BRANCH();
     }
 }
@@ -26,7 +26,7 @@ void do_dbcc(bool cond, int reg, int16_t d) {
         int16_t dn = cpu.D[reg];
         STORE_W(cpu.D[reg], --dn);
         if(dn != -1) {
-            JUMP(cpu.PC + 2 + d);
+            JUMP(cpu.oldpc + 2 + d);
             TRACE_BRANCH();
         }
     }

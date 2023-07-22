@@ -9,8 +9,7 @@ namespace bdata = boost::unit_test::data;
 BOOST_FIXTURE_TEST_SUITE(BKPT, Prepare)
 BOOST_AUTO_TEST_CASE(run) {
     TEST::SET_W(0, 0044110);
-    auto i = decode_and_run();
-    BOOST_TEST(i == 0);
+    decode_and_run();
     BOOST_TEST(GET_EXCEPTION() == 4);
 }
 BOOST_AUTO_TEST_SUITE_END()

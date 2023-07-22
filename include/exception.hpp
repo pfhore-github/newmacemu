@@ -1,7 +1,6 @@
 #ifndef CPU_EXCEPTION_
 #define CPU_EXCEPTION_
 #include <stdint.h>
-
 [[noreturn]] void ACCESS_FAULT() ; // 2
 [[noreturn]] void ADDRESS_ERROR(uint32_t next); // 3
 [[noreturn]] void ILLEGAL_OP();        // 4
@@ -23,5 +22,6 @@
 [[noreturn]] void FP_EX_SNAN();        // 54
 // not implemented
 // void FP_EX_UNIMPL_TYPE(); // 55
+
 
 #endif

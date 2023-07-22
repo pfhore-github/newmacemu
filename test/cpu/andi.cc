@@ -79,6 +79,7 @@ BOOST_AUTO_TEST_CASE(sr_err) {
 BOOST_DATA_TEST_CASE(sr_ok, bdata::xrange(2), tr) {
     cpu.S = true;
     cpu.T = tr;
+    cpu.PC = 0;
     TEST::SET_W(0, 0001174);
     TEST::SET_W(2, 0xDFFF);
     auto i = decode_and_run();

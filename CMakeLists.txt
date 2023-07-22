@@ -14,16 +14,17 @@ set(CMAKE_CXX_STANDARD 23)
 find_package(Boost REQUIRED CONFIG REQUIRED COMPONENTS unit_test_framework)
 if(CMAKE_COMPILER_IS_GNUCXX)
   # Update if necessary
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -fsanitize=undefined --coverage")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra --coverage")
   set(CMAKE_EXE_LINKER_FLAGS "--coverage")
 endif()
-set(SRC_CPU src/cpu/run.cc src/cpu/m68k_ea.cc src/cpu/bcd.cc src/cpu/arithmetic.cc src/cpu/bits.cc src/cpu/bitfield.cc
-src/cpu/68040_mmu.cc src/cpu/branch.cc
-src/cpu/exception.cc src/cpu/op_movem.cc src/cpu/68040_fpu.cc src/cpu/opcodes.cc src/bus.cc src/memory.cc )
-add_executable(newmacemu ${SRC_CPU} src/main.cc src/io.cc)
+set(SRC_CPU src/cpu/op.cc src/cpu/run.cc src/cpu/m68k_ea.cc src/cpu/bcd.cc src/cpu/arithmetic.cc src/cpu/bits.cc src/cpu/bitfield.cc
+src/cpu/68040_mmu.cc src/cpu/branch.cc src/cpu/disasm.cc
+src/cpu/exception.cc src/cpu/op_move.cc src/cpu/68040_fpu.cc src/bus.cc src/memory.cc )
+add_executable(newmacemu ${SRC_CPU} src/main.cc src/cpu/disasm.cc src/io.cc src/chip/via.cpp)
 add_executable(testcpu ${SRC_CPU} test/test_main.cc 
 test/cpu/ea.cc 
-test/cpu/abcd.cc test/cpu/nbcd.cc test/cpu/pack.cc test/cpu/sbcd.cc test/cpu/unpk.cc
+test/cpu/abcd.cc test/cpu/nbcd.cc 
+test/cpu/pack.cc test/cpu/sbcd.cc test/cpu/unpk.cc
 test/cpu/add.cc test/cpu/adda.cc test/cpu/addi.cc test/cpu/addq.cc test/cpu/addx.cc 
 test/cpu/sub.cc test/cpu/suba.cc test/cpu/subi.cc  test/cpu/subq.cc  test/cpu/subx.cc 
 test/cpu/and.cc test/cpu/andi.cc
@@ -59,8 +60,9 @@ test/fpu/fpexcept.cc
 
 test/mmu/ittr.cc test/mmu/dttr.cc test/mmu/disabled.cc test/mmu/atc.cc test/mmu/psearch.cc
 test/cpu/cinv.cc test/cpu/cpush.cc test/fpu/frestore.cc test/fpu/fsave.cc
-test/cpu/movec.cc test/cpu/moves.cc test/mmu/pflush.cc test/mmu/ptest.cc
+test/cpu/movec.cc test/cpu/moves.cc test/mmu/pflush.cc 
 test/cpu/reset.cc test/cpu/rte.cc
+test/mmu/ptest.cc
 ) 
 if(result)
   set_property(TARGET newmacemu PROPERTY INTERPROCEDURAL_OPTIMIZATION_Release TRUE)
@@ -71,9 +73,7 @@ target_include_directories(newmacemu PRIVATE "./include")
 target_link_libraries(testcpu gmp mpfr SDL2::SDL2 fmt Boost::unit_test_framework)
 target_include_directories(testcpu PRIVATE "./include" ${Boost_INCLUDE_DIRS})
 
-add_test(NAME ea/r COMMAND $<TARGET_FILE:testcpu> -t "EA/Read/*")
-add_test(NAME ea/w COMMAND $<TARGET_FILE:testcpu> -t "EA/Write/*")
-add_test(NAME ea/addr COMMAND $<TARGET_FILE:testcpu> -t "EA/ADDR/*")
+add_test(NAME ea COMMAND $<TARGET_FILE:testcpu> -t "EA/*")
 add_test(NAME abcd COMMAND $<TARGET_FILE:testcpu> -t "ABCD/*")
 add_test(NAME add COMMAND $<TARGET_FILE:testcpu> -t "ADD/*")
 add_test(NAME adda COMMAND $<TARGET_FILE:testcpu> -t "ADDA/*")

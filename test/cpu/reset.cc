@@ -5,8 +5,7 @@
 #include <boost/test/data/test_case.hpp>
 #include <boost/test/unit_test.hpp>
 namespace bdata = boost::unit_test::data;
-static bool is_reset = false;
-void bus_reset() { is_reset = true; }
+extern bool is_reset;
 BOOST_FIXTURE_TEST_SUITE(RESET, Prepare)
 BOOST_AUTO_TEST_CASE(user) {
     is_reset = false;

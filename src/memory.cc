@@ -13,7 +13,7 @@ inline TM GetTM(bool code) {
 }
 struct AccessFault {};
 uint32_t ptest_and_raise(uint32_t addr, bool sys, bool code, bool W);
-uint8_t MMU_ReadB(uint32_t addr, bool code) {
+uint8_t ReadB(uint32_t addr, bool code) {
     try {
         auto ret = ptest_and_raise(addr  >>12, cpu.S, code, false);
         auto paddr = ret | (addr & 0xfff);
@@ -28,12 +28,12 @@ uint8_t MMU_ReadB(uint32_t addr, bool code) {
         __builtin_unreachable();
     }
 }
-uint16_t MMU_ReadW(uint32_t addr, bool code) {
+uint16_t ReadW(uint32_t addr, bool code) {
     try {
         if(addr & 1) {
-            uint16_t v1 = MMU_ReadB(addr, code) << 8;
+            uint16_t v1 = ReadB(addr, code) << 8;
             try {
-                v1 |= MMU_ReadB(addr + 1, code);
+                v1 |= ReadB(addr + 1, code);
             } catch(AccessFault &) {
                 cpu.af_value.MA = true;
                 throw;
@@ -53,12 +53,12 @@ uint16_t MMU_ReadW(uint32_t addr, bool code) {
         __builtin_unreachable();
     }
 }
-uint32_t MMU_ReadL(uint32_t addr, bool code) {
+uint32_t ReadL(uint32_t addr, bool code) {
     try {
         if(addr & 2) {
-            uint32_t v1 = MMU_ReadW(addr, code) << 16;
+            uint32_t v1 = ReadW(addr, code) << 16;
             try {
-                v1 |= MMU_ReadW(addr + 2, code);
+                v1 |= ReadW(addr + 2, code);
             } catch(AccessFault &) {
                 cpu.af_value.MA = true;
                 throw;
@@ -78,7 +78,7 @@ uint32_t MMU_ReadL(uint32_t addr, bool code) {
         __builtin_unreachable();
     }
 }
-void MMU_WriteB(uint32_t addr, uint8_t b) {
+void WriteB(uint32_t addr, uint8_t b) {
     try {
         auto ret = ptest_and_raise(addr >>12, cpu.S, false, true);
         auto paddr = ret | (addr & 0xfff);
@@ -94,12 +94,12 @@ void MMU_WriteB(uint32_t addr, uint8_t b) {
     }
 }
 
-void MMU_WriteW(uint32_t addr, uint16_t w) {
+void WriteW(uint32_t addr, uint16_t w) {
     try {
         if(addr & 1) {
-            MMU_WriteB(addr, w >> 8);
+            WriteB(addr, w >> 8);
             try {
-                MMU_WriteB(addr + 1, w);
+                WriteB(addr + 1, w);
             } catch(AccessFault &) {
                 cpu.af_value.MA = true;
                 throw;
@@ -119,12 +119,12 @@ void MMU_WriteW(uint32_t addr, uint16_t w) {
         __builtin_unreachable();
     }
 }
-void MMU_WriteL(uint32_t addr, uint32_t l) {
+void WriteL(uint32_t addr, uint32_t l) {
     try {
         if(addr & 1) {
-            MMU_WriteW(addr, l >> 16);
+            WriteW(addr, l >> 16);
             try {
-                MMU_WriteW(addr + 2, l);
+                WriteW(addr + 2, l);
             } catch(AccessFault &) {
                 cpu.af_value.MA = true;
                 throw;

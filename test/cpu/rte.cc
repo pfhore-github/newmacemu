@@ -16,10 +16,9 @@ BOOST_DATA_TEST_CASE(type0, bdata::xrange(2), T) {
     TEST::SET_W(0x1006, 0 << 12 | 3);
 
     TEST::SET_W(0, 0047163);
-    auto i = decode_and_run();
+    decode_and_run();
     BOOST_TEST(cpu.MSP == 0x1008);
-    BOOST_TEST(cpu.nextpc == 0x40);
-    BOOST_TEST(i == 0);
+    BOOST_TEST(cpu.PC == 0x40);
     BOOST_TEST(cpu.must_trace == !!T);
     BOOST_TEST(!cpu.S);
 }
@@ -39,7 +38,7 @@ BOOST_AUTO_TEST_CASE(type1) {
     TEST::SET_W(0, 0047163);
     decode_and_run();
     BOOST_TEST(cpu.ISP == 0x1010);
-    BOOST_TEST(cpu.nextpc == 0x40);
+    BOOST_TEST(cpu.PC == 0x40);
     BOOST_TEST(!cpu.S);
 }
 BOOST_AUTO_TEST_CASE(type2) {
@@ -54,7 +53,7 @@ BOOST_AUTO_TEST_CASE(type2) {
     TEST::SET_W(0, 0047163);
     decode_and_run();
     BOOST_TEST(cpu.MSP == 0x100C);
-    BOOST_TEST(cpu.nextpc == 0x40);
+    BOOST_TEST(cpu.PC == 0x40);
     BOOST_TEST(!cpu.S);
 }
 
@@ -70,7 +69,7 @@ BOOST_AUTO_TEST_CASE(type3) {
     TEST::SET_W(0, 0047163);
     decode_and_run();
     BOOST_TEST(cpu.MSP == 0x100C);
-    BOOST_TEST(cpu.nextpc == 0x40);
+    BOOST_TEST(cpu.PC == 0x40);
     BOOST_TEST(!cpu.S);
 }
 
@@ -87,7 +86,7 @@ BOOST_AUTO_TEST_CASE(type7_norestart) {
     TEST::SET_W(0, 0047163);
     decode_and_run();
     BOOST_TEST(cpu.MSP == 0x1000 + 60);
-    BOOST_TEST(cpu.nextpc == 0x40);
+    BOOST_TEST(cpu.PC == 0x40);
     BOOST_TEST(!cpu.S);
 }
 
@@ -104,7 +103,7 @@ BOOST_AUTO_TEST_CASE(type7_movem) {
     TEST::SET_W(0, 0047163);
     decode_and_run();
     BOOST_TEST(cpu.MSP == 0x1000 + 60);
-    BOOST_TEST(cpu.nextpc == 0x40);
+    BOOST_TEST(cpu.PC == 0x40);
     BOOST_TEST(!cpu.S);
     BOOST_TEST(cpu.EA == 0x2400);
     BOOST_TEST(cpu.movem_run);
@@ -135,7 +134,7 @@ BOOST_AUTO_TEST_CASE(AddressError) {
     cpu.S = false;
     TEST::SET_L(0x2000 | (3 << 2), 0x3000);
     cpu.ISP = cpu.MSP = 0x100C;
-    cpu.PC = 0x100;
+    cpu.oldpc = 0x100;
     if(setjmp(cpu.ex_buf) == 0) {
         ADDRESS_ERROR(0x1001);
     }
@@ -144,7 +143,7 @@ BOOST_AUTO_TEST_CASE(AddressError) {
     BOOST_TEST(TEST::GET_L(0x1002) == 0x100);
     BOOST_TEST(TEST::GET_W(0x1006) == (0x2000 | (3 << 2)));
     BOOST_TEST(TEST::GET_L(0x1008) == 0x1000);
-    BOOST_TEST(cpu.nextpc == 0x3000);
+    BOOST_TEST(cpu.PC == 0x3000);
 }
 
 BOOST_AUTO_TEST_CASE(ILLEGALOP) {
@@ -153,7 +152,7 @@ BOOST_AUTO_TEST_CASE(ILLEGALOP) {
     cpu.VBR = 0x2000;
     TEST::SET_L(0x2000 | (4 << 2), 0x3000);
     cpu.ISP = cpu.MSP = 0x1008;
-    cpu.PC = 0x100;
+    cpu.oldpc = 0x100;
     if(setjmp(cpu.ex_buf) == 0) {
         ILLEGAL_OP();
     }
@@ -161,7 +160,7 @@ BOOST_AUTO_TEST_CASE(ILLEGALOP) {
     BOOST_TEST(cpu.T == 0);
     BOOST_TEST(TEST::GET_L(0x1002) == 0x100);
     BOOST_TEST(TEST::GET_W(0x1006) == (0x0000 | (4 << 2)));
-    BOOST_TEST(cpu.nextpc == 0x3000);
+    BOOST_TEST(cpu.PC == 0x3000);
 }
 
 BOOST_AUTO_TEST_CASE(DIV0) {
@@ -170,8 +169,8 @@ BOOST_AUTO_TEST_CASE(DIV0) {
     cpu.VBR = 0x2000;
     TEST::SET_L(0x2000 | (5 << 2), 0x3000);
     cpu.ISP = cpu.MSP = 0x100C;
-    cpu.PC = 0x100;
-    cpu.nextpc = 0x102;
+    cpu.oldpc = 0x100;
+    cpu.PC = 0x102;
     if(setjmp(cpu.ex_buf) == 0) {
         DIV0_ERROR();
     }
@@ -180,7 +179,7 @@ BOOST_AUTO_TEST_CASE(DIV0) {
     BOOST_TEST(TEST::GET_L(0x1002) == 0x102);
     BOOST_TEST(TEST::GET_W(0x1006) == (0x2000 | (5 << 2)));
     BOOST_TEST(TEST::GET_L(0x1008) == 0x100);
-    BOOST_TEST(cpu.nextpc == 0x3000);
+    BOOST_TEST(cpu.PC == 0x3000);
 }
 
 BOOST_AUTO_TEST_CASE(CHK) {
@@ -189,8 +188,8 @@ BOOST_AUTO_TEST_CASE(CHK) {
     cpu.VBR = 0x2000;
     TEST::SET_L(0x2000 | (6 << 2), 0x3000);
     cpu.ISP = cpu.MSP = 0x100C;
-    cpu.PC = 0x100;
-    cpu.nextpc = 0x102;
+    cpu.oldpc = 0x100;
+    cpu.PC = 0x102;
     if(setjmp(cpu.ex_buf) == 0) {
         CHK_ERROR();
     }
@@ -199,7 +198,7 @@ BOOST_AUTO_TEST_CASE(CHK) {
     BOOST_TEST(TEST::GET_L(0x1002) == 0x102);
     BOOST_TEST(TEST::GET_W(0x1006) == (0x2000 | (6 << 2)));
     BOOST_TEST(TEST::GET_L(0x1008) == 0x100);
-    BOOST_TEST(cpu.nextpc == 0x3000);
+    BOOST_TEST(cpu.PC == 0x3000);
 }
 
 BOOST_AUTO_TEST_CASE(TRAPxx) {
@@ -208,8 +207,8 @@ BOOST_AUTO_TEST_CASE(TRAPxx) {
     cpu.VBR = 0x2000;
     TEST::SET_L(0x2000 | (7 << 2), 0x3000);
     cpu.ISP = cpu.MSP = 0x100C;
-    cpu.PC = 0x100;
-    cpu.nextpc = 0x102;
+    cpu.oldpc = 0x100;
+    cpu.PC = 0x102;
     if(setjmp(cpu.ex_buf) == 0) {
         TRAPX_ERROR();
     }
@@ -218,7 +217,7 @@ BOOST_AUTO_TEST_CASE(TRAPxx) {
     BOOST_TEST(TEST::GET_L(0x1002) == 0x102);
     BOOST_TEST(TEST::GET_W(0x1006) == (0x2000 | (7 << 2)));
     BOOST_TEST(TEST::GET_L(0x1008) == 0x100);
-    BOOST_TEST(cpu.nextpc == 0x3000);
+    BOOST_TEST(cpu.PC == 0x3000);
 }
 
 
@@ -228,8 +227,8 @@ BOOST_AUTO_TEST_CASE(PRIV_VIOLATION) {
     cpu.VBR = 0x2000;
     TEST::SET_L(0x2000 | (8 << 2), 0x3000);
     cpu.ISP = cpu.MSP = 0x1008;
-    cpu.PC = 0x100;
-    cpu.nextpc = 0x102;
+    cpu.oldpc = 0x100;
+    cpu.PC = 0x102;
     if(setjmp(cpu.ex_buf) == 0) {
         PRIV_ERROR();
     }
@@ -237,7 +236,7 @@ BOOST_AUTO_TEST_CASE(PRIV_VIOLATION) {
     BOOST_TEST(cpu.T == 0);
     BOOST_TEST(TEST::GET_L(0x1002) == 0x100);
     BOOST_TEST(TEST::GET_W(0x1006) == (0x0000 | (8 << 2)));
-    BOOST_TEST(cpu.nextpc == 0x3000);
+    BOOST_TEST(cpu.PC == 0x3000);
 }
 
 BOOST_AUTO_TEST_CASE(TRC) {
@@ -246,8 +245,8 @@ BOOST_AUTO_TEST_CASE(TRC) {
     cpu.VBR = 0x2000;
     TEST::SET_L(0x2000 | (9 << 2), 0x3000);
     cpu.ISP = cpu.MSP = 0x100C;
-    cpu.PC = 0x100;
-    cpu.nextpc = 0x102;
+    cpu.oldpc = 0x100;
+    cpu.PC = 0x102;
     if(setjmp(cpu.ex_buf) == 0) {
         TRACE();
     }
@@ -256,7 +255,7 @@ BOOST_AUTO_TEST_CASE(TRC) {
     BOOST_TEST(TEST::GET_L(0x1002) == 0x102);
     BOOST_TEST(TEST::GET_W(0x1006) == (0x2000 | (9 << 2)));
     BOOST_TEST(TEST::GET_L(0x1008) == 0x100);
-    BOOST_TEST(cpu.nextpc == 0x3000);
+    BOOST_TEST(cpu.PC == 0x3000);
 }
 
 BOOST_AUTO_TEST_CASE(ALINE_) {
@@ -265,8 +264,8 @@ BOOST_AUTO_TEST_CASE(ALINE_) {
     cpu.VBR = 0x2000;
     TEST::SET_L(0x2000 | (10 << 2), 0x3000);
     cpu.ISP = cpu.MSP = 0x1008;
-    cpu.PC = 0x100;
-    cpu.nextpc = 0x102;
+    cpu.oldpc = 0x100;
+    cpu.PC = 0x102;
     if(setjmp(cpu.ex_buf) == 0) {
         ALINE();
     }
@@ -274,7 +273,7 @@ BOOST_AUTO_TEST_CASE(ALINE_) {
     BOOST_TEST(cpu.T == 0);
     BOOST_TEST(TEST::GET_L(0x1002) == 0x100);
     BOOST_TEST(TEST::GET_W(0x1006) == (0x0000 | (10 << 2)));
-    BOOST_TEST(cpu.nextpc == 0x3000);
+    BOOST_TEST(cpu.PC == 0x3000);
 }
 
 BOOST_AUTO_TEST_CASE(FLINE_) {
@@ -283,8 +282,8 @@ BOOST_AUTO_TEST_CASE(FLINE_) {
     cpu.VBR = 0x2000;
     TEST::SET_L(0x2000 | (11 << 2), 0x3000);
     cpu.ISP = cpu.MSP = 0x1008;
-    cpu.PC = 0x100;
-    cpu.nextpc = 0x102;
+    cpu.oldpc = 0x100;
+    cpu.PC = 0x102;
     if(setjmp(cpu.ex_buf) == 0) {
         FLINE();
     }
@@ -292,7 +291,7 @@ BOOST_AUTO_TEST_CASE(FLINE_) {
     BOOST_TEST(cpu.T == 0);
     BOOST_TEST(TEST::GET_L(0x1002) == 0x100);
     BOOST_TEST(TEST::GET_W(0x1006) == (0x0000 | (11 << 2)));
-    BOOST_TEST(cpu.nextpc == 0x3000);
+    BOOST_TEST(cpu.PC == 0x3000);
 }
 
 BOOST_AUTO_TEST_CASE(FMT_ERR) {
@@ -301,8 +300,8 @@ BOOST_AUTO_TEST_CASE(FMT_ERR) {
     cpu.VBR = 0x2000;
     TEST::SET_L(0x2000 | (14 << 2), 0x3000);
     cpu.ISP = cpu.MSP = 0x1008;
-    cpu.PC = 0x100;
-    cpu.nextpc = 0x102;
+    cpu.oldpc = 0x100;
+    cpu.PC = 0x102;
     if(setjmp(cpu.ex_buf) == 0) {
         FORMAT_ERROR();
     }
@@ -310,7 +309,7 @@ BOOST_AUTO_TEST_CASE(FMT_ERR) {
     BOOST_TEST(cpu.T == 0);
     BOOST_TEST(TEST::GET_L(0x1002) == 0x100);
     BOOST_TEST(TEST::GET_W(0x1006) == (0x0000 | (14 << 2)));
-    BOOST_TEST(cpu.nextpc == 0x3000);
+    BOOST_TEST(cpu.PC == 0x3000);
 }
 
 BOOST_DATA_TEST_CASE(TRAPn, bdata::xrange(16), n) {
@@ -319,8 +318,8 @@ BOOST_DATA_TEST_CASE(TRAPn, bdata::xrange(16), n) {
     cpu.VBR = 0x2000;
     TEST::SET_L(0x2000 | ((32+n )<< 2), 0x3000);
     cpu.ISP = cpu.MSP = 0x1008;
-    cpu.PC = 0x100;
-    cpu.nextpc = 0x102;
+    cpu.oldpc = 0x100;
+    cpu.PC = 0x102;
     if(setjmp(cpu.ex_buf) == 0) {
         TRAP_ERROR(n);
     }
@@ -328,7 +327,7 @@ BOOST_DATA_TEST_CASE(TRAPn, bdata::xrange(16), n) {
     BOOST_TEST(cpu.T == 0);
     BOOST_TEST(TEST::GET_L(0x1002) == 0x102);
     BOOST_TEST(TEST::GET_W(0x1006) == (0x0000 | ((32+n) << 2)));
-    BOOST_TEST(cpu.nextpc == 0x3000);
+    BOOST_TEST(cpu.PC == 0x3000);
 }
 
 BOOST_AUTO_TEST_CASE(BSUN) {
@@ -337,8 +336,8 @@ BOOST_AUTO_TEST_CASE(BSUN) {
     cpu.VBR = 0x2000;
     TEST::SET_L(0x2000 | (48 << 2), 0x3000);
     cpu.ISP = cpu.MSP = 0x100C;
-    cpu.PC = 0x100;
-    cpu.nextpc = 0x102;
+    cpu.oldpc = 0x100;
+    cpu.PC = 0x102;
     cpu.EA = 0x4500;
     if(setjmp(cpu.ex_buf) == 0) {
         FP_EX_BSUN();
@@ -348,7 +347,7 @@ BOOST_AUTO_TEST_CASE(BSUN) {
     BOOST_TEST(TEST::GET_L(0x1002) == 0x102);
     BOOST_TEST(TEST::GET_W(0x1006) == (0x3000 | (48 << 2)));
     BOOST_TEST(TEST::GET_L(0x1008) == 0x4500);
-    BOOST_TEST(cpu.nextpc == 0x3000);
+    BOOST_TEST(cpu.PC == 0x3000);
 }
 
 BOOST_AUTO_TEST_CASE(INEX) {
@@ -357,8 +356,8 @@ BOOST_AUTO_TEST_CASE(INEX) {
     cpu.VBR = 0x2000;
     TEST::SET_L(0x2000 | (49 << 2), 0x3000);
     cpu.ISP = cpu.MSP = 0x100C;
-    cpu.PC = 0x100;
-    cpu.nextpc = 0x102;
+    cpu.oldpc = 0x100;
+    cpu.PC = 0x102;
     cpu.EA = 0x4500;
     if(setjmp(cpu.ex_buf) == 0) {
         FP_EX_INEX();
@@ -368,7 +367,7 @@ BOOST_AUTO_TEST_CASE(INEX) {
     BOOST_TEST(TEST::GET_L(0x1002) == 0x102);
     BOOST_TEST(TEST::GET_W(0x1006) == (0x3000 | (49 << 2)));
     BOOST_TEST(TEST::GET_L(0x1008) == 0x4500);
-    BOOST_TEST(cpu.nextpc == 0x3000);
+    BOOST_TEST(cpu.PC == 0x3000);
 }
 
 BOOST_AUTO_TEST_CASE(DV0) {
@@ -377,8 +376,8 @@ BOOST_AUTO_TEST_CASE(DV0) {
     cpu.VBR = 0x2000;
     TEST::SET_L(0x2000 | (50 << 2), 0x3000);
     cpu.ISP = cpu.MSP = 0x100C;
-    cpu.PC = 0x100;
-    cpu.nextpc = 0x102;
+    cpu.oldpc = 0x100;
+    cpu.PC = 0x102;
     cpu.EA = 0x4500;
     if(setjmp(cpu.ex_buf) == 0) {
         FP_EX_DIV0();
@@ -388,7 +387,7 @@ BOOST_AUTO_TEST_CASE(DV0) {
     BOOST_TEST(TEST::GET_L(0x1002) == 0x102);
     BOOST_TEST(TEST::GET_W(0x1006) == (0x3000 | (50 << 2)));
     BOOST_TEST(TEST::GET_L(0x1008) == 0x4500);
-    BOOST_TEST(cpu.nextpc == 0x3000);
+    BOOST_TEST(cpu.PC == 0x3000);
 }
 
 BOOST_AUTO_TEST_CASE(UNFL) {
@@ -397,8 +396,8 @@ BOOST_AUTO_TEST_CASE(UNFL) {
     cpu.VBR = 0x2000;
     TEST::SET_L(0x2000 | (51 << 2), 0x3000);
     cpu.ISP = cpu.MSP = 0x100C;
-    cpu.PC = 0x100;
-    cpu.nextpc = 0x102;
+    cpu.oldpc = 0x100;
+    cpu.PC = 0x102;
     cpu.EA = 0x4500;
     if(setjmp(cpu.ex_buf) == 0) {
         FP_EX_UNFL();
@@ -408,7 +407,7 @@ BOOST_AUTO_TEST_CASE(UNFL) {
     BOOST_TEST(TEST::GET_L(0x1002) == 0x102);
     BOOST_TEST(TEST::GET_W(0x1006) == (0x3000 | (51 << 2)));
     BOOST_TEST(TEST::GET_L(0x1008) == 0x4500);
-    BOOST_TEST(cpu.nextpc == 0x3000);
+    BOOST_TEST(cpu.PC == 0x3000);
 }
 
 BOOST_AUTO_TEST_CASE(OPERR) {
@@ -417,8 +416,8 @@ BOOST_AUTO_TEST_CASE(OPERR) {
     cpu.VBR = 0x2000;
     TEST::SET_L(0x2000 | (52 << 2), 0x3000);
     cpu.ISP = cpu.MSP = 0x100C;
-    cpu.PC = 0x100;
-    cpu.nextpc = 0x102;
+    cpu.oldpc = 0x100;
+    cpu.PC = 0x102;
     cpu.EA = 0x4500;
     if(setjmp(cpu.ex_buf) == 0) {
         FP_EX_OPERR();
@@ -428,7 +427,7 @@ BOOST_AUTO_TEST_CASE(OPERR) {
     BOOST_TEST(TEST::GET_L(0x1002) == 0x102);
     BOOST_TEST(TEST::GET_W(0x1006) == (0x3000 | (52 << 2)));
     BOOST_TEST(TEST::GET_L(0x1008) == 0x4500);
-    BOOST_TEST(cpu.nextpc == 0x3000);
+    BOOST_TEST(cpu.PC == 0x3000);
 }
 
 BOOST_AUTO_TEST_CASE(OVFL) {
@@ -437,8 +436,8 @@ BOOST_AUTO_TEST_CASE(OVFL) {
     cpu.VBR = 0x2000;
     TEST::SET_L(0x2000 | (53 << 2), 0x3000);
     cpu.ISP = cpu.MSP = 0x100C;
-    cpu.PC = 0x100;
-    cpu.nextpc = 0x102;
+    cpu.oldpc = 0x100;
+    cpu.PC = 0x102;
     cpu.EA = 0x4500;
     if(setjmp(cpu.ex_buf) == 0) {
         FP_EX_OVFL();
@@ -448,7 +447,7 @@ BOOST_AUTO_TEST_CASE(OVFL) {
     BOOST_TEST(TEST::GET_L(0x1002) == 0x102);
     BOOST_TEST(TEST::GET_W(0x1006) == (0x3000 | (53 << 2)));
     BOOST_TEST(TEST::GET_L(0x1008) == 0x4500);
-    BOOST_TEST(cpu.nextpc == 0x3000);
+    BOOST_TEST(cpu.PC == 0x3000);
 }
 
 BOOST_AUTO_TEST_CASE(SNAN_) {
@@ -457,8 +456,8 @@ BOOST_AUTO_TEST_CASE(SNAN_) {
     cpu.VBR = 0x2000;
     TEST::SET_L(0x2000 | (54 << 2), 0x3000);
     cpu.ISP = cpu.MSP = 0x100C;
-    cpu.PC = 0x100;
-    cpu.nextpc = 0x102;
+    cpu.oldpc = 0x100;
+    cpu.PC = 0x102;
     cpu.EA = 0x4500;
     if(setjmp(cpu.ex_buf) == 0) {
         FP_EX_SNAN();
@@ -468,7 +467,7 @@ BOOST_AUTO_TEST_CASE(SNAN_) {
     BOOST_TEST(TEST::GET_L(0x1002) == 0x102);
     BOOST_TEST(TEST::GET_W(0x1006) == (0x3000 | (54 << 2)));
     BOOST_TEST(TEST::GET_L(0x1008) == 0x4500);
-    BOOST_TEST(cpu.nextpc == 0x3000);
+    BOOST_TEST(cpu.PC == 0x3000);
 }
 BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE_END()

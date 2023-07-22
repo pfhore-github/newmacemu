@@ -681,9 +681,9 @@ BOOST_AUTO_TEST_CASE(SR) {
 }
 
 BOOST_AUTO_TEST_CASE(IAR) {
-    TEST::SET_W(0, 0171000 | 3);
-    TEST::SET_W(2, 0120000 | 1 << 10);
-    cpu.FPIAR = 0x1000;
+    cpu.PC = 0x1000;
+    TEST::SET_W(0x1000, 0171000 | 3);
+    TEST::SET_W(0x1002, 0120000 | 1 << 10);
     auto i = decode_and_run();
     BOOST_TEST(cpu.D[3] == 0x1000);
     BOOST_TEST(i==2);
