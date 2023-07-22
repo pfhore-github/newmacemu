@@ -6,9 +6,9 @@
 #include <boost/test/unit_test.hpp>
 namespace bdata = boost::unit_test::data;
 BOOST_FIXTURE_TEST_SUITE(TAS, Prepare)
-BOOST_AUTO_TEST_CASE(err) {
-    TEST::SET_W(0, 0045300 | 072);
-    BOOST_CHECK_THROW(decode(), DecodeError);
+BOOST_AUTO_TEST_CASE(Disasm) {
+    TEST::SET_W(0, 0045303);
+    BOOST_TEST(disasm() == "TAS %D3");
 }
 BOOST_AUTO_TEST_CASE(value) {
     TEST::SET_W(0, 0045300 | 2);

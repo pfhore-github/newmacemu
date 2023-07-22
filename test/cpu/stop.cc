@@ -1,19 +1,22 @@
-
 #define BOOST_TEST_DYN_LINK
 #include "68040.hpp"
 #include "test.hpp"
+#include "proto.hpp"
 #include <boost/test/data/monomorphic.hpp>
 #include <boost/test/data/test_case.hpp>
 #include <boost/test/unit_test.hpp>
 namespace bdata = boost::unit_test::data;
-BOOST_FIXTURE_TEST_SUITE(BKPT, Prepare)
+BOOST_FIXTURE_TEST_SUITE(STOP, Prepare)
 BOOST_AUTO_TEST_CASE(Disasm) {
-    TEST::SET_W(0, 0044112);
-    BOOST_TEST(disasm() == "BKPT");
+    TEST::SET_W(0, 0047162);
+    TEST::SET_W(2, 0xf);
+    BOOST_TEST(disasm() == "STOP #000f");
 }
 BOOST_AUTO_TEST_CASE(run) {
-    TEST::SET_W(0, 0044110);
+    TEST::SET_W(0, 0047162);
+    TEST::SET_W(2, 0xf);
     decode_and_run();
-    BOOST_TEST(GET_EXCEPTION() == 4);
+    BOOST_TEST(GetCCR() == 0xf);
+    BOOST_TEST(cpu.sleep);
 }
 BOOST_AUTO_TEST_SUITE_END()

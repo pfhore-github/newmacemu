@@ -7,6 +7,10 @@
 namespace bdata = boost::unit_test::data;
 BOOST_FIXTURE_TEST_SUITE(EXT, Prepare)
 BOOST_AUTO_TEST_SUITE(B2W)
+BOOST_AUTO_TEST_CASE(Disasm) {
+    TEST::SET_W(0, 0044203);
+    BOOST_TEST(disasm() == "EXT.W %D3");
+}
 BOOST_AUTO_TEST_CASE(value) {
     TEST::SET_W(0, 0044200 | 2 );
     cpu.D[2] = 0xFF;
@@ -33,6 +37,11 @@ BOOST_AUTO_TEST_CASE(Z) {
 BOOST_AUTO_TEST_SUITE_END()
 
 BOOST_AUTO_TEST_SUITE(W2L)
+BOOST_AUTO_TEST_CASE(Disasm) {
+    TEST::SET_W(0, 0044303);
+    BOOST_TEST(disasm() == "EXT.L %D3");
+}
+
 BOOST_AUTO_TEST_CASE(value) {
     TEST::SET_W(0, 0044300 | 2 );
     cpu.D[2] = 0xFFFF;

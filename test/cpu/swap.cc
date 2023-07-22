@@ -6,6 +6,10 @@
 #include <boost/test/unit_test.hpp>
 namespace bdata = boost::unit_test::data;
 BOOST_FIXTURE_TEST_SUITE(SWAP, Prepare)
+BOOST_AUTO_TEST_CASE(Disasm) {
+    TEST::SET_W(0, 0044102);
+    BOOST_TEST(disasm() == "SWAP %D2");
+}
 BOOST_AUTO_TEST_CASE(value) {
     TEST::SET_W(0, 0044100 | 2 );
     cpu.D[2] = 0x12345678;

@@ -26,20 +26,20 @@ BOOST_AUTO_TEST_SUITE(extBreif)
 BOOST_AUTO_TEST_CASE(dn) {
     cpu.PC = 0;
     TEST::SET_W(0, 2 << 12 | 0xFE);
-    BOOST_TEST(disasm_ea(6, 1, 0) == "(-2, %A1, %R2*1)");
+    BOOST_TEST(disasm_ea(6, 1, 0) == "(-2, %A1, %D2*1)");
     BOOST_TEST(cpu.PC == 2);
 }
 BOOST_AUTO_TEST_CASE(W) {
     cpu.PC = 0;
     TEST::SET_W(0, 2 << 12 | 1 << 11 | 2 );
-    BOOST_TEST(disasm_ea(6, 1, 0) == "(2, %A1, %R2.W*1)");
+    BOOST_TEST(disasm_ea(6, 1, 0) == "(2, %A1, %D2.W*1)");
     BOOST_TEST(cpu.PC == 2);
 }
 
 BOOST_AUTO_TEST_CASE(cc) {
     cpu.PC = 0;
     TEST::SET_W(0, 2 << 12 | 2 << 9 | 2 );
-    BOOST_TEST(disasm_ea(6, 1, 0) == "(2, %A1, %R2*4)");
+    BOOST_TEST(disasm_ea(6, 1, 0) == "(2, %A1, %D2*4)");
     BOOST_TEST(cpu.PC == 2);
 }
 
@@ -47,14 +47,14 @@ BOOST_AUTO_TEST_SUITE(extLong)
 BOOST_AUTO_TEST_CASE(no_bd) {
     cpu.PC = 0;
     TEST::SET_W(0, 2 << 12 | 1 << 8 | 1 << 4 );
-    BOOST_TEST(disasm_ea(6, 1, 0) == "(%A1, %R2*1)");
+    BOOST_TEST(disasm_ea(6, 1, 0) == "(%A1, %D2*1)");
     BOOST_TEST(cpu.PC == 2);
 }
 
 BOOST_AUTO_TEST_CASE(a_i) {
     cpu.PC = 0;
     TEST::SET_W(0, 2 << 12 | 1 << 7 | 1 << 8 | 1 << 4 );
-    BOOST_TEST(disasm_ea(6, 1, 0) == "(%R2*1)");
+    BOOST_TEST(disasm_ea(6, 1, 0) == "(%D2*1)");
     BOOST_TEST(cpu.PC == 2);
 }
 
@@ -69,7 +69,7 @@ BOOST_AUTO_TEST_CASE(bd_w) {
     cpu.PC = 0;
     TEST::SET_W(0, 2 << 12 | 1 << 8 | 2 << 4 );
     TEST::SET_W(2, 200);
-    BOOST_TEST(disasm_ea(6, 1, 0) == "(200, %A1, %R2*1)");
+    BOOST_TEST(disasm_ea(6, 1, 0) == "(200, %A1, %D2*1)");
     BOOST_TEST(cpu.PC == 4);
 }
 
@@ -77,14 +77,14 @@ BOOST_AUTO_TEST_CASE(bd_l) {
     cpu.PC = 0;
     TEST::SET_W(0, 2 << 12 | 1 << 8 | 3 << 4 );
     TEST::SET_L(2, 40000);
-    BOOST_TEST(disasm_ea(6, 1, 0) == "(40000, %A1, %R2*1)");
+    BOOST_TEST(disasm_ea(6, 1, 0) == "(40000, %A1, %D2*1)");
     BOOST_TEST(cpu.PC == 6);
 }
 
 BOOST_AUTO_TEST_CASE(pre) {
     cpu.PC = 0;
     TEST::SET_W(0, 2 << 12 | 1 << 8 | 1 << 4 | 1);
-    BOOST_TEST(disasm_ea(6, 1, 0) == "([%A1, %R2*1])");
+    BOOST_TEST(disasm_ea(6, 1, 0) == "([%A1, %D2*1])");
     BOOST_TEST(cpu.PC == 2);
 }
 
@@ -92,7 +92,7 @@ BOOST_AUTO_TEST_CASE(od_w) {
     cpu.PC = 0;
     TEST::SET_W(0, 2 << 12 | 1 << 8 | 1 << 4 | 2);
     TEST::SET_W(2, 100);
-    BOOST_TEST(disasm_ea(6, 1, 0) == "([%A1, %R2*1], 100)");
+    BOOST_TEST(disasm_ea(6, 1, 0) == "([%A1, %D2*1], 100)");
     BOOST_TEST(cpu.PC == 4);
 }
 
@@ -100,14 +100,14 @@ BOOST_AUTO_TEST_CASE(od_l) {
     cpu.PC = 0;
     TEST::SET_W(0, 2 << 12 | 1 << 8 | 1 << 4 | 3);
     TEST::SET_L(2, 10000);
-    BOOST_TEST(disasm_ea(6, 1, 0) == "([%A1, %R2*1], 10000)");
+    BOOST_TEST(disasm_ea(6, 1, 0) == "([%A1, %D2*1], 10000)");
     BOOST_TEST(cpu.PC == 6);
 }
 
 BOOST_AUTO_TEST_CASE(post) {
     cpu.PC = 0;
     TEST::SET_W(0, 2 << 12 | 1 << 8 | 1 << 4 | 1 << 2 | 1);
-    BOOST_TEST(disasm_ea(6, 1, 0) == "([%A1], %R2*1)");
+    BOOST_TEST(disasm_ea(6, 1, 0) == "([%A1], %D2*1)");
     BOOST_TEST(cpu.PC == 2);
 }
 BOOST_AUTO_TEST_SUITE_END()
@@ -135,7 +135,7 @@ BOOST_AUTO_TEST_CASE(pc_d) {
 BOOST_AUTO_TEST_CASE(pc_ext) {
     cpu.PC = 0;
     TEST::SET_W(0, 2 << 12 | 0xFE);
-    BOOST_TEST(disasm_ea(7, 3, 0) == "(-2, %PC, %R2*1)");
+    BOOST_TEST(disasm_ea(7, 3, 0) == "(-2, %PC, %D2*1)");
     BOOST_TEST(cpu.PC == 2);
 }
 
@@ -160,6 +160,39 @@ BOOST_AUTO_TEST_CASE(immL) {
     BOOST_TEST(cpu.PC == 4);
 }
 
+BOOST_AUTO_TEST_CASE(immF) {
+    cpu.PC = 0;
+    TEST::SET_L(0, std::bit_cast<uint32_t>(1.5f));
+    BOOST_TEST(disasm_ea(7, 4, -4) == "#1.5");
+    BOOST_TEST(cpu.PC == 4);
+}
+
+BOOST_AUTO_TEST_CASE(immD) {
+    cpu.PC = 0;
+    uint64_t vv = std::bit_cast<uint64_t>(1.5);
+    TEST::SET_L(0, vv >> 32);
+    TEST::SET_L(4, vv);
+    BOOST_TEST(disasm_ea(7, 4, -8) == "#1.5");
+    BOOST_TEST(cpu.PC == 8);
+}
+
+BOOST_AUTO_TEST_CASE(immX) {
+    cpu.PC = 0;
+    TEST::SET_W(0, 0x8000 | (16383 + 3));
+    TEST::SET_L(4, 0xC0000000);
+    TEST::SET_L(8, 0);
+    BOOST_TEST(disasm_ea(7, 4, -12) == "#-12.000000");
+    BOOST_TEST(cpu.PC == 12);
+}
+
+BOOST_AUTO_TEST_CASE(immP) {
+    cpu.PC = 0;
+    TEST::SET_L(0, 0x00010001);
+    TEST::SET_L(4, 0x33330000);
+    TEST::SET_L(8, 0);
+    BOOST_TEST(disasm_ea(7, 4, 12) == "#13.333000");
+    BOOST_TEST(cpu.PC == 12);
+}
 BOOST_AUTO_TEST_SUITE_END()
 
 BOOST_AUTO_TEST_CASE(D) {

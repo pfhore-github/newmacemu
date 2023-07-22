@@ -8,16 +8,15 @@
 namespace bdata = boost::unit_test::data;
 BOOST_FIXTURE_TEST_SUITE(NOT, Prepare)
 BOOST_AUTO_TEST_SUITE(Byte)
+BOOST_AUTO_TEST_CASE(Disasm) {
+    TEST::SET_W(0, 0043003);
+    BOOST_TEST(disasm() == "NOT.B %D3");
+}
 
 BOOST_AUTO_TEST_CASE(value) {
     BOOST_TEST(NOT_B(0xED) == 0x12);
 }
 
-
-BOOST_AUTO_TEST_CASE(err) {
-    TEST::SET_W(0, 0043000 | 072);
-    BOOST_CHECK_THROW(decode(), DecodeError);
-}
 BOOST_AUTO_TEST_CASE(operand) {
     TEST::SET_W(0, 0043000 | 2);
     cpu.D[2] = 0xed;
@@ -28,14 +27,14 @@ BOOST_AUTO_TEST_CASE(operand) {
 
 BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE(Word)
+BOOST_AUTO_TEST_CASE(Disasm) {
+    TEST::SET_W(0, 0043103);
+    BOOST_TEST(disasm() == "NOT.W %D3");
+}
 BOOST_AUTO_TEST_CASE(value) {
     BOOST_TEST(NOT_W(0xedcb) == 0x1234);
 }
 
-BOOST_AUTO_TEST_CASE(err) {
-    TEST::SET_W(0, 0043100 | 072);
-    BOOST_CHECK_THROW(decode(), DecodeError);
-}
 BOOST_AUTO_TEST_CASE(operand) {
     TEST::SET_W(0, 0043100 | 2);
     cpu.D[2] = 0xedcb;
@@ -46,12 +45,12 @@ BOOST_AUTO_TEST_CASE(operand) {
 
 BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE(Long)
+BOOST_AUTO_TEST_CASE(Disasm) {
+    TEST::SET_W(0, 0043203);
+    BOOST_TEST(disasm() == "NOT.L %D3");
+}
 BOOST_AUTO_TEST_CASE(value) {
     BOOST_TEST(NOT_L(0xfedcba98) == 0x01234567);
-}
-BOOST_AUTO_TEST_CASE(err) {
-    TEST::SET_W(0, 0043200 | 072);
-    BOOST_CHECK_THROW(decode(), DecodeError);
 }
 BOOST_AUTO_TEST_CASE(operand) {
     TEST::SET_W(0, 0043200 | 2);

@@ -7,8 +7,13 @@
 namespace bdata = boost::unit_test::data;
 BOOST_FIXTURE_TEST_SUITE(MOVEP, Prepare)
 BOOST_AUTO_TEST_SUITE(ToMem)
-
-BOOST_AUTO_TEST_CASE(Word) {
+BOOST_AUTO_TEST_SUITE(Word)
+BOOST_AUTO_TEST_CASE(Disasm) {
+    TEST::SET_W(0, 0003615);
+    TEST::SET_W(2, 50);
+    BOOST_TEST(disasm() == "MOVEP.W %D3, (#50, %A5)");
+}
+BOOST_AUTO_TEST_CASE(Decode) {
     TEST::SET_W(0, 0000610 | 3 << 9 | 2);
     TEST::SET_W(2, 0x100);
     cpu.D[3] = 0x1234;
@@ -18,8 +23,14 @@ BOOST_AUTO_TEST_CASE(Word) {
     BOOST_TEST(RAM[0x1102] == 0x34);
     BOOST_TEST(i == 2);
 }
-
-BOOST_AUTO_TEST_CASE(Long) {
+BOOST_AUTO_TEST_SUITE_END()
+BOOST_AUTO_TEST_SUITE(Long)
+BOOST_AUTO_TEST_CASE(Disasm) {
+    TEST::SET_W(0, 0003715);
+    TEST::SET_W(2, 50);
+    BOOST_TEST(disasm() == "MOVEP.L %D3, (#50, %A5)");
+}
+BOOST_AUTO_TEST_CASE(Decode) {
     TEST::SET_W(0, 0000710 | 3 << 9 | 2);
     TEST::SET_W(2, 0x100);
     cpu.D[3] = 0x12345678;
@@ -31,12 +42,17 @@ BOOST_AUTO_TEST_CASE(Long) {
     BOOST_TEST(RAM[0x1106] == 0x78);
     BOOST_TEST(i == 2);
 }
-
+BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE_END()
 
 BOOST_AUTO_TEST_SUITE(ToReg)
-
-BOOST_AUTO_TEST_CASE(Word) {
+BOOST_AUTO_TEST_SUITE(Word)
+BOOST_AUTO_TEST_CASE(Disasm) {
+    TEST::SET_W(0, 0003415);
+    TEST::SET_W(2, 50);
+    BOOST_TEST(disasm() == "MOVEP.W (#50, %A5), %D3");
+}
+BOOST_AUTO_TEST_CASE(Decode) {
     TEST::SET_W(0, 0000410 | 3 << 9 | 2);
     TEST::SET_W(2, 0x100);
     cpu.A[2] = 0x1000;
@@ -45,8 +61,16 @@ BOOST_AUTO_TEST_CASE(Word) {
     BOOST_TEST(cpu.D[3] == 0x1256);
     BOOST_TEST(i == 2);
 }
+BOOST_AUTO_TEST_SUITE_END()
 
-BOOST_AUTO_TEST_CASE(Long) {
+BOOST_AUTO_TEST_SUITE(Long)
+BOOST_AUTO_TEST_CASE(Disasm) {
+    TEST::SET_W(0, 0003515);
+    TEST::SET_W(2, 50);
+    BOOST_TEST(disasm() == "MOVEP.L (#50, %A5), %D3");
+}
+
+BOOST_AUTO_TEST_CASE(Decode) {
     TEST::SET_W(0, 0000510 | 3 << 9 | 2);
     TEST::SET_W(2, 0x100);
     cpu.D[3] = 0x12345678;
@@ -57,6 +81,6 @@ BOOST_AUTO_TEST_CASE(Long) {
     BOOST_TEST(cpu.D[3] == 0x12569ADE);
     BOOST_TEST(i == 2);
 }
-
+BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE_END()

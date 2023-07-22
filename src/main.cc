@@ -40,6 +40,10 @@ int main() {
     cpu.PC = 0x2A;
     cpu.movem_run = false;
     for(;;) {
+        if( cpu.sleep) {
+            SDL_Delay(0);
+            continue;
+        }
         printf("%06X: D=", cpu.PC);
         for(int i = 0; i < 8; ++i) {
             printf("%08x,", cpu.D[i]);

@@ -8,6 +8,10 @@
 namespace bdata = boost::unit_test::data;
 BOOST_FIXTURE_TEST_SUITE(NEG, Prepare)
 BOOST_AUTO_TEST_SUITE(Byte)
+BOOST_AUTO_TEST_CASE(Disasm) {
+    TEST::SET_W(0, 0042003);
+    BOOST_TEST(disasm() == "NEG.B %D3");
+}
 BOOST_AUTO_TEST_CASE(value) {
     BOOST_TEST(NEG_B(-1) == 1);
     BOOST_TEST(!cpu.V);
@@ -21,10 +25,6 @@ BOOST_AUTO_TEST_CASE(V) {
     BOOST_TEST(cpu.V);
 }
 
-BOOST_AUTO_TEST_CASE(err) {
-    TEST::SET_W(0, 0042000 | 072);
-    BOOST_CHECK_THROW(decode(), DecodeError);
-}
 BOOST_AUTO_TEST_CASE(operand) {
     TEST::SET_W(0, 0042000 | 2);
     cpu.D[2] = 2;
@@ -35,6 +35,11 @@ BOOST_AUTO_TEST_CASE(operand) {
 
 BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE(Word)
+BOOST_AUTO_TEST_CASE(Disasm) {
+    TEST::SET_W(0, 0042103);
+    BOOST_TEST(disasm() == "NEG.W %D3");
+}
+
 BOOST_AUTO_TEST_CASE(value) {
     BOOST_TEST(NEG_W(-1000) == 1000);
     BOOST_TEST(!cpu.V);
@@ -48,10 +53,7 @@ BOOST_AUTO_TEST_CASE(V) {
     BOOST_TEST(cpu.V);
 }
 
-BOOST_AUTO_TEST_CASE(err) {
-    TEST::SET_W(0, 0042100 | 072);
-    BOOST_CHECK_THROW(decode(), DecodeError);
-}
+
 BOOST_AUTO_TEST_CASE(operand) {
     TEST::SET_W(0, 0042100 | 2);
     cpu.D[2] = 0xffff;
@@ -68,6 +70,11 @@ BOOST_AUTO_TEST_CASE(operand) {
 
 BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE(Long)
+BOOST_AUTO_TEST_CASE(Disasm) {
+    TEST::SET_W(0, 0042203);
+    BOOST_TEST(disasm() == "NEG.L %D3");
+}
+
 BOOST_AUTO_TEST_CASE(value) {
     BOOST_TEST(NEG_L(-10000) == 10000);
     BOOST_TEST(!cpu.V);
@@ -81,10 +88,6 @@ BOOST_AUTO_TEST_CASE(V) {
 }
 
 
-BOOST_AUTO_TEST_CASE(err) {
-    TEST::SET_W(0, 0042200 | 072);
-    BOOST_CHECK_THROW(decode(), DecodeError);
-}
 BOOST_AUTO_TEST_CASE(operand) {
     TEST::SET_W(0, 0042200 | 2);
     cpu.D[2] = -5;

@@ -51,6 +51,16 @@ BOOST_AUTO_TEST_CASE(operand) {
 
 BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE(Long)
+BOOST_AUTO_TEST_CASE(Disasm) {
+    TEST::SET_W(0, 0046103);
+    TEST::SET_W(2, 4 << 12 | 4);
+    BOOST_TEST(disasm() == "DIVU.L %D3, %D4");
+}
+BOOST_AUTO_TEST_CASE(Disasm2) {
+    TEST::SET_W(0, 0046103);
+    TEST::SET_W(2,  4 << 12| 5);
+    BOOST_TEST(disasm() == "DIVUL.L %D3, %D5:%D4");
+}
 BOOST_AUTO_TEST_CASE(value) {
     auto [q, r] = DIVU_L(200000, 7);
     BOOST_TEST(q == 28571);
@@ -99,7 +109,11 @@ BOOST_AUTO_TEST_CASE(operand_nomod) {
 BOOST_AUTO_TEST_SUITE_END()
 
 BOOST_AUTO_TEST_SUITE(Quad)
-
+BOOST_AUTO_TEST_CASE(Disasm) {
+    TEST::SET_W(0, 0046103);
+    TEST::SET_W(2,  1 << 10 | 4 << 12| 5);
+    BOOST_TEST(disasm() == "DIVU.L %D3, %D5:%D4");
+}
 BOOST_AUTO_TEST_CASE(value) {
     auto [q, r] = DIVU_LL(1000000000, 3);
     BOOST_TEST(q == 333333333);

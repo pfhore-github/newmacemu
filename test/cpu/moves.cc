@@ -8,6 +8,11 @@ namespace bdata = boost::unit_test::data;
 BOOST_FIXTURE_TEST_SUITE(MOVES, Prepare)
 BOOST_AUTO_TEST_SUITE(From)
 BOOST_AUTO_TEST_SUITE(Byte)
+BOOST_AUTO_TEST_CASE(Disasm) {
+    TEST::SET_W(0, 0007024);
+    TEST::SET_W(2, 0x3000);
+    BOOST_TEST(disasm() == "MOVES.B (%A4), %D3");
+}
 BOOST_AUTO_TEST_CASE(err) {
     cpu.S = false;
     TEST::SET_W(0, 0007020);
@@ -30,6 +35,12 @@ BOOST_DATA_TEST_CASE(value, bdata::xrange(2), T) {
 
 BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE(Word)
+BOOST_AUTO_TEST_CASE(Disasm) {
+    TEST::SET_W(0, 0007124);
+    TEST::SET_W(2, 0x3000);
+    BOOST_TEST(disasm() == "MOVES.W (%A4), %D3");
+}
+
 BOOST_AUTO_TEST_CASE(err) {
     cpu.S = false;
     TEST::SET_W(0, 0007120);
@@ -52,6 +63,12 @@ BOOST_DATA_TEST_CASE(value, bdata::xrange(2), T) {
 
 BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE(Long)
+BOOST_AUTO_TEST_CASE(Disasm) {
+    TEST::SET_W(0, 0007224);
+    TEST::SET_W(2, 0x3000);
+    BOOST_TEST(disasm() == "MOVES.L (%A4), %D3");
+}
+
 BOOST_AUTO_TEST_CASE(err) {
     cpu.S = false;
     TEST::SET_W(0, 0007220);
@@ -76,6 +93,12 @@ BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE(To)
 BOOST_AUTO_TEST_SUITE(Byte)
+BOOST_AUTO_TEST_CASE(Disasm) {
+    TEST::SET_W(0, 0007024);
+    TEST::SET_W(2, 0x3800);
+    BOOST_TEST(disasm() == "MOVES.B %D3, (%A4)");
+}
+
 BOOST_AUTO_TEST_CASE(err) {
     cpu.S = false;
     TEST::SET_W(0, 0007020);
@@ -98,6 +121,12 @@ BOOST_DATA_TEST_CASE(value, bdata::xrange(2), T) {
 
 BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE(Word)
+BOOST_AUTO_TEST_CASE(Disasm) {
+    TEST::SET_W(0, 0007124);
+    TEST::SET_W(2, 0x3800);
+    BOOST_TEST(disasm() == "MOVES.W %D3, (%A4)");
+}
+
 BOOST_AUTO_TEST_CASE(err) {
     cpu.S = false;
     TEST::SET_W(0, 0007120);
@@ -120,6 +149,12 @@ BOOST_DATA_TEST_CASE(value, bdata::xrange(2), T) {
 
 BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE(Long)
+BOOST_AUTO_TEST_CASE(Disasm) {
+    TEST::SET_W(0, 0007224);
+    TEST::SET_W(2, 0x3800);
+    BOOST_TEST(disasm() == "MOVES.L %D3, (%A4)");
+}
+
 BOOST_AUTO_TEST_CASE(err) {
     cpu.S = false;
     TEST::SET_W(0, 0007220);

@@ -975,7 +975,7 @@ void fop_do(int opc, int dst) {
             long q;
             cpu.fp_tmp_tv = mpfr_fmodquo(cpu.fp_tmp, &q, cpu.fp_tmp,
                                          cpu.FP[dst], cpu.FPCR.RND);
-            cpu.FPSR.Quat = abs(q) & 0x7f;
+            cpu.FPSR.Quat = std::abs(q) & 0x7f;
             cpu.FPSR.QuatSign = q < 0;
         }
         break;

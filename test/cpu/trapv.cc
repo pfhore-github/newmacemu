@@ -6,6 +6,10 @@
 #include <boost/test/unit_test.hpp>
 namespace bdata = boost::unit_test::data;
 BOOST_FIXTURE_TEST_SUITE(TRAPV, Prepare)
+BOOST_AUTO_TEST_CASE(Disasm) {
+    TEST::SET_W(0, 0047166);
+    BOOST_TEST(disasm() == "TRAPV");
+}
 BOOST_AUTO_TEST_CASE(t) {
     cpu.V = true;
     TEST::SET_W(0, 0047166);

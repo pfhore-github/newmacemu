@@ -7,9 +7,10 @@
 namespace bdata = boost::unit_test::data;
 BOOST_FIXTURE_TEST_SUITE(CAS, Prepare)
 BOOST_AUTO_TEST_SUITE(Byte)
-BOOST_AUTO_TEST_CASE(error) {
-    TEST::SET_W(0, 0005300 | 072);
-    BOOST_CHECK_THROW(decode(), DecodeError);
+BOOST_AUTO_TEST_CASE(Disasm) {
+    TEST::SET_W(0, 0005320 | 2);
+    TEST::SET_W(2, 3 << 6 | 4);
+    BOOST_TEST(disasm() == "CAS.B %D4, %D3, (%A2)");
 }
 
 BOOST_DATA_TEST_CASE(traced, bdata::xrange(2), tr) {
@@ -45,9 +46,10 @@ BOOST_AUTO_TEST_CASE(F) {
 
 BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE(Word)
-BOOST_AUTO_TEST_CASE(error) {
-    TEST::SET_W(0, 0006300 | 072);
-    BOOST_CHECK_THROW(decode(), DecodeError);
+BOOST_AUTO_TEST_CASE(Disasm) {
+    TEST::SET_W(0, 0006320 | 2);
+    TEST::SET_W(2, 3 << 6 | 4);
+    BOOST_TEST(disasm() == "CAS.W %D4, %D3, (%A2)");
 }
 
 BOOST_DATA_TEST_CASE(traced, bdata::xrange(2), tr) {
@@ -82,10 +84,12 @@ BOOST_AUTO_TEST_CASE(F) {
 BOOST_AUTO_TEST_SUITE_END()
 
 BOOST_AUTO_TEST_SUITE(Long)
-BOOST_AUTO_TEST_CASE(error) {
-    TEST::SET_W(0, 0007300 | 072);
-    BOOST_CHECK_THROW(decode(), DecodeError);
+BOOST_AUTO_TEST_CASE(Disasm) {
+    TEST::SET_W(0, 0007320 | 2);
+    TEST::SET_W(2, 3 << 6 | 4);
+    BOOST_TEST(disasm() == "CAS.L %D4, %D3, (%A2)");
 }
+
 
 BOOST_DATA_TEST_CASE(traced, bdata::xrange(2), tr) {
     TEST::SET_W(0, 0007320 | 2);

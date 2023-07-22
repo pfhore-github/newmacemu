@@ -6,6 +6,10 @@
 #include <boost/test/unit_test.hpp>
 namespace bdata = boost::unit_test::data;
 BOOST_FIXTURE_TEST_SUITE(RTE, Prepare)
+BOOST_AUTO_TEST_CASE(Disasm) {
+    TEST::SET_W(0, 0047163);
+    BOOST_TEST(disasm() == "RTE");
+}
 BOOST_AUTO_TEST_SUITE(format)
 BOOST_DATA_TEST_CASE(type0, bdata::xrange(2), T) {
     cpu.S = true;

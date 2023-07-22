@@ -7,6 +7,10 @@
 namespace bdata = boost::unit_test::data;
 extern bool is_reset;
 BOOST_FIXTURE_TEST_SUITE(RESET, Prepare)
+BOOST_AUTO_TEST_CASE(Disasm) {
+    TEST::SET_W(0, 0047160);
+    BOOST_TEST(disasm() == "RESET");
+}
 BOOST_AUTO_TEST_CASE(user) {
     is_reset = false;
     cpu.S = false;

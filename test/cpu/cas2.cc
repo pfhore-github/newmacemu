@@ -8,6 +8,12 @@ namespace bdata = boost::unit_test::data;
 BOOST_FIXTURE_TEST_SUITE(CAS2, Prepare)
 
 BOOST_AUTO_TEST_SUITE(Word)
+BOOST_AUTO_TEST_CASE(Disasm) {
+     TEST::SET_W(0, 0006374);
+    TEST::SET_W(2, 1 << 15 | 2 << 12 | 3 << 6 | 4);
+    TEST::SET_W(4, 0 << 15 | 5 << 12 | 6 << 6 | 7);
+    BOOST_TEST(disasm() == "CAS2.W %D4:%D7, %D3:%D6, (%A2:%D5)");
+}
 
 BOOST_DATA_TEST_CASE(traced, bdata::xrange(2), tr) {
      TEST::SET_W(0, 0006374);
@@ -74,6 +80,12 @@ BOOST_AUTO_TEST_CASE(F2) {
 BOOST_AUTO_TEST_SUITE_END()
 
 BOOST_AUTO_TEST_SUITE(Long)
+BOOST_AUTO_TEST_CASE(Disasm) {
+     TEST::SET_W(0, 0007374);
+    TEST::SET_W(2, 1 << 15 | 2 << 12 | 3 << 6 | 4);
+    TEST::SET_W(4, 0 << 15 | 5 << 12 | 6 << 6 | 7);
+    BOOST_TEST(disasm() == "CAS2.L %D4:%D7, %D3:%D6, (%A2:%D5)");
+}
 
 BOOST_DATA_TEST_CASE(traced, bdata::xrange(2), tr) {
   TEST::SET_W(0, 0007374);

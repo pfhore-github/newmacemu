@@ -9,16 +9,14 @@
 #include <memory>
 #include <tuple>
 #include <utility>
-const char *sz_array[3] = {
-    "B",
-    "W",
-    "L",
-};
 
 struct restore_pc {
     uint32_t pc;
     ~restore_pc() { cpu.PC = pc; }
 };
+std::string Rn(int reg) {
+    return fmt::format("%{}{}", reg & 8 ? 'A' : 'D', reg & 7);
+}
 std::string disasm_parseExt(int reg) {
 
     uint16_t next = FETCH();
@@ -27,7 +25,7 @@ std::string disasm_parseExt(int reg) {
     int ri_c = next >> 9 & 3;
     std::string base = reg >= 0 ? fmt::format("%A{}", reg) : "%PC";
     std::string rn_v =
-        fmt::format("%R{}{}*{}", ri, ri_w ? ".W" : "", 1 << ri_c);
+        fmt::format("{}{}*{}", Rn(ri), ri_w ? ".W" : "", 1 << ri_c);
     if(!(next & 1 << 8)) {
         int8_t d = next & 0xff;
         return fmt::format("({}, {}, {})", d, base, rn_v);
@@ -127,22 +125,22 @@ std::string disasm_ea(int type, int reg, int sz) {
             }
             case -12: // EXT
             {
-                uint16_t exp = FETCH32();
+                uint16_t exp = FETCH32() >> 16;
                 uint64_t frac = FETCH32();
                 frac = frac << 32 | FETCH32();
                 load_fpX(frac, exp);
                 char *p;
-                mpfr_asprintf(&p, "%NR", cpu.fp_tmp);
+                mpfr_asprintf(&p, "%RNf", cpu.fp_tmp);
                 auto ss = fmt::format("#{}", p);
                 mpfr_free_str(p);
                 return ss;
             }
-            case 13: // P
+            case 12: // P
             {
                 load_fpP(cpu.PC);
                 cpu.PC += 12;
                 char *p;
-                mpfr_asprintf(&p, "%NR", cpu.fp_tmp);
+                mpfr_asprintf(&p, "%RNf", cpu.fp_tmp);
                 auto ss = fmt::format("#{}", p);
                 mpfr_free_str(p);
                 return ss;
@@ -150,267 +148,562 @@ std::string disasm_ea(int type, int reg, int sz) {
             }
         }
     }
-    ILLEGAL_OP();
+    return "?";
+}
+namespace DISASM {
+std::string disasm_00X0(int dn, int type, int reg) {
+    uint16_t imm = FETCH();
+    switch(dn) {
+    case 0:
+        if(type == 7 && reg == 4) {
+            return fmt::format("ORI.B #0x{:02x}, %CCR", imm & 0xff);
+        } else {
+            return fmt::format("ORI.B #0x{:02x}, {}", imm & 0xff,
+                               disasm_ea(type, reg, 1));
+        }
+    case 1:
+        if(type == 7 && reg == 4) {
+            return fmt::format("ANDI.B #0x{:02x}, %CCR", imm & 0xff);
+        } else {
+            return fmt::format("ANDI.B #0x{:02x}, {}", imm & 0xff,
+                               disasm_ea(type, reg, 1));
+        }
+    case 2:
+        return fmt::format("SUBI.B #{}, {}", imm & 0xff,
+                           disasm_ea(type, reg, 1));
+    case 3:
+        return fmt::format("ADDI.B #{}, {}", imm & 0xff,
+                           disasm_ea(type, reg, 1));
+    case 4:
+        imm &= 0xff;
+        return fmt::format("BTST.{} #{}, {}", type == 0 ? 'L' : 'B',
+                           imm ? imm : 8, disasm_ea(type, reg, 1));
+    case 5:
+        if(type == 7 && reg == 4) {
+            return fmt::format("EORI.B #0x{:02x}, %CCR", imm & 0xff);
+        } else {
+            return fmt::format("EORI.B #0x{:02x}, {}", imm & 0xff,
+                               disasm_ea(type, reg, 1));
+        }
+    case 6:
+        return fmt::format("CMPI.B #{}, {}", imm & 0xff,
+                           disasm_ea(type, reg, 1));
+    case 7:
+        if(imm & 1 << 11) {
+            return fmt::format("MOVES.B {1}, {0}", disasm_ea(type, reg, 1),
+                               Rn(imm >> 12 & 0x1f));
+
+        } else {
+            return fmt::format("MOVES.B {0}, {1}", disasm_ea(type, reg, 1),
+                               Rn(imm >> 12 & 0x1f));
+        }
+    default:
+        __builtin_unreachable();
+    }
 }
 
+std::string disasm_00X1(int dn, int type, int reg) {
+    uint16_t imm = FETCH();
+    switch(dn) {
+    case 0:
+        if(type == 7 && reg == 4) {
+            return fmt::format("ORI.W #0x{:04x}, %SR", imm);
+        } else {
+            return fmt::format("ORI.W #0x{:04x}, {}", imm,
+                               disasm_ea(type, reg, 2));
+        }
+    case 1:
+        if(type == 7 && reg == 4) {
+            return fmt::format("ANDI.W #0x{:04x}, %SR", imm);
+        } else {
+            return fmt::format("ANDI.W #0x{:04x}, {}", imm,
+                               disasm_ea(type, reg, 2));
+        }
+    case 2:
+        return fmt::format("SUBI.W #{}, {}", imm, disasm_ea(type, reg, 2));
+    case 3:
+        return fmt::format("ADDI.W #{}, {}", imm, disasm_ea(type, reg, 2));
+    case 4:
+        imm &= 0xff;
+        return fmt::format("BCHG.{} #{}, {}", type == 0 ? 'L' : 'B',
+                           imm ? imm : 8, disasm_ea(type, reg, 1));
+    case 5:
+        if(type == 7 && reg == 4) {
+            return fmt::format("EORI.W #0x{:04x}, %SR", imm);
+        } else {
+            return fmt::format("EORI.W #0x{:04x}, {}", imm,
+                               disasm_ea(type, reg, 2));
+        }
+    case 6:
+        return fmt::format("CMPI.W #{}, {}", imm, disasm_ea(type, reg, 2));
+    case 7:
+        if(imm & 1 << 11) {
+            return fmt::format("MOVES.W {1}, {0}", disasm_ea(type, reg, 1),
+                               Rn(imm >> 12 & 0x1f));
+
+        } else {
+            return fmt::format("MOVES.W {0}, {1}", disasm_ea(type, reg, 1),
+                               Rn(imm >> 12 & 0x1f));
+        }
+    default:
+        __builtin_unreachable();
+    }
+}
+
+std::string disasm_00X2(int dn, int type, int reg) {
+    switch(dn) {
+    case 0: {
+        uint32_t imm = FETCH32();
+        return fmt::format("ORI.L #0x{:08x}, {}", imm, disasm_ea(type, reg, 4));
+    }
+    case 1: {
+        uint32_t imm = FETCH32();
+        return fmt::format("ANDI.L #0x{:08x}, {}", imm,
+                           disasm_ea(type, reg, 4));
+    }
+    case 2: {
+        uint32_t imm = FETCH32();
+        return fmt::format("SUBI.L #{}, {}", imm, disasm_ea(type, reg, 4));
+    }
+    case 3: {
+        uint32_t imm = FETCH32();
+        return fmt::format("ADDI.L #{}, {}", imm, disasm_ea(type, reg, 4));
+    }
+    case 4: {
+        uint16_t imm = FETCH();
+        return fmt::format("BCLR.{} #{}, {}", type == 0 ? 'L' : 'B',
+                           imm ? imm : 8, disasm_ea(type, reg, 1));
+    }
+    case 5: {
+        uint32_t imm = FETCH32();
+        return fmt::format("EORI.L #0x{:08x}, {}", imm,
+                           disasm_ea(type, reg, 4));
+    }
+    case 6: {
+        uint32_t imm = FETCH32();
+        return fmt::format("CMPI.L #{}, {}", imm, disasm_ea(type, reg, 4));
+    }
+    case 7: {
+        uint16_t imm = FETCH();
+        if(imm & 1 << 11) {
+            return fmt::format("MOVES.L {1}, {0}", disasm_ea(type, reg, 1),
+                               Rn(imm >> 12 & 0x1f));
+
+        } else {
+            return fmt::format("MOVES.L {0}, {1}", disasm_ea(type, reg, 1),
+                               Rn(imm >> 12 & 0x1f));
+        }
+    }
+    default:
+        __builtin_unreachable();
+    }
+}
+const char *sz_array[3] = {
+    "B",
+    "W",
+    "L",
+};
+
+std::string disasm_00X3(int dn, int type, int reg) {
+    switch(dn) {
+    case 0:
+    case 1:
+    case 2: {
+        uint16_t extw = FETCH();
+        int rn = extw >> 12 & 0xf;
+        std::string ea = disasm_ea(type, reg, 0);
+        if(extw & 1 << 11) {
+            return fmt::format("CHK2.{} {}, {}", sz_array[dn], ea, Rn(rn));
+        } else {
+            return fmt::format("CMP2.{} {}, {}", sz_array[dn], ea, Rn(rn));
+        }
+    }
+    case 4: {
+        uint16_t imm = FETCH();
+        return fmt::format("BSET.{} #{}, {}", type == 0 ? 'L' : 'B',
+                           imm ? imm : 8, disasm_ea(type, reg, 1));
+    }
+    case 5: {
+        uint16_t extw = FETCH();
+        int du = extw >> 6 & 7;
+        int dc = extw & 7;
+        return fmt::format("CAS.B %D{}, %D{}, {}", dc, du,
+                           disasm_ea(type, reg, 1));
+    }
+    case 6:
+    case 7:
+        if(type == 7 && reg == 4) {
+            uint16_t extw1 = FETCH();
+            uint16_t extw2 = FETCH();
+            return fmt::format("CAS2.{} %D{}:%D{}, %D{}:%D{}, ({}:{})",
+                               dn == 6 ? 'W' : 'L', extw1 & 7, extw2 & 7,
+                               extw1 >> 6 & 7, extw2 >> 6 & 7,
+                               Rn(extw1 >> 12 & 15), Rn(extw2 >> 12 & 15));
+
+        } else {
+            uint16_t extw = FETCH();
+            int du = extw >> 6 & 7;
+            int dc = extw & 7;
+            return fmt::format("CAS.{} %D{}, %D{}, {}", dn == 6 ? 'W' : 'L', dc,
+                               du, disasm_ea(type, reg, 1));
+        }
+    default:
+        __builtin_unreachable();
+    }
+}
+std::string disasm_00X4(int dn, int type, int reg) {
+    if(type == 1) {
+        int16_t imm = FETCH();
+        return fmt::format("MOVEP.W (#{0}, %A{1}), %D{2}", imm, reg, dn);
+    } else {
+        return fmt::format("BTST.{} %D{}, {}", type == 0 ? 'L' : 'B', dn,
+                           disasm_ea(type, reg, 1));
+    }
+}
+
+std::string disasm_00X5(int dn, int type, int reg) {
+    if(type == 1) {
+        int16_t imm = FETCH();
+        return fmt::format("MOVEP.L (#{0}, %A{1}), %D{2}", imm, reg, dn);
+    } else {
+        return fmt::format("BCHG.{} %D{}, {}", type == 0 ? 'L' : 'B', dn,
+                           disasm_ea(type, reg, 1));
+    }
+}
+
+std::string disasm_00X6(int dn, int type, int reg) {
+    if(type == 1) {
+        int16_t imm = FETCH();
+        return fmt::format("MOVEP.W %D{2}, (#{0}, %A{1})", imm, reg, dn);
+    } else {
+        return fmt::format("BCLR.{} %D{}, {}", type == 0 ? 'L' : 'B', dn,
+                           disasm_ea(type, reg, 1));
+    }
+}
+
+std::string disasm_00X7(int dn, int type, int reg) {
+    if(type == 1) {
+        int16_t imm = FETCH();
+        return fmt::format("MOVEP.L %D{2}, (#{0}, %A{1})", imm, reg, dn);
+    } else {
+        return fmt::format("BSET.{} %D{}, {}", type == 0 ? 'L' : 'B', dn,
+                           disasm_ea(type, reg, 1));
+    }
+}
+
+std::string disasm_01XX(int dn_type, int dn, int type, int reg) {
+    auto src = disasm_ea(type, reg, 1);
+    auto dst = disasm_ea(dn_type, dn, 1);
+    return fmt::format("MOVE.B {}, {}", src, dst);
+}
+
+std::string disasm_02XX(int dn_type, int dn, int type, int reg) {
+    auto src = disasm_ea(type, reg, 4);
+    auto dst = disasm_ea(dn_type, dn, 4);
+    return fmt::format("MOVE{}.L {}, {}", dn_type == 1 ? "A" : "", src, dst);
+}
+std::string disasm_03XX(int dn_type, int dn, int type, int reg) {
+    auto src = disasm_ea(type, reg, 2);
+    auto dst = disasm_ea(dn_type, dn, 2);
+    return fmt::format("MOVE{}.W {}, {}", dn_type == 1 ? "A" : "", src, dst);
+}
+static std::unordered_map<int, const char *> CRMAP{
+    {0x000, "SFC"},   {0x001, "DFC"},  {0x002, "CACR"}, {0x003, "TC"},
+    {0x004, "ITT0"},  {0x005, "ITT1"}, {0x006, "DTT0"}, {0x007, "DTT1"},
+    {0x800, "USP"},   {0x801, "VBR"},  {0x803, "MSP"},  {0x804, "ISP"},
+    {0x805, "MMUSR"}, {0x806, "URP"},  {0x807, "SRP"},
+};
+std::string disasm_04X0(int dn, int type, int reg) {
+    switch(dn) {
+    case 0:
+        return fmt::format("NEGX.B {}", disasm_ea(type, reg, 1));
+    case 1:
+        return fmt::format("CLR.B {}", disasm_ea(type, reg, 1));
+    case 2:
+        return fmt::format("NEG.B {}", disasm_ea(type, reg, 1));
+    case 3:
+        return fmt::format("NOT.B {}", disasm_ea(type, reg, 1));
+    case 4:
+        if(type == 1) {
+            int32_t imm = FETCH32();
+            return fmt::format("LINK.L %A{}, #{}", reg, imm);
+        } else {
+            return fmt::format("NBCD {}", disasm_ea(type, reg, 1));
+        }
+    case 5:
+        return fmt::format("TST.B {}", disasm_ea(type, reg, 1));
+    case 6: {
+        uint16_t extw = FETCH();
+        int dl = extw >> 12 & 7;
+        int dh = extw & 7;
+        bool sg = extw & 1 << 11;
+        bool lw = extw & 1 << 10;
+        if(lw) {
+            return fmt::format("MUL{}.L {}, %D{}-%D{}", sg ? 'S' : 'U',
+                               disasm_ea(type, reg, 4), dh, dl);
+        } else {
+            return fmt::format("MUL{}.L {}, %D{}", sg ? 'S' : 'U',
+                               disasm_ea(type, reg, 4), dl);
+        }
+    }
+    case 7:
+        return "#UNDEF";
+    default:
+        __builtin_unreachable();
+    }
+}
+std::string disasm_04X1(int dn, int type, int reg) {
+    switch(dn) {
+    case 0:
+        return fmt::format("NEGX.W {}", disasm_ea(type, reg, 2));
+    case 1:
+        return fmt::format("CLR.W {}", disasm_ea(type, reg, 2));
+    case 2:
+        return fmt::format("NEG.W {}", disasm_ea(type, reg, 2));
+    case 3:
+        return fmt::format("NOT.W {}", disasm_ea(type, reg, 2));
+    case 4:
+        if(type == 0) {
+            return fmt::format("SWAP %D{}", reg);
+        } else if(type == 1) {
+            return "BKPT";
+        } else {
+            return fmt::format("PEA {}", disasm_ea(type, reg, 0));
+        }
+    case 5:
+        return fmt::format("TST.W {}", disasm_ea(type, reg, 2));
+    case 6: {
+        uint16_t extw = FETCH();
+        int dq = extw >> 12 & 7;
+        int dr = extw & 7;
+        bool sg = extw & 1 << 11;
+        bool lw = extw & 1 << 10;
+        if(lw) {
+            return fmt::format("DIV{}.L {}, %D{}:%D{}", sg ? 'S' : 'U',
+                               disasm_ea(type, reg, 4), dr, dq);
+        } else {
+            if(dr != dq) {
+                return fmt::format("DIV{}L.L {}, %D{}:%D{}", sg ? 'S' : 'U',
+                                   disasm_ea(type, reg, 4), dr, dq);
+            } else {
+                return fmt::format("DIV{}.L {}, %D{}", sg ? 'S' : 'U',
+                                   disasm_ea(type, reg, 4), dq);
+            }
+        }
+    }
+    case 7:
+        switch(type) {
+        case 0:
+        case 1:
+            return fmt::format("TRAP #{}", type << 3 | reg);
+        case 2: {
+            int16_t imm = FETCH();
+            return fmt::format("LINK.W %A{}, #{}", reg, imm);
+        }
+        case 3:
+            return fmt::format("UNLK %A{}", reg);
+        case 4:
+            return fmt::format("MOVE %A{}, %USP", reg);
+        case 5:
+            return fmt::format("MOVE %USP, %A{}", reg);
+        case 6:
+            switch(reg) {
+            case 0:
+                return "RESET";
+            case 1:
+                return "NOP";
+            case 2:
+                return fmt::format("STOP #{:04x}", FETCH());
+            case 3:
+                return "RTE";
+            case 4:
+                return fmt::format("RTD #{}", static_cast<int16_t>(FETCH()));
+            case 5:
+                return "RTS";
+            case 6:
+                return "TRAPV";
+            case 7:
+                return "RTR";
+            }
+            __builtin_unreachable();
+        case 7: {
+            uint16_t extw = FETCH();
+            int rn = extw >> 12;
+            extw &= 0xfff;
+            if(reg & 1) {
+                return fmt::format("MOVEC %{0}, {1}", CRMAP[extw], Rn(rn));
+            } else {
+                return fmt::format("MOVEC {1}, %{0}", CRMAP[extw], Rn(rn));
+            }
+        }
+        }
+        __builtin_unreachable();
+    default:
+        __builtin_unreachable();
+    }
+}
+
+auto get_rnlist(uint16_t regs, bool rev) {
+    int first = -1;
+    std::vector<std::pair<int, int>> x;
+    for(int i = 0; i < 16; ++i) {
+        if(regs & 1 << i) {
+            if(first == -1) {
+                first = i;
+            }
+        } else if(first != -1) {
+            x.emplace_back(first, i - 1);
+            first = -1;
+        }
+    }
+    if(first != -1) {
+        x.emplace_back(first, 15);
+    }
+    std::vector<std::string> reg_list;
+    for(auto [bgn, end] : x) {
+        if(bgn == end) {
+            reg_list.push_back(Rn(rev ? 15 - bgn : bgn));
+        } else {
+            if(rev) {
+                reg_list.push_back(
+                    fmt::format("{}-{}", Rn(15 - bgn), Rn(15 - end)));
+            } else {
+                reg_list.push_back(fmt::format("{}-{}", Rn(bgn), Rn(end)));
+            }
+        }
+    }
+    return reg_list;
+}
+
+std::string disasm_04X2(int dn, int type, int reg) {
+    switch(dn) {
+    case 0:
+        return fmt::format("NEGX.L {}", disasm_ea(type, reg, 4));
+    case 1:
+        return fmt::format("CLR.L {}", disasm_ea(type, reg, 4));
+    case 2:
+        return fmt::format("NEG.L {}", disasm_ea(type, reg, 4));
+    case 3:
+        return fmt::format("NOT.L {}", disasm_ea(type, reg, 4));
+    case 4:
+        if(type == 0) {
+            return fmt::format("EXT.W %D{}", reg);
+        } else {
+            auto reglist = get_rnlist(FETCH(), type == 4);
+            return fmt::format("MOVEM.W {}, {}", fmt::join(reglist, "/"),
+                               disasm_ea(type, reg, 0));
+        }
+    case 5:
+        return fmt::format("TST.L {}", disasm_ea(type, reg, 4));
+    case 6: {
+        auto reglist = get_rnlist(FETCH(), false);
+        return fmt::format("MOVEM.W {1}, {0}", fmt::join(reglist, "/"),
+                           disasm_ea(type, reg, 0));
+    }
+    case 7:
+        return fmt::format("JSR {}", disasm_ea(type, reg, 0));
+    default:
+        __builtin_unreachable();
+    }
+}
+
+std::string disasm_04X3(int dn, int type, int reg) {
+    switch(dn) {
+    case 0:
+        return fmt::format("MOVE.W %SR, {}", disasm_ea(type, reg, 2));
+    case 1:
+        return fmt::format("MOVE.W %CCR, {}", disasm_ea(type, reg, 2));
+    case 2:
+        return fmt::format("MOVE.W {}, %CCR", disasm_ea(type, reg, 2));
+    case 3:
+        return fmt::format("MOVE.W {}, %SR", disasm_ea(type, reg, 2));
+    case 4:
+        if(type == 0) {
+            return fmt::format("EXT.L %D{}", reg);
+        } else {
+            auto reglist = get_rnlist(FETCH(), type == 4);
+            return fmt::format("MOVEM.L {}, {}", fmt::join(reglist, "/"),
+                               disasm_ea(type, reg, 0));
+        }
+    case 5:
+        return fmt::format("TAS {}", disasm_ea(type, reg, 1));
+    case 6: {
+        auto reglist = get_rnlist(FETCH(), false);
+        return fmt::format("MOVEM.L {1}, {0}", fmt::join(reglist, "/"),
+                           disasm_ea(type, reg, 0));
+    }
+    case 7:
+        return fmt::format("JSR {}", disasm_ea(type, reg, 0));
+    default:
+        __builtin_unreachable();
+    }
+}
+} // namespace DISASM
 std::string disasm() {
     uint32_t pc = cpu.PC;
     restore_pc p(pc);
+    uint16_t wd = FETCH();
+    unsigned int dn = wd >> 9 & 7;
+    unsigned int type = wd >> 3 & 7;
+    unsigned int reg = wd & 7;
+    switch((wd >> 9 & 01770) | ((wd >> 6) & 7)) {
+    case 0000:
+        return DISASM::disasm_00X0(dn, type, reg);
+    case 0001:
+        return DISASM::disasm_00X1(dn, type, reg);
+    case 0002:
+        return DISASM::disasm_00X2(dn, type, reg);
+    case 0003:
+        return DISASM::disasm_00X3(dn, type, reg);
+    case 0004:
+        return DISASM::disasm_00X4(dn, type, reg);
+    case 0005:
+        return DISASM::disasm_00X5(dn, type, reg);
+    case 0006:
+        return DISASM::disasm_00X6(dn, type, reg);
+    case 0007:
+        return DISASM::disasm_00X7(dn, type, reg);
+    case 0010:
+    case 0012:
+    case 0013:
+    case 0014:
+    case 0015:
+    case 0016:
+    case 0017:
+        return DISASM::disasm_01XX((wd >> 6) & 7, dn, type, reg);
+    case 0020:
+    case 0021:
+    case 0022:
+    case 0023:
+    case 0024:
+    case 0025:
+    case 0026:
+    case 0027:
+        return DISASM::disasm_02XX((wd >> 6) & 7, dn, type, reg);
+    case 0030:
+    case 0031:
+    case 0032:
+    case 0033:
+    case 0034:
+    case 0035:
+    case 0036:
+    case 0037:
+        return DISASM::disasm_03XX((wd >> 6) & 7, dn, type, reg);
+    case 0040:
+        return DISASM::disasm_04X0(dn, type, reg);
+    case 0041:
+        return DISASM::disasm_04X1(dn, type, reg);
+    case 0042:
+        return DISASM::disasm_04X2(dn, type, reg);
+    case 0043:
+        return DISASM::disasm_04X3(dn, type, reg);
+    }
+    return "";
 }
 #if 0
 
 namespace OP {
-string ORI_B::disasm() {
-     return fmt::format("ORI.B #0x{:02x}, {}", imm, dst->disasm());
-}
-string ANDI_B::disasm() {
-     return fmt::format("ANDI.B #0x{:02x}, {}", imm, dst->disasm());
-}
-string SUBI_B::disasm() {
-     return fmt::format("SUBI.B #{}, {}", imm, dst->disasm());
-}
-string ADDI_B::disasm() {
-     return fmt::format("ADDI.B #{}, {}", imm, dst->disasm());
-}
-string EORI_B::disasm() {
-     return fmt::format("EORI.B #0x{:02x}, {}", imm, dst->disasm());
-}
-string CMPI_B::disasm() {
-     return fmt::format("CMPI.B #{}, {}", imm, dst->disasm());
-}
 
-string ORI_W::disasm() {
-     return fmt::format("ORI.W #0x{:04x}, {}", imm, dst->disasm());
-}
-string ANDI_W::disasm() {
-     return fmt::format("ANDI.W #0x{:04x}, {}", imm, dst->disasm());
-}
-string SUBI_W::disasm() {
-     return fmt::format("SUBI.W #{}, {}", imm, dst->disasm());
-}
-string ADDI_W::disasm() {
-     return fmt::format("ADDI.W #{}, {}", imm, dst->disasm());
-}
-string EORI_W::disasm() {
-     return fmt::format("EORI.W #0x{:04x}, {}", imm, dst->disasm());
-}
-string CMPI_W::disasm() {
-     return fmt::format("CMPI.W #{}, {}", imm, dst->disasm());
-}
-
-string ORI_L::disasm() {
-     return fmt::format("ORI.L #0x{:08x}, {}", imm, dst->disasm());
-}
-string ANDI_L::disasm() {
-     return fmt::format("ANDI.L #0x{:08x}, {}", imm, dst->disasm());
-}
-string SUBI_L::disasm() {
-     return fmt::format("SUBI.L #{}, {}", imm, dst->disasm());
-}
-string ADDI_L::disasm() {
-     return fmt::format("ADDI.L #{}, {}", imm, dst->disasm());
-}
-string EORI_L::disasm() {
-     return fmt::format("EORI.L #0x{:08x}, {}", imm, dst->disasm());
-}
-string CMPI_L::disasm() {
-     return fmt::format("CMPI.L #{}, {}", imm, dst->disasm());
-}
-
-std::string CMP2_B_U::disasm() {
-     return fmt::format("CMP2.B {}, {}", ea->disasm(), rn->disasm());
-}
-std::string CMP2_B_S::disasm() {
-     return fmt::format("CMP2.B {}, {}", ea->disasm(), rn->disasm());
-}
-std::string CHK2_B_U::disasm() {
-     return fmt::format("CHK2.B {}, {}", ea->disasm(), rn->disasm());
-}
-std::string CHK2_B_S::disasm() {
-     return fmt::format("CHK2.B {}, {}", ea->disasm(), rn->disasm());
-}
-
-std::string CMP2_W_U::disasm() {
-     return fmt::format("CMP2.W {}, {}", ea->disasm(), rn->disasm());
-}
-std::string CMP2_W_S::disasm() {
-     return fmt::format("CMP2.W {}, {}", ea->disasm(), rn->disasm());
-}
-std::string CHK2_W_U::disasm() {
-     return fmt::format("CHK2.W {}, {}", ea->disasm(), rn->disasm());
-}
-std::string CHK2_W_S::disasm() {
-     return fmt::format("CHK2.W {}, {}", ea->disasm(), rn->disasm());
-}
-
-std::string CMP2_L_U::disasm() {
-     return fmt::format("CMP2.L {}, {}", ea->disasm(), rn->disasm());
-}
-std::string CMP2_L_S::disasm() {
-     return fmt::format("CMP2.L {}, {}", ea->disasm(), rn->disasm());
-}
-std::string CHK2_L_U::disasm() {
-     return fmt::format("CHK2.L {}, {}", ea->disasm(), rn->disasm());
-}
-std::string CHK2_L_S::disasm() {
-     return fmt::format("CHK2.L {}, {}", ea->disasm(), rn->disasm());
-}
-
-string MOVES_B_ToMem::disasm() {
-     return fmt::format("MOVES.B, {}, {}", rn->disasm(), ea->disasm());
-}
-
-string MOVES_B_FromMem::disasm() {
-     return fmt::format("MOVES.B, {}, {}", ea->disasm(), rn->disasm());
-}
-
-string MOVES_W_ToMem::disasm() {
-     return fmt::format("MOVES.W, {}, {}", rn->disasm(), ea->disasm());
-}
-
-string MOVES_W_FromMem::disasm() {
-     return fmt::format("MOVES.W, {}, {}", ea->disasm(), rn->disasm());
-}
-
-string MOVES_L_ToMem::disasm() {
-     return fmt::format("MOVES.L, {}, {}", rn->disasm(), ea->disasm());
-}
-
-string MOVES_L_FromMem::disasm() {
-     return fmt::format("MOVES.L, {}, {}", ea->disasm(), rn->disasm());
-}
-
-string BTST_L_I::disasm() {
-     return fmt::format("BTST.L #{}, {}", sc, dst->disasm());
-}
-string BTST_B_I::disasm() {
-     return fmt::format("BTST.B #{}, {}", sc, dst->disasm());
-}
-
-string BCHG_L_I::disasm() {
-     return fmt::format("BCHG.L #{}, {}", sc, dst->disasm());
-}
-string BCHG_B_I::disasm() {
-     return fmt::format("BCHG.B #{}, {}", sc, dst->disasm());
-}
-
-string BCLR_L_I::disasm() {
-     return fmt::format("BCLR.L #{}, {}", sc, dst->disasm());
-}
-string BCLR_B_I::disasm() {
-     return fmt::format("BCLR.B #{}, {}", sc, dst->disasm());
-}
-
-string BSET_L_I::disasm() {
-     return fmt::format("BSET.L #{}, {}", sc, dst->disasm());
-}
-string BSET_B_I::disasm() {
-     return fmt::format("BSET.B #{}, {}", sc, dst->disasm());
-}
-
-string BTST_L_R::disasm() {
-     return fmt::format("BTST.L %D{}, {}", sc_r, dst->disasm());
-}
-string BTST_B_R::disasm() {
-     return fmt::format("BTST.B %D{}, {}", sc_r, dst->disasm());
-}
-
-string BCHG_L_R::disasm() {
-     return fmt::format("BCHG.L %D{}, {}", sc_r, dst->disasm());
-}
-string BCHG_B_R::disasm() {
-     return fmt::format("BCHG.B %D{}, {}", sc_r, dst->disasm());
-}
-
-string BCLR_L_R::disasm() {
-     return fmt::format("BCLR.L %D{}, {}", sc_r, dst->disasm());
-}
-string BCLR_B_R::disasm() {
-     return fmt::format("BCLR.B %D{}, {}", sc_r, dst->disasm());
-}
-
-string BSET_L_R::disasm() {
-     return fmt::format("BSET.L %D{}, {}", sc_r, dst->disasm());
-}
-string BSET_B_R::disasm() {
-     return fmt::format("BSET.B %D{}, {}", sc_r, dst->disasm());
-}
-
-string CAS_B::disasm() {
-     return fmt::format("CAS.B %D{}, %D{}, {}", dc, du, ea->disasm());
-}
-
-string CAS_W::disasm() {
-     return fmt::format("CAS.W %D{}, %D{}, {}", dc, du, ea->disasm());
-}
-
-string CAS_L::disasm() {
-     return fmt::format("CAS.L %D{}, %D{}, {}", dc, du, ea->disasm());
-}
-
-string CAS2_W::disasm() {
-     return fmt::format("CAS2.W %D{}:%D{}, %D{}:%D{}, %R{}:%R{}", dc[0], dc[1],
-                        du[0], du[1], rn[0], rn[1]);
-}
-
-string CAS2_L::disasm() {
-     return fmt::format("CAS2.L %D{}:%D{}, %D{}:%D{}, %R{}:%R{}", dc[0], dc[1],
-                        du[0], du[1], rn[0], rn[1]);
-}
-
-string MOVEP_W_FromMem::disasm() {
-     return fmt::format("MOVEP.W  ({}, %A{}), %D{}", disp, ay, dx);
-}
-
-string MOVEP_W_ToMem::disasm() {
-     return fmt::format("MOVEP.W %D{}, ({}, %A{})", dx, disp, ay);
-}
-
-string MOVEP_L_FromMem::disasm() {
-     return fmt::format("MOVEP.L  ({}, %A{}), %D{}", disp, ay, dx);
-}
-
-string MOVEP_L_ToMem::disasm() {
-     return fmt::format("MOVEP.L %D{}, ({}, %A{})", dx, disp, ay);
-}
-
-string MOVE_B::disasm() {
-     return fmt::format("MOVE.B {}, {}", src->disasm(), dst->disasm());
-}
-
-string MOVE_W::disasm() {
-     return fmt::format("MOVE.W {}, {}", src->disasm(), dst->disasm());
-}
-
-string MOVE_L::disasm() {
-     return fmt::format("MOVE.L {}, {}", src->disasm(), dst->disasm());
-}
-
-string MOVEA_W::disasm() {
-     return fmt::format("MOVEA.W {}, {}", src->disasm(), dst->disasm());
-}
-
-string MOVEA_L::disasm() {
-     return fmt::format("MOVEA.L {}, {}", src->disasm(), dst->disasm());
-}
-
-string NEGX_B::disasm() { return fmt::format("NEGX.B {}", ea->disasm()); }
-
-string NEGX_W::disasm() { return fmt::format("NEGX.W {}", ea->disasm()); }
-string NEGX_L::disasm() { return fmt::format("NEGX.L {}", ea->disasm()); }
-
-string CLR_B::disasm() { return fmt::format("CLR.B {}", ea->disasm()); }
-
-string CLR_W::disasm() { return fmt::format("CLR.W {}", ea->disasm()); }
-string CLR_L::disasm() { return fmt::format("CLR.L {}", ea->disasm()); }
-
-string NEG_B::disasm() { return fmt::format("NEG.B {}", ea->disasm()); }
-string NEG_W::disasm() { return fmt::format("NEG.W {}", ea->disasm()); }
-string NEG_L::disasm() { return fmt::format("NEG.L {}", ea->disasm()); }
-
-string NOT_B::disasm() { return fmt::format("NOT.B {}", ea->disasm()); }
-string NOT_W::disasm() { return fmt::format("NOT.W {}", ea->disasm()); }
-string NOT_L::disasm() { return fmt::format("NOT.L {}", ea->disasm()); }
 
 string TST_B::disasm() { return fmt::format("TST.B {}", ea->disasm()); }
 

@@ -5,7 +5,12 @@
 #include <boost/test/data/test_case.hpp>
 #include <boost/test/unit_test.hpp>
 namespace bdata = boost::unit_test::data;
-BOOST_DATA_TEST_CASE_F(Prepare, RTR, bdata::xrange(2), T) {
+BOOST_FIXTURE_TEST_SUITE(RTR, Prepare)
+BOOST_AUTO_TEST_CASE(Disasm) {
+    TEST::SET_W(0, 0047167);
+    BOOST_TEST(disasm() == "RTR");
+}
+BOOST_DATA_TEST_CASE(run, bdata::xrange(2), T) {
     TEST::SET_W(0, 0047167);
     TEST::SET_W(0x1000, 0x1F);
     TEST::SET_L(0x1002, 0x400);
@@ -21,3 +26,5 @@ BOOST_DATA_TEST_CASE_F(Prepare, RTR, bdata::xrange(2), T) {
     BOOST_TEST(cpu.Z);
     BOOST_TEST(cpu.must_trace == !!T);
 }
+
+BOOST_AUTO_TEST_SUITE_END()
