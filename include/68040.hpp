@@ -1,16 +1,16 @@
 #ifndef CPU_68040_
 #define CPU_68040_ 1
-#include <stdint.h>
-#include <functional>
-#include <unordered_map>
-#include <memory>
-#include <atomic>
-#include <setjmp.h>
-#include "mpfr.h"
 #include "exception.hpp"
-enum class TT {
-    NORMAL = 0, MOVE16, ALT, ACK
-};
+#include "mpfr.h"
+#include <condition_variable>
+#include <mutex>
+#include <atomic>
+#include <functional>
+#include <memory>
+#include <setjmp.h>
+#include <stdint.h>
+#include <unordered_map>
+enum class TT { NORMAL = 0, MOVE16, ALT, ACK };
 enum class TM {
     ALT_0 = 0,
     USER_DATA,
@@ -21,9 +21,7 @@ enum class TM {
     SYS_CODE,
     ALT_7
 };
-enum class SIZ {
-    L = 0, B, W, LN, NONE
-};
+enum class SIZ { L = 0, B, W, LN, NONE };
 struct MemBus {
     uint32_t A;
     uint32_t D = 0;
@@ -36,7 +34,6 @@ struct MemBus {
 struct Opcode;
 struct AccessFault_t {
     uint32_t addr;
-    uint32_t ea = 0;
     bool CP = false, CU = false, CT = false, CM = false, MA = false,
          ATC = false, LK = false, RW;
     SIZ size;
@@ -44,11 +41,14 @@ struct AccessFault_t {
     TM tm = TM::USER_DATA;
 };
 enum class FPU_PREC {
-    X, S, D, AUTO,
+    X,
+    S,
+    D,
+    AUTO,
 };
 
-class Opcode {    
-public:
+class Opcode {
+  public:
     virtual void run() = 0;
     virtual std::string disasm() = 0;
     virtual int size() = 0;
@@ -56,7 +56,7 @@ public:
 struct Cpu {
     uint32_t D[8];
     uint32_t A[8];
-    uint32_t& R(int n) { return n < 8 ? D[n&7] : A[n&7]; }
+    uint32_t &R(int n) { return n < 8 ? D[n & 7] : A[n & 7]; }
     uint32_t PC;
     // CCR
     bool X, N, Z, V, C;
@@ -71,7 +71,7 @@ struct Cpu {
     } FPCR;
     struct FPSR_t {
         bool CC_NAN, CC_I, CC_Z, CC_N;
-        uint8_t Quat; 
+        uint8_t Quat;
         bool QuatSign;
         bool INEX1, INEX2, DZ, UNFL, OVFL, OPERR, S_NAN, BSUN;
         bool EXC_INEX, EXC_DZ, EXC_UNFL, EXC_OVFL, EXC_IOP;
@@ -80,7 +80,7 @@ struct Cpu {
     mpfr_t fp_tmp;
     uint64_t fp_tmp_nan;
     int fp_tmp_tv;
-    
+
     // hyperviser
     uint32_t MSP, ISP, USP;
     uint8_t I, T;
@@ -121,11 +121,16 @@ struct Cpu {
     bool in_exception;
     bool must_trace;
     // JIT cache
-//    std::unordered_map<uint32_t, int> icache;
+    //    std::unordered_map<uint32_t, int> icache;
     uint32_t EA;
     int n;
-    std::atomic<bool> sleep;
+    std::mutex mtx_;
+    std::condition_variable cond_;
     bool movem_run;
+    bool sleeping;
+
+    std::atomic<int> inturrupt;
+    std::atomic<bool> run;
 };
 struct DecodeError {};
 // Mac 68K has no multi CPU, so doesn't support multi CPU!

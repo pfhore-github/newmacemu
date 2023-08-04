@@ -36,6 +36,7 @@ class VIA {
     uint8_t dirb, dira;
     uint8_t db, da;
     uint8_t timer1_lh[2];
+    uint8_t timer2_lh[2];
     uint8_t sr;
     struct {
         bool PB7_ENABLE;
@@ -67,6 +68,7 @@ class VIA {
     virtual void writePB(int n, bool v) = 0;
     virtual uint8_t getSR() = 0;
     virtual void setSR(uint8_t v) = 0;
+    void recieve_sr();
 };
 class VIA1 : public VIA {
     bool readPA(int n) override;

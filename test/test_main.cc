@@ -76,7 +76,7 @@ struct MyGlobalFixture {
         rom_is_overlay = false;
     }
 };
-
+std::unordered_map<uint32_t, void(*)()> rom_funcs;
 BOOST_TEST_GLOBAL_FIXTURE(MyGlobalFixture);
 
 uint8_t LoadIO_B(uint32_t) { return 0; }
@@ -88,19 +88,20 @@ void StoreIO_L(uint32_t, uint32_t) {}
 bool is_reset = false;
 void bus_reset() { is_reset = true; }
 void run_op();
-void decode() { throw DecodeError{}; }
-int decode_and_run() {
+
+void do_irq(int i) {
+    std::lock_guard<std::mutex> lk(cpu.mtx_);
+    cpu.sleeping = false;
+    cpu.cond_.notify_one();
+    cpu.inturrupt.store(i);
+}
+
+int run_test() {
     cpu.in_exception = false;
-    cpu.af_value.ea = 0;
-    cpu.must_trace = cpu.T == 2;
-    cpu.oldpc = cpu.PC;
-    uint16_t op = FETCH();
-    if(setjmp(cpu.ex_buf) == 0) {
-        if(auto p = run_table[op]) {
-            (*p)(op, op >> 9 & 7, op >> 3 & 7, op & 7);
-        } else {
-            ILLEGAL_OP();
-        }
+    run_op();
+    if( cpu.PC >= 0x5000 ) {
+        return GET_EXCEPTION();
+    } else {
+        return 0;
     }
-    return cpu.PC - cpu.oldpc - 2;
 }

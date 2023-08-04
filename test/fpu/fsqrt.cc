@@ -19,7 +19,7 @@ BOOST_AUTO_TEST_CASE(inf) {
     TEST::SET_FP(3, INFINITY);
     TEST::SET_W(0, 0171000);
     TEST::SET_W(2, 0B0000100 | 3 << 10 | 2 << 7);
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(!mpfr_signbit(cpu.FP[2]));
     BOOST_TEST(mpfr_inf_p(cpu.FP[2]));
 }
@@ -29,7 +29,7 @@ BOOST_DATA_TEST_CASE(zero, sg_v, sg) {
     TEST::SET_FP(3, copysign(0.0, sg));
     TEST::SET_W(0, 0171000);
     TEST::SET_W(2, 0B0000100 | 3 << 10 | 2 << 7);
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(!!mpfr_signbit(cpu.FP[2]) == signbit(sg));
     BOOST_TEST(mpfr_zero_p(cpu.FP[2]));
 }
@@ -38,7 +38,7 @@ BOOST_AUTO_TEST_CASE(normal) {
     TEST::SET_FP(3, 9.0);
     TEST::SET_W(0, 0171000);
     TEST::SET_W(2, 0B0000100 | 3 << 10 | 2 << 7);
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(TEST::GET_FP(2) == 3.0);
 }
 
@@ -46,7 +46,7 @@ BOOST_AUTO_TEST_CASE(negative) {
     TEST::SET_FP(3, -9.0);
     TEST::SET_W(0, 0171000);
     TEST::SET_W(2, 0B0000100 | 3 << 10 | 2 << 7);
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(mpfr_nan_p(cpu.FP[2]));
     BOOST_TEST(cpu.FPSR.OPERR);
     BOOST_TEST(cpu.FPSR.EXC_IOP);
@@ -59,10 +59,9 @@ BOOST_AUTO_TEST_CASE(qnan) {
     cpu.FP_nan[3] = 0xffff000000000000LLU;
     TEST::SET_W(0, 0171000);
     TEST::SET_W(2, 0B1000001 | 3 << 10 | 2 << 7);
-    int i = decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(mpfr_nan_p(cpu.FP[2]));
     BOOST_TEST(cpu.FP_nan[2] == 0xffff000000000000LLU);
-    BOOST_TEST(i == 2);
 }
 
 BOOST_AUTO_TEST_CASE(snan) {
@@ -70,7 +69,7 @@ BOOST_AUTO_TEST_CASE(snan) {
     cpu.FP_nan[3] = 0x0fff000000000000LLU;
     TEST::SET_W(0, 0171000);
     TEST::SET_W(2, 0B1000001 | 3 << 10 | 2 << 7);
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(mpfr_nan_p(cpu.FP[2]));
     BOOST_TEST(cpu.FP_nan[2] == 0x4fff000000000000LLU);
     BOOST_TEST(cpu.FPSR.S_NAN);
@@ -80,17 +79,16 @@ BOOST_AUTO_TEST_CASE(inf) {
     TEST::SET_FP(3, INFINITY);
     TEST::SET_W(0, 0171000);
     TEST::SET_W(2, 0B1000001 | 3 << 10 | 2 << 7);
-    int i = decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(!mpfr_signbit(cpu.FP[2]));
     BOOST_TEST(mpfr_inf_p(cpu.FP[2]));
-    BOOST_TEST(i == 2);
 }
 
 BOOST_DATA_TEST_CASE(zero, sg_v, sg) {
     TEST::SET_FP(3, copysign(0.0, sg));
     TEST::SET_W(0, 0171000);
     TEST::SET_W(2, 0B1000001 | 3 << 10 | 2 << 7);
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(!!mpfr_signbit(cpu.FP[2]) == signbit(sg));
     BOOST_TEST(mpfr_zero_p(cpu.FP[2]));
 }
@@ -99,7 +97,8 @@ BOOST_AUTO_TEST_CASE(normal) {
     TEST::SET_FP(3, 9.0);
     TEST::SET_W(0, 0171000);
     TEST::SET_W(2, 0B1000001 | 3 << 10 | 2 << 7);
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
+    BOOST_TEST(cpu.PC == 4);
     BOOST_TEST(TEST::GET_FP(2) == 3.0);
 }
 
@@ -107,7 +106,7 @@ BOOST_AUTO_TEST_CASE(negative) {
     TEST::SET_FP(3, -9.0);
     TEST::SET_W(0, 0171000);
     TEST::SET_W(2, 0B1000001 | 3 << 10 | 2 << 7);
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(mpfr_nan_p(cpu.FP[2]));
     BOOST_TEST(cpu.FPSR.OPERR);
     BOOST_TEST(cpu.FPSR.EXC_IOP);
@@ -121,10 +120,9 @@ BOOST_AUTO_TEST_CASE(qnan) {
     cpu.FP_nan[3] = 0xffff000000000000LLU;
     TEST::SET_W(0, 0171000);
     TEST::SET_W(2, 0B1000101 | 3 << 10 | 2 << 7);
-    int i = decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(mpfr_nan_p(cpu.FP[2]));
     BOOST_TEST(cpu.FP_nan[2] == 0xffff000000000000LLU);
-    BOOST_TEST(i == 2);
 }
 
 BOOST_AUTO_TEST_CASE(snan) {
@@ -132,7 +130,7 @@ BOOST_AUTO_TEST_CASE(snan) {
     cpu.FP_nan[3] = 0x0fff000000000000LLU;
     TEST::SET_W(0, 0171000);
     TEST::SET_W(2, 0B1000101 | 3 << 10 | 2 << 7);
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(mpfr_nan_p(cpu.FP[2]));
     BOOST_TEST(cpu.FP_nan[2] == 0x4fff000000000000LLU);
     BOOST_TEST(cpu.FPSR.S_NAN);
@@ -141,17 +139,16 @@ BOOST_AUTO_TEST_CASE(inf) {
     TEST::SET_FP(3, INFINITY);
     TEST::SET_W(0, 0171000);
     TEST::SET_W(2, 0B1000101 | 3 << 10 | 2 << 7);
-    int i = decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(!mpfr_signbit(cpu.FP[2]));
     BOOST_TEST(mpfr_inf_p(cpu.FP[2]));
-    BOOST_TEST(i == 2);
 }
 
 BOOST_DATA_TEST_CASE(zero, sg_v, sg) {
     TEST::SET_FP(3, copysign(0.0, sg));
     TEST::SET_W(0, 0171000);
     TEST::SET_W(2, 0B1000101 | 3 << 10 | 2 << 7);
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(!!mpfr_signbit(cpu.FP[2]) == signbit(sg));
     BOOST_TEST(mpfr_zero_p(cpu.FP[2]));
 }
@@ -160,7 +157,8 @@ BOOST_AUTO_TEST_CASE(normal) {
     TEST::SET_FP(3, 9.0);
     TEST::SET_W(0, 0171000);
     TEST::SET_W(2, 0B1000101 | 3 << 10 | 2 << 7);
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
+    BOOST_TEST(cpu.PC == 4);
     BOOST_TEST(TEST::GET_FP(2) == 3.0);
 }
 
@@ -168,7 +166,7 @@ BOOST_AUTO_TEST_CASE(negative) {
     TEST::SET_FP(3, -9.0);
     TEST::SET_W(0, 0171000);
     TEST::SET_W(2, 0B1000101 | 3 << 10 | 2 << 7);
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(mpfr_nan_p(cpu.FP[2]));
     BOOST_TEST(cpu.FPSR.OPERR);
     BOOST_TEST(cpu.FPSR.EXC_IOP);

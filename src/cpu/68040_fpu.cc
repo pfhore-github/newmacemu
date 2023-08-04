@@ -367,9 +367,8 @@ bool test_Fcc(uint8_t v) {
     case 0B1000:
         // NGL/UN
         return cpu.FPSR.CC_NAN;
-    default:
-        throw DecodeError{};
     }
+    return false;
 }
 static void Set_FPSR(uint32_t v) {
     cpu.FPSR.CC_N = v & 1 << 27;
@@ -1465,6 +1464,7 @@ void frestore(uint16_t, int, int type, int reg) {
         cpu.EA = ea_getaddr(type, reg, 0);
         auto first = do_frestore_common();
         if(!first) {
+            reset_fpu();
             return;
         }
         // only check format

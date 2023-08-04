@@ -11,26 +11,24 @@ BOOST_AUTO_TEST_CASE(In) {
     TEST::SET_W(0, 0040600 | 3 << 9 | 2);
     cpu.D[3] = 1000;
     cpu.D[2] = 2000;
-    auto i = decode_and_run();
-    BOOST_TEST(i == 0);
+    BOOST_TEST(run_test() == 0);
+    BOOST_TEST(cpu.PC == 2);
 }
 
 BOOST_AUTO_TEST_CASE(Under) {
     TEST::SET_W(0, 0040600 | 3 << 9 | 2);
     cpu.D[3] = -300;
     cpu.D[2] = 2000;
-    decode_and_run();
+    BOOST_TEST(run_test() == 6);
     BOOST_TEST(cpu.N);
-    BOOST_TEST(GET_EXCEPTION() == 6);
 }
 
 BOOST_AUTO_TEST_CASE(Over) {
     TEST::SET_W(0, 0040600 | 3 << 9 | 2);
     cpu.D[3] = 2300;
     cpu.D[2] = 2000;
-    decode_and_run();
+    BOOST_TEST(run_test() == 6);
     BOOST_TEST(!cpu.N);
-    BOOST_TEST(GET_EXCEPTION() == 6);
 }
 BOOST_AUTO_TEST_SUITE_END()
 
@@ -39,26 +37,24 @@ BOOST_AUTO_TEST_CASE(In) {
     TEST::SET_W(0, 0040400 | 3 << 9 | 2);
     cpu.D[3] = 100000;
     cpu.D[2] = 200000;
-    auto i = decode_and_run();
-    BOOST_TEST(i == 0);
+    BOOST_TEST(run_test() == 0);
+    BOOST_TEST(cpu.PC == 2);
 }
 
 BOOST_AUTO_TEST_CASE(Under) {
     TEST::SET_W(0, 0040400 | 3 << 9 | 2);
     cpu.D[3] = -30000;
     cpu.D[2] = 200000;
-    decode_and_run();
+    BOOST_TEST(run_test() == 6);
     BOOST_TEST(cpu.N);
-    BOOST_TEST(GET_EXCEPTION() == 6);
 }
 
 BOOST_AUTO_TEST_CASE(Over) {
     TEST::SET_W(0, 0040400 | 3 << 9 | 2);
     cpu.D[3] = 230000;
     cpu.D[2] = 200000;
-    decode_and_run();
+    BOOST_TEST(run_test() == 6);
     BOOST_TEST(!cpu.N);
-    BOOST_TEST(GET_EXCEPTION() == 6);
 }
 BOOST_AUTO_TEST_SUITE_END()
 

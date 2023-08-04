@@ -6,11 +6,12 @@
 #include <boost/test/unit_test.hpp>
 namespace bdata = boost::unit_test::data;
 BOOST_FIXTURE_TEST_SUITE(MOVEQ, Prepare)
-BOOST_AUTO_TEST_CASE(value) {
-    TEST::SET_W(0, 0070000 | 0x2D | 3 << 9);
-    auto i = decode_and_run();
-    BOOST_TEST(cpu.D[3] == 0x2D);
-    BOOST_TEST(i == 0);
+
+BOOST_AUTO_TEST_CASE(execute) {
+    TEST::SET_W(0, 0070000 | 0xFE | 3 << 9);
+    BOOST_TEST(run_test() == 0);
+    BOOST_TEST(cpu.PC == 2);
+    BOOST_TEST(cpu.D[3] == -2);
 }
 
 

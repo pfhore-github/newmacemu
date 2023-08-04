@@ -8,6 +8,7 @@
 namespace bdata = boost::unit_test::data;
 BOOST_FIXTURE_TEST_SUITE(SUBX, Prepare)
 BOOST_AUTO_TEST_SUITE(Byte)
+
 BOOST_DATA_TEST_CASE(value, bdata::xrange(2), old_x) {
     cpu.Z = true;
     BOOST_TEST(SUBX_B(50, 21, old_x) == 29 - old_x);
@@ -25,9 +26,9 @@ BOOST_AUTO_TEST_CASE(Reg) {
     cpu.D[1] = 52;
     cpu.D[3] = 15;
     cpu.X = true;
-    auto i = decode_and_run();
+    BOOST_TEST(run_test() == 0);
+    BOOST_TEST(cpu.PC == 2);
     BOOST_TEST(cpu.D[1] == 36);
-    BOOST_TEST(i == 0);
 }
 BOOST_AUTO_TEST_CASE(Mem) {
     TEST::SET_W(0, 0110410 | 3 << 9 | 1);
@@ -36,11 +37,11 @@ BOOST_AUTO_TEST_CASE(Mem) {
     cpu.A[1] = 0x1001;
     cpu.A[3] = 0x1101;
     cpu.X = true;
-    auto i = decode_and_run();
+    BOOST_TEST(run_test() == 0);
+    BOOST_TEST(cpu.PC == 2);
     BOOST_TEST(RAM[0x1000] == 25);
     BOOST_TEST(cpu.A[1] == 0x1000);
     BOOST_TEST(cpu.A[3] == 0x1100);
-    BOOST_TEST(i == 0);
 }
 BOOST_AUTO_TEST_SUITE_END()
 
@@ -61,9 +62,9 @@ BOOST_AUTO_TEST_CASE(Reg) {
     cpu.D[1] = 4050;
     cpu.D[3] = 2010;
     cpu.X = true;
-    auto i = decode_and_run();
+    BOOST_TEST(run_test() == 0);
+    BOOST_TEST(cpu.PC == 2);
     BOOST_TEST(cpu.D[1] == 2039);
-    BOOST_TEST(i == 0);
 }
 BOOST_AUTO_TEST_CASE(Mem) {
     TEST::SET_W(0, 0110510 | 3 << 9 | 1);
@@ -72,11 +73,11 @@ BOOST_AUTO_TEST_CASE(Mem) {
     cpu.A[1] = 0x1002;
     cpu.A[3] = 0x1102;
     cpu.X = true;
-    auto i = decode_and_run();
+    BOOST_TEST(run_test() == 0);
+    BOOST_TEST(cpu.PC == 2);
     BOOST_TEST(TEST::GET_W(0x1000) == 3354);
     BOOST_TEST(cpu.A[1] == 0x1000);
     BOOST_TEST(cpu.A[3] == 0x1100);
-    BOOST_TEST(i == 0);
 }
 BOOST_AUTO_TEST_SUITE_END()
 
@@ -97,9 +98,9 @@ BOOST_AUTO_TEST_CASE(Reg) {
     cpu.D[1] = 987654;
     cpu.D[3] = 112233;
     cpu.X = true;
-    auto i = decode_and_run();
+    BOOST_TEST(run_test() == 0);
+    BOOST_TEST(cpu.PC == 2);
     BOOST_TEST(cpu.D[1] == 875420);
-    BOOST_TEST(i == 0);
 }
 BOOST_AUTO_TEST_CASE(Mem) {
     TEST::SET_W(0, 0110610 | 3 << 9 | 1);
@@ -108,11 +109,11 @@ BOOST_AUTO_TEST_CASE(Mem) {
     cpu.A[1] = 0x1004;
     cpu.A[3] = 0x1104;
     cpu.X = true;
-    auto i = decode_and_run();
+    BOOST_TEST(run_test() == 0);
+    BOOST_TEST(cpu.PC == 2);
     BOOST_TEST(TEST::GET_L(0x1000) == 76430976);
     BOOST_TEST(cpu.A[1] == 0x1000);
     BOOST_TEST(cpu.A[3] == 0x1100);
-    BOOST_TEST(i == 0);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

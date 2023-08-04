@@ -11,7 +11,7 @@ BOOST_AUTO_TEST_CASE(untraced) {
     TEST::SET_W(2, 0x100);
     cpu.T = 0;
     cpu.FPSR.CC_Z = true;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(!cpu.must_trace);
 }
 
@@ -20,8 +20,7 @@ BOOST_AUTO_TEST_CASE(traced) {
     TEST::SET_W(2, 0x100);
     cpu.T = 1;
     cpu.FPSR.CC_Z = true;
-    decode_and_run();
-    BOOST_TEST(cpu.must_trace);
+    BOOST_TEST(run_test() == 9);
 }
 
 BOOST_AUTO_TEST_CASE(trace_not_taken) {
@@ -29,36 +28,36 @@ BOOST_AUTO_TEST_CASE(trace_not_taken) {
     TEST::SET_W(2, 0x100);
     cpu.T = 1;
     cpu.FPSR.CC_Z = false;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(!cpu.must_trace);
 }
 
 BOOST_AUTO_TEST_CASE(offsetW) {
     TEST::SET_W(0, 0171200 | 0xF);
     TEST::SET_W(2, 0x100);
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 0x102);
 }
 
 BOOST_AUTO_TEST_CASE(offsetL) {
     TEST::SET_W(0, 0171300 | 0xF);
-    TEST::SET_L(2, 0x20000);
-    decode_and_run();
-    BOOST_TEST(cpu.PC == 0x20002);
+    TEST::SET_L(2, 0x200);
+    BOOST_TEST(run_test() == 0);
+    BOOST_TEST(cpu.PC == 0x202);
 }
 BOOST_AUTO_TEST_SUITE(EQ)
 BOOST_AUTO_TEST_CASE(T) {
     TEST::SET_W(0, 0171200 | 0x1);
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_Z = true;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 0x102);
 }
 BOOST_AUTO_TEST_CASE(F) {
     TEST::SET_W(0, 0171200 | 0x1);
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_Z = false;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 4);
 }
 BOOST_AUTO_TEST_SUITE_END()
@@ -67,14 +66,14 @@ BOOST_AUTO_TEST_CASE(T) {
     TEST::SET_W(0, 0171200 | 0xE);
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_Z = false;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 0x102);
 }
 BOOST_AUTO_TEST_CASE(F) {
     TEST::SET_W(0, 0171200 | 0xE);
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_Z = true;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 4);
 }
 BOOST_AUTO_TEST_SUITE_END()
@@ -86,14 +85,14 @@ BOOST_AUTO_TEST_CASE(T) {
     cpu.FPSR.CC_NAN = false;
     cpu.FPSR.CC_Z = false;
     cpu.FPSR.CC_N = false;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 0x102);
 }
 BOOST_AUTO_TEST_CASE(F1) {
     TEST::SET_W(0, 0171200 | 0x12);
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_NAN = true;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 4);
     BOOST_TEST(cpu.FPSR.BSUN);
 }
@@ -101,7 +100,7 @@ BOOST_AUTO_TEST_CASE(F2) {
     TEST::SET_W(0, 0171200 | 0x12);
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_Z = true;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 4);
     BOOST_TEST(!cpu.FPSR.BSUN);
 }
@@ -109,7 +108,7 @@ BOOST_AUTO_TEST_CASE(F3) {
     TEST::SET_W(0, 0171200 | 0x12);
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_N = true;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 4);
     BOOST_TEST(!cpu.FPSR.BSUN);
 }
@@ -120,7 +119,7 @@ BOOST_AUTO_TEST_CASE(T1) {
     TEST::SET_W(0, 0171200 | 0x1D);
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_NAN = true;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 0x102);
     BOOST_TEST(cpu.FPSR.BSUN);
 }
@@ -128,7 +127,7 @@ BOOST_AUTO_TEST_CASE(T2) {
     TEST::SET_W(0, 0171200 | 0x1D);
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_Z = true;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 0x102);
     BOOST_TEST(!cpu.FPSR.BSUN);
 }
@@ -137,7 +136,7 @@ BOOST_AUTO_TEST_CASE(T3) {
     TEST::SET_W(0, 0171200 | 0x1D);
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_N = true;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 0x102);
     BOOST_TEST(!cpu.FPSR.BSUN);
 }
@@ -147,7 +146,7 @@ BOOST_AUTO_TEST_CASE(F) {
     cpu.FPSR.CC_NAN = false;
     cpu.FPSR.CC_Z = false;
     cpu.FPSR.CC_N = false;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 4);
     BOOST_TEST(!cpu.FPSR.BSUN);
 }
@@ -158,7 +157,7 @@ BOOST_AUTO_TEST_CASE(T1) {
     TEST::SET_W(0, 0171200 | 0x13);
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_Z = true;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 0x102);
 }
 BOOST_AUTO_TEST_CASE(T2) {
@@ -166,7 +165,7 @@ BOOST_AUTO_TEST_CASE(T2) {
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_NAN = false;
     cpu.FPSR.CC_N = false;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 0x102);
     BOOST_TEST(!cpu.FPSR.BSUN);
 }
@@ -176,7 +175,7 @@ BOOST_AUTO_TEST_CASE(F1) {
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_Z = false;
     cpu.FPSR.CC_NAN = true;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 4);
     BOOST_TEST(cpu.FPSR.BSUN);
 }
@@ -185,7 +184,7 @@ BOOST_AUTO_TEST_CASE(F2) {
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_Z = false;
     cpu.FPSR.CC_N = true;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 4);
     BOOST_TEST(!cpu.FPSR.BSUN);
 }
@@ -196,7 +195,7 @@ BOOST_AUTO_TEST_CASE(T1) {
     TEST::SET_W(0, 0171200 | 0x1C);
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_NAN = true;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 0x102);
     BOOST_TEST(cpu.FPSR.BSUN);
 }
@@ -205,7 +204,7 @@ BOOST_AUTO_TEST_CASE(T2) {
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_Z = false;
     cpu.FPSR.CC_N = true;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 0x102);
 }
 
@@ -214,7 +213,7 @@ BOOST_AUTO_TEST_CASE(F1) {
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_N = false;
     cpu.FPSR.CC_NAN = false;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 4);
     BOOST_TEST(!cpu.FPSR.BSUN);
 }
@@ -223,7 +222,7 @@ BOOST_AUTO_TEST_CASE(F2) {
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_Z = true;
     cpu.FPSR.CC_NAN = false;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 4);
     BOOST_TEST(!cpu.FPSR.BSUN);
 }
@@ -236,7 +235,7 @@ BOOST_AUTO_TEST_CASE(T1) {
     cpu.FPSR.CC_N = true;
     cpu.FPSR.CC_NAN = false;
     cpu.FPSR.CC_Z = false;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 0x102);
     BOOST_TEST(!cpu.FPSR.BSUN);
 }
@@ -244,7 +243,7 @@ BOOST_AUTO_TEST_CASE(F1) {
     TEST::SET_W(0, 0171200 | 0x14);
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_N = false;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 4);
 }
 
@@ -252,7 +251,7 @@ BOOST_AUTO_TEST_CASE(F2) {
     TEST::SET_W(0, 0171200 | 0x14);
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_NAN = true;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 4);
     BOOST_TEST(cpu.FPSR.BSUN);
 }
@@ -260,7 +259,7 @@ BOOST_AUTO_TEST_CASE(F3) {
     TEST::SET_W(0, 0171200 | 0x14);
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_Z = true;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 4);
 }
 BOOST_AUTO_TEST_SUITE_END()
@@ -270,7 +269,7 @@ BOOST_AUTO_TEST_CASE(T1) {
     TEST::SET_W(0, 0171200 | 0x1B);
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_NAN = true;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 0x102);
     BOOST_TEST(cpu.FPSR.BSUN);
 }
@@ -279,7 +278,7 @@ BOOST_AUTO_TEST_CASE(T2) {
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_Z = true;
     cpu.FPSR.CC_N = false;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 0x102);
 }
 BOOST_AUTO_TEST_CASE(F1) {
@@ -287,7 +286,7 @@ BOOST_AUTO_TEST_CASE(F1) {
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_NAN = false;
     cpu.FPSR.CC_Z = false;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 4);
     BOOST_TEST(!cpu.FPSR.BSUN);
 }
@@ -297,7 +296,7 @@ BOOST_AUTO_TEST_CASE(F2) {
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_NAN = false;
     cpu.FPSR.CC_N = true;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 4);
     BOOST_TEST(!cpu.FPSR.BSUN);
 }
@@ -309,7 +308,7 @@ BOOST_AUTO_TEST_CASE(T1) {
     TEST::SET_W(0, 0171200 | 0x15);
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_Z = true;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 0x102);
 }
 BOOST_AUTO_TEST_CASE(T2) {
@@ -317,7 +316,7 @@ BOOST_AUTO_TEST_CASE(T2) {
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_N = true;
     cpu.FPSR.CC_NAN = false;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 0x102);
     BOOST_TEST(!cpu.FPSR.BSUN);
 }
@@ -326,7 +325,7 @@ BOOST_AUTO_TEST_CASE(F1) {
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_N = false;
     cpu.FPSR.CC_Z = false;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 4);
 }
 
@@ -335,7 +334,7 @@ BOOST_AUTO_TEST_CASE(F2) {
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_NAN = true;
     cpu.FPSR.CC_Z = false;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 4);
     BOOST_TEST(cpu.FPSR.BSUN);
 }
@@ -347,7 +346,7 @@ BOOST_AUTO_TEST_CASE(T1) {
     TEST::SET_W(0, 0171200 | 0x1A);
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_NAN = true;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 0x102);
     BOOST_TEST(cpu.FPSR.BSUN);
 }
@@ -356,7 +355,7 @@ BOOST_AUTO_TEST_CASE(T2) {
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_Z = true;
     cpu.FPSR.CC_N = false;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 0x102);
 }
 BOOST_AUTO_TEST_CASE(F1) {
@@ -364,7 +363,7 @@ BOOST_AUTO_TEST_CASE(F1) {
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_NAN = false;
     cpu.FPSR.CC_Z = false;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 4);
     BOOST_TEST(!cpu.FPSR.BSUN);
 }
@@ -374,7 +373,7 @@ BOOST_AUTO_TEST_CASE(F2) {
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_NAN = false;
     cpu.FPSR.CC_N = true;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 4);
     BOOST_TEST(!cpu.FPSR.BSUN);
 }
@@ -387,7 +386,7 @@ BOOST_AUTO_TEST_CASE(T) {
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_NAN = false;
     cpu.FPSR.CC_Z = false;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 0x102);
     BOOST_TEST(!cpu.FPSR.BSUN);
 }
@@ -395,7 +394,7 @@ BOOST_AUTO_TEST_CASE(F1) {
     TEST::SET_W(0, 0171200 | 0x16);
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_NAN = true;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 4);
     BOOST_TEST(cpu.FPSR.BSUN);
 }
@@ -404,7 +403,7 @@ BOOST_AUTO_TEST_CASE(F2) {
     TEST::SET_W(0, 0171200 | 0x16);
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_Z = true;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 4);
     BOOST_TEST(!cpu.FPSR.BSUN);
 }
@@ -416,7 +415,7 @@ BOOST_AUTO_TEST_CASE(T1) {
     TEST::SET_W(0, 0171200 | 0x19);
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_NAN = true;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 0x102);
     BOOST_TEST(cpu.FPSR.BSUN);
 }
@@ -424,7 +423,7 @@ BOOST_AUTO_TEST_CASE(T2) {
     TEST::SET_W(0, 0171200 | 0x19);
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_Z = true;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 0x102);
 }
 
@@ -433,7 +432,7 @@ BOOST_AUTO_TEST_CASE(F) {
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_NAN = false;
     cpu.FPSR.CC_Z = false;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 4);
     BOOST_TEST(!cpu.FPSR.BSUN);
 }
@@ -445,7 +444,7 @@ BOOST_AUTO_TEST_CASE(T) {
     TEST::SET_W(0, 0171200 | 0x17);
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_NAN = false;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 0x102);
     BOOST_TEST(!cpu.FPSR.BSUN);
 }
@@ -454,7 +453,7 @@ BOOST_AUTO_TEST_CASE(F) {
     TEST::SET_W(0, 0171200 | 0x17);
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_NAN = true;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 4);
     BOOST_TEST(cpu.FPSR.BSUN);
 }
@@ -466,7 +465,7 @@ BOOST_AUTO_TEST_CASE(T) {
     TEST::SET_W(0, 0171200 | 0x18);
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_NAN = true;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 0x102);
     BOOST_TEST(cpu.FPSR.BSUN);
 }
@@ -475,7 +474,7 @@ BOOST_AUTO_TEST_CASE(F) {
     TEST::SET_W(0, 0171200 | 0x18);
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_NAN = false;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 4);
     BOOST_TEST(!cpu.FPSR.BSUN);
 }
@@ -489,7 +488,7 @@ BOOST_AUTO_TEST_CASE(T) {
     cpu.FPSR.CC_NAN = false;
     cpu.FPSR.CC_Z = false;
     cpu.FPSR.CC_N = false;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 0x102);
     BOOST_TEST(!cpu.FPSR.BSUN);
 }
@@ -497,7 +496,7 @@ BOOST_AUTO_TEST_CASE(F1) {
     TEST::SET_W(0, 0171200 | 0x2);
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_NAN = true;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 4);
     BOOST_TEST(!cpu.FPSR.BSUN);
 }
@@ -505,14 +504,14 @@ BOOST_AUTO_TEST_CASE(F2) {
     TEST::SET_W(0, 0171200 | 0x2);
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_Z = true;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 4);
 }
 BOOST_AUTO_TEST_CASE(F3) {
     TEST::SET_W(0, 0171200 | 0x2);
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_N = true;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 4);
     BOOST_TEST(!cpu.FPSR.BSUN);
 }
@@ -523,7 +522,7 @@ BOOST_AUTO_TEST_CASE(T1) {
     TEST::SET_W(0, 0171200 | 0xD);
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_NAN = true;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 0x102);
     BOOST_TEST(!cpu.FPSR.BSUN);
 }
@@ -531,7 +530,7 @@ BOOST_AUTO_TEST_CASE(T2) {
     TEST::SET_W(0, 0171200 | 0xD);
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_Z = true;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 0x102);
 }
 
@@ -539,7 +538,7 @@ BOOST_AUTO_TEST_CASE(T3) {
     TEST::SET_W(0, 0171200 | 0xD);
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_N = true;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 0x102);
 }
 BOOST_AUTO_TEST_CASE(F) {
@@ -548,7 +547,7 @@ BOOST_AUTO_TEST_CASE(F) {
     cpu.FPSR.CC_NAN = false;
     cpu.FPSR.CC_Z = false;
     cpu.FPSR.CC_N = false;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 4);
     BOOST_TEST(!cpu.FPSR.BSUN);
 }
@@ -559,7 +558,7 @@ BOOST_AUTO_TEST_CASE(T1) {
     TEST::SET_W(0, 0171200 | 0x3);
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_Z = true;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 0x102);
 }
 BOOST_AUTO_TEST_CASE(T2) {
@@ -567,7 +566,7 @@ BOOST_AUTO_TEST_CASE(T2) {
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_NAN = false;
     cpu.FPSR.CC_N = false;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 0x102);
     BOOST_TEST(!cpu.FPSR.BSUN);
 }
@@ -577,7 +576,7 @@ BOOST_AUTO_TEST_CASE(F1) {
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_Z = false;
     cpu.FPSR.CC_NAN = true;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 4);
     BOOST_TEST(!cpu.FPSR.BSUN);
 }
@@ -586,7 +585,7 @@ BOOST_AUTO_TEST_CASE(F2) {
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_Z = false;
     cpu.FPSR.CC_N = true;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 4);
     BOOST_TEST(!cpu.FPSR.BSUN);
 }
@@ -597,7 +596,7 @@ BOOST_AUTO_TEST_CASE(T1) {
     TEST::SET_W(0, 0171200 | 0xC);
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_NAN = true;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 0x102);
     BOOST_TEST(!cpu.FPSR.BSUN);
 }
@@ -606,7 +605,7 @@ BOOST_AUTO_TEST_CASE(T2) {
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_Z = false;
     cpu.FPSR.CC_N = true;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 0x102);
 }
 
@@ -615,7 +614,7 @@ BOOST_AUTO_TEST_CASE(F1) {
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_N = false;
     cpu.FPSR.CC_NAN = false;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 4);
     BOOST_TEST(!cpu.FPSR.BSUN);
 }
@@ -624,7 +623,7 @@ BOOST_AUTO_TEST_CASE(F2) {
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_Z = true;
     cpu.FPSR.CC_NAN = false;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 4);
     BOOST_TEST(!cpu.FPSR.BSUN);
 }
@@ -637,7 +636,7 @@ BOOST_AUTO_TEST_CASE(T1) {
     cpu.FPSR.CC_N = true;
     cpu.FPSR.CC_NAN = false;
     cpu.FPSR.CC_Z = false;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 0x102);
     BOOST_TEST(!cpu.FPSR.BSUN);
 }
@@ -645,7 +644,7 @@ BOOST_AUTO_TEST_CASE(F1) {
     TEST::SET_W(0, 0171200 | 0x4);
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_N = false;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 4);
 }
 
@@ -653,7 +652,7 @@ BOOST_AUTO_TEST_CASE(F2) {
     TEST::SET_W(0, 0171200 | 0x4);
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_NAN = true;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 4);
     BOOST_TEST(!cpu.FPSR.BSUN);
 }
@@ -661,7 +660,7 @@ BOOST_AUTO_TEST_CASE(F3) {
     TEST::SET_W(0, 0171200 | 0x4);
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_Z = true;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 4);
 }
 BOOST_AUTO_TEST_SUITE_END()
@@ -671,7 +670,7 @@ BOOST_AUTO_TEST_CASE(T1) {
     TEST::SET_W(0, 0171200 | 0xB);
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_NAN = true;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 0x102);
     BOOST_TEST(!cpu.FPSR.BSUN);
 }
@@ -680,7 +679,7 @@ BOOST_AUTO_TEST_CASE(T2) {
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_Z = true;
     cpu.FPSR.CC_N = false;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 0x102);
 }
 BOOST_AUTO_TEST_CASE(F1) {
@@ -688,7 +687,7 @@ BOOST_AUTO_TEST_CASE(F1) {
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_NAN = false;
     cpu.FPSR.CC_Z = false;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 4);
     BOOST_TEST(!cpu.FPSR.BSUN);
 }
@@ -698,7 +697,7 @@ BOOST_AUTO_TEST_CASE(F2) {
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_NAN = false;
     cpu.FPSR.CC_N = true;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 4);
     BOOST_TEST(!cpu.FPSR.BSUN);
 }
@@ -710,7 +709,7 @@ BOOST_AUTO_TEST_CASE(T1) {
     TEST::SET_W(0, 0171200 | 0x5);
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_Z = true;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 0x102);
 }
 BOOST_AUTO_TEST_CASE(T2) {
@@ -718,7 +717,7 @@ BOOST_AUTO_TEST_CASE(T2) {
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_N = true;
     cpu.FPSR.CC_NAN = false;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 0x102);
     BOOST_TEST(!cpu.FPSR.BSUN);
 }
@@ -727,7 +726,7 @@ BOOST_AUTO_TEST_CASE(F1) {
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_N = false;
     cpu.FPSR.CC_Z = false;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 4);
 }
 
@@ -736,7 +735,7 @@ BOOST_AUTO_TEST_CASE(F2) {
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_NAN = true;
     cpu.FPSR.CC_Z = false;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 4);
     BOOST_TEST(!cpu.FPSR.BSUN);
 }
@@ -748,7 +747,7 @@ BOOST_AUTO_TEST_CASE(T1) {
     TEST::SET_W(0, 0171200 | 0xA);
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_NAN = true;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 0x102);
     BOOST_TEST(!cpu.FPSR.BSUN);
 }
@@ -757,7 +756,7 @@ BOOST_AUTO_TEST_CASE(T2) {
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_Z = true;
     cpu.FPSR.CC_N = false;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 0x102);
 }
 BOOST_AUTO_TEST_CASE(F1) {
@@ -765,7 +764,7 @@ BOOST_AUTO_TEST_CASE(F1) {
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_NAN = false;
     cpu.FPSR.CC_Z = false;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 4);
     BOOST_TEST(!cpu.FPSR.BSUN);
 }
@@ -775,7 +774,7 @@ BOOST_AUTO_TEST_CASE(F2) {
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_NAN = false;
     cpu.FPSR.CC_N = true;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 4);
     BOOST_TEST(!cpu.FPSR.BSUN);
 }
@@ -788,7 +787,7 @@ BOOST_AUTO_TEST_CASE(T) {
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_NAN = false;
     cpu.FPSR.CC_Z = false;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 0x102);
     BOOST_TEST(!cpu.FPSR.BSUN);
 }
@@ -796,7 +795,7 @@ BOOST_AUTO_TEST_CASE(F1) {
     TEST::SET_W(0, 0171200 | 0x6);
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_NAN = true;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 4);
     BOOST_TEST(!cpu.FPSR.BSUN);
 }
@@ -805,7 +804,7 @@ BOOST_AUTO_TEST_CASE(F2) {
     TEST::SET_W(0, 0171200 | 0x6);
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_Z = true;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 4);
     BOOST_TEST(!cpu.FPSR.BSUN);
 }
@@ -817,7 +816,7 @@ BOOST_AUTO_TEST_CASE(T1) {
     TEST::SET_W(0, 0171200 | 0x9);
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_NAN = true;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 0x102);
     BOOST_TEST(!cpu.FPSR.BSUN);
 }
@@ -825,7 +824,7 @@ BOOST_AUTO_TEST_CASE(T2) {
     TEST::SET_W(0, 0171200 | 0x9);
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_Z = true;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 0x102);
 }
 
@@ -834,7 +833,7 @@ BOOST_AUTO_TEST_CASE(F) {
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_NAN = false;
     cpu.FPSR.CC_Z = false;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 4);
     BOOST_TEST(!cpu.FPSR.BSUN);
 }
@@ -846,7 +845,7 @@ BOOST_AUTO_TEST_CASE(T) {
     TEST::SET_W(0, 0171200 | 0x7);
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_NAN = false;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 0x102);
     BOOST_TEST(!cpu.FPSR.BSUN);
 }
@@ -855,7 +854,7 @@ BOOST_AUTO_TEST_CASE(F) {
     TEST::SET_W(0, 0171200 | 0x7);
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_NAN = true;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 4);
     BOOST_TEST(!cpu.FPSR.BSUN);
 }
@@ -867,7 +866,7 @@ BOOST_AUTO_TEST_CASE(T) {
     TEST::SET_W(0, 0171200 | 0x8);
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_NAN = true;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 0x102);
     BOOST_TEST(!cpu.FPSR.BSUN);
 }
@@ -876,7 +875,7 @@ BOOST_AUTO_TEST_CASE(F) {
     TEST::SET_W(0, 0171200 | 0x8);
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_NAN = false;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 4);
     BOOST_TEST(!cpu.FPSR.BSUN);
 }
@@ -885,21 +884,21 @@ BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_CASE(F) {
     TEST::SET_W(0, 0171200 | 0);
     TEST::SET_W(2, 0x100);
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 4);
 }
 BOOST_AUTO_TEST_CASE(T) {
     TEST::SET_W(0, 0171200 | 0xF);
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_Z = true;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 0x102);
 }
 BOOST_DATA_TEST_CASE(SF, bdata::xrange(2), is_nan) {
     TEST::SET_W(0, 0171200 | 0x10);
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_NAN = is_nan;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 4);
     BOOST_TEST(cpu.FPSR.BSUN == is_nan);
 }
@@ -908,7 +907,7 @@ BOOST_DATA_TEST_CASE(ST, bdata::xrange(2), is_nan) {
     TEST::SET_W(0, 0171200 | 0x1F);
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_NAN = is_nan;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 0x102);
     BOOST_TEST(cpu.FPSR.BSUN == is_nan);
 }
@@ -919,7 +918,7 @@ BOOST_DATA_TEST_CASE(T, bdata::xrange(2), is_nan) {
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_Z = true;
     cpu.FPSR.CC_NAN = is_nan;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 0x102);
     BOOST_TEST(cpu.FPSR.BSUN == is_nan);
 }
@@ -928,7 +927,7 @@ BOOST_DATA_TEST_CASE(F, bdata::xrange(2), is_nan) {
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_Z = false;
     cpu.FPSR.CC_NAN = is_nan;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 4);
     BOOST_TEST(cpu.FPSR.BSUN == is_nan);
 }
@@ -939,7 +938,7 @@ BOOST_DATA_TEST_CASE(T, bdata::xrange(2), is_nan) {
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_Z = false;
     cpu.FPSR.CC_NAN = is_nan;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 0x102);
     BOOST_TEST(cpu.FPSR.BSUN == is_nan);
 }
@@ -948,7 +947,7 @@ BOOST_DATA_TEST_CASE(F, bdata::xrange(2), is_nan) {
     TEST::SET_W(2, 0x100);
     cpu.FPSR.CC_Z = true;
     cpu.FPSR.CC_NAN = is_nan;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 4);
     BOOST_TEST(cpu.FPSR.BSUN == is_nan);
 }

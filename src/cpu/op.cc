@@ -681,7 +681,11 @@ void stop(uint16_t, int, int, int) {
     PRIV_CHECK();
     uint16_t nw = FETCH();
     SetSR(nw);
-    cpu.sleep = true;
+    {
+         std::unique_lock<std::mutex> lk(cpu.mtx_);
+        cpu.sleeping = true;
+        cpu.cond_.wait(lk, []() { return ! cpu.sleeping; });
+    }
     TRACE_BRANCH();
 }
 
@@ -781,7 +785,7 @@ void subq_l(uint16_t, int dn, int type, int reg) {
 
 void addq_an(uint16_t, int dn, int, int reg) { cpu.A[reg] += dn ? dn : 8; }
 
-void subq_an(uint16_t, int dn, int, int reg) { cpu.A[reg] += dn ? dn : 8; }
+void subq_an(uint16_t, int dn, int, int reg) { cpu.A[reg] -= dn ? dn : 8; }
 
 bool testCC(int cc) {
     switch(cc) {
@@ -863,7 +867,7 @@ void bxx(uint16_t op, int, int, int) {
     int8_t imm8 = op & 0xff;
     int32_t imm;
     if(imm8 == 0) {
-        imm = FETCH();
+        imm = static_cast<int16_t>(FETCH());
     } else if(imm8 == -1) {
         imm = FETCH32();
     } else {

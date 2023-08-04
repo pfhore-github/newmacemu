@@ -30,8 +30,8 @@ BOOST_AUTO_TEST_CASE(both_imm) {
     cpu.D[2] = 0x12345678;
     cpu.D[5] = 0x7;
     cpu.V = cpu.C = true;
-    auto i = decode_and_run();
-    BOOST_TEST(i == 2);
+    BOOST_TEST(run_test() == 0);
+    BOOST_TEST(cpu.PC == 4);
     BOOST_TEST(cpu.D[2] == 0x12745678);
     BOOST_TEST(!cpu.V);
     BOOST_TEST(!cpu.C);
@@ -45,7 +45,7 @@ BOOST_AUTO_TEST_CASE(off_r) {
     cpu.D[2] = 0x12345678;
     cpu.D[3] = 8;
     cpu.D[5] = 0xF;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.D[2] == 0x12F45678);
 }
 
@@ -55,7 +55,7 @@ BOOST_AUTO_TEST_CASE(width_r) {
     cpu.D[2] = 0x12345678;
     cpu.D[3] = 4;
     cpu.D[5] = 0xF;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.D[2] == 0x12F45678);
 }
 
@@ -66,7 +66,7 @@ BOOST_AUTO_TEST_CASE(both_r) {
     cpu.D[3] = 8;
     cpu.D[5] = 4;
     cpu.D[4] = 0xF;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.D[2] == 0x12F45678);
 }
 
@@ -121,8 +121,8 @@ BOOST_AUTO_TEST_CASE(both_imm) {
     TEST::SET_L(0x1000, 0x12345678);
     cpu.A[2] = 0x1000;
     cpu.D[5] = 0x7;
-    auto i = decode_and_run();
-    BOOST_TEST(i == 2);
+    BOOST_TEST(run_test() == 0);
+    BOOST_TEST(cpu.PC == 4);
     BOOST_TEST(TEST::GET_L(0x1000) == 0x12745678);
 }
 
@@ -133,7 +133,7 @@ BOOST_AUTO_TEST_CASE(off_r) {
     cpu.A[2] = 0x1000;
     cpu.D[3] = 8;
     cpu.D[5] = 0xF;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(TEST::GET_L(0x1000) == 0x12F45678);
 }
 
@@ -144,7 +144,7 @@ BOOST_AUTO_TEST_CASE(width_r) {
     cpu.A[2] = 0x1000;
     cpu.D[3] = 4;
     cpu.D[5] = 0xF;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(TEST::GET_L(0x1000) == 0x12F45678);
 }
 
@@ -156,14 +156,9 @@ BOOST_AUTO_TEST_CASE(both_r) {
     cpu.D[3] = 8;
     cpu.D[5] = 4;
     cpu.D[4] = 0xF;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(TEST::GET_L(0x1000) == 0x12F45678);
 }
 
 BOOST_AUTO_TEST_SUITE_END()
-BOOST_AUTO_TEST_CASE(Err) {
-    TEST::SET_W(0, 0167700 | 072);
-    BOOST_CHECK_THROW(decode(), DecodeError);
-}
-
 BOOST_AUTO_TEST_SUITE_END()

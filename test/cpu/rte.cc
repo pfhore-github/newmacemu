@@ -1,30 +1,39 @@
 #define BOOST_TEST_DYN_LINK
 #include "68040.hpp"
+#include "memory.hpp"
 #include "test.hpp"
 #include <boost/test/data/monomorphic.hpp>
 #include <boost/test/data/test_case.hpp>
 #include <boost/test/unit_test.hpp>
 namespace bdata = boost::unit_test::data;
 BOOST_FIXTURE_TEST_SUITE(RTE, Prepare)
-BOOST_AUTO_TEST_CASE(Disasm) {
-    TEST::SET_W(0, 0047163);
-    BOOST_TEST(disasm() == "RTE");
-}
+
 BOOST_AUTO_TEST_SUITE(format)
-BOOST_DATA_TEST_CASE(type0, bdata::xrange(2), T) {
+BOOST_AUTO_TEST_CASE(type0) {
     cpu.S = true;
     cpu.M = true;
     cpu.A[7] = 0x1000;
-    TEST::SET_W(0x1000, 0x1F | T << 14);
+    TEST::SET_W(0x1000, 0x1F);
     TEST::SET_L(0x1002, 0x40);
     TEST::SET_W(0x1006, 0 << 12 | 3);
 
     TEST::SET_W(0, 0047163);
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.MSP == 0x1008);
     BOOST_TEST(cpu.PC == 0x40);
-    BOOST_TEST(cpu.must_trace == !!T);
     BOOST_TEST(!cpu.S);
+}
+
+BOOST_AUTO_TEST_CASE(type0_trace) {
+    cpu.S = true;
+    cpu.M = true;
+    cpu.A[7] = 0x1000;
+    TEST::SET_W(0x1000, 0x1F | 1 << 14);
+    TEST::SET_L(0x1002, 0x40);
+    TEST::SET_W(0x1006, 0 << 12 | 3);
+
+    TEST::SET_W(0, 0047163);
+    BOOST_TEST(run_test() == 9);
 }
 
 BOOST_AUTO_TEST_CASE(type1) {
@@ -40,7 +49,7 @@ BOOST_AUTO_TEST_CASE(type1) {
     TEST::SET_W(0x100E, 0 << 12 | 3);
 
     TEST::SET_W(0, 0047163);
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.ISP == 0x1010);
     BOOST_TEST(cpu.PC == 0x40);
     BOOST_TEST(!cpu.S);
@@ -55,7 +64,7 @@ BOOST_AUTO_TEST_CASE(type2) {
     TEST::SET_L(0x1008, 0); // unused
 
     TEST::SET_W(0, 0047163);
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.MSP == 0x100C);
     BOOST_TEST(cpu.PC == 0x40);
     BOOST_TEST(!cpu.S);
@@ -71,11 +80,12 @@ BOOST_AUTO_TEST_CASE(type3) {
     TEST::SET_L(0x1008, 0); // unused
 
     TEST::SET_W(0, 0047163);
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.MSP == 0x100C);
     BOOST_TEST(cpu.PC == 0x40);
     BOOST_TEST(!cpu.S);
 }
+
 
 BOOST_AUTO_TEST_CASE(type7_norestart) {
     cpu.S = true;
@@ -88,7 +98,7 @@ BOOST_AUTO_TEST_CASE(type7_norestart) {
     TEST::SET_W(0x100C, 0);
 
     TEST::SET_W(0, 0047163);
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.MSP == 0x1000 + 60);
     BOOST_TEST(cpu.PC == 0x40);
     BOOST_TEST(!cpu.S);
@@ -105,7 +115,7 @@ BOOST_AUTO_TEST_CASE(type7_movem) {
     TEST::SET_W(0x100C, 1 << 12);
 
     TEST::SET_W(0, 0047163);
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.MSP == 0x1000 + 60);
     BOOST_TEST(cpu.PC == 0x40);
     BOOST_TEST(!cpu.S);
@@ -123,7 +133,7 @@ BOOST_AUTO_TEST_CASE(type7_trace) {
     TEST::SET_W(0x100C, 1 << 13);
 
     TEST::SET_W(0, 0047163);
-    decode_and_run();
+    BOOST_TEST(run_test() == 9);
     BOOST_TEST(TEST::GET_W(0x1030) == 0x101F);
     BOOST_TEST(TEST::GET_L(0x1032) == 0x40);
     BOOST_TEST(TEST::GET_W(0x1036) == (0x2000 | (9 << 2)));
@@ -224,7 +234,6 @@ BOOST_AUTO_TEST_CASE(TRAPxx) {
     BOOST_TEST(cpu.PC == 0x3000);
 }
 
-
 BOOST_AUTO_TEST_CASE(PRIV_VIOLATION) {
     cpu.in_exception = false;
     cpu.S = false;
@@ -320,7 +329,7 @@ BOOST_DATA_TEST_CASE(TRAPn, bdata::xrange(16), n) {
     cpu.in_exception = false;
     cpu.S = false;
     cpu.VBR = 0x2000;
-    TEST::SET_L(0x2000 | ((32+n )<< 2), 0x3000);
+    TEST::SET_L(0x2000 | ((32 + n) << 2), 0x3000);
     cpu.ISP = cpu.MSP = 0x1008;
     cpu.oldpc = 0x100;
     cpu.PC = 0x102;
@@ -330,7 +339,7 @@ BOOST_DATA_TEST_CASE(TRAPn, bdata::xrange(16), n) {
     BOOST_TEST(cpu.S);
     BOOST_TEST(cpu.T == 0);
     BOOST_TEST(TEST::GET_L(0x1002) == 0x102);
-    BOOST_TEST(TEST::GET_W(0x1006) == (0x0000 | ((32+n) << 2)));
+    BOOST_TEST(TEST::GET_W(0x1006) == (0x0000 | ((32 + n) << 2)));
     BOOST_TEST(cpu.PC == 0x3000);
 }
 
@@ -473,5 +482,191 @@ BOOST_AUTO_TEST_CASE(SNAN_) {
     BOOST_TEST(TEST::GET_L(0x1008) == 0x4500);
     BOOST_TEST(cpu.PC == 0x3000);
 }
+struct AccessErrorBase : Prepare {
+    AccessErrorBase() {
+        cpu.af_value.MA = false;
+        cpu.in_exception = false;
+        cpu.S = false;
+        cpu.VBR = 0x2000;
+        TEST::SET_L(0x2000 | (2 << 2), 0x3000);
+        cpu.ISP = cpu.MSP = 0x1000 + 60;
+        cpu.oldpc = 0x100;
+        cpu.PC = 0x102;
+        cpu.af_value.CM = false;
+    }
+};
+BOOST_FIXTURE_TEST_SUITE(AccessError, AccessErrorBase)
+BOOST_AUTO_TEST_SUITE(Read)
+BOOST_AUTO_TEST_CASE(B) {
+    if(setjmp(cpu.ex_buf) == 0) {
+        cpu.EA = 0xfffffff0;
+        ReadB(0xfffffffe);
+    }
+    BOOST_TEST(cpu.S);
+    BOOST_TEST(cpu.T == 0);
+    BOOST_TEST(TEST::GET_L(0x1002) == 0x100);
+    BOOST_TEST(TEST::GET_W(0x1006) == (0x7000 | (2 << 2)));
+    BOOST_TEST(TEST::GET_W(0x100C) == (1 << 8 | 1 << 5 | 1));
+    BOOST_TEST(TEST::GET_L(0x1014) == 0xfffffffe);
+    BOOST_TEST(cpu.PC == 0x3000);
+}
+
+BOOST_AUTO_TEST_CASE(W) {
+    if(setjmp(cpu.ex_buf) == 0) {
+        ReadW(0xfffffffe);
+    }
+    BOOST_TEST(cpu.S);
+    BOOST_TEST(cpu.T == 0);
+    BOOST_TEST(TEST::GET_L(0x1002) == 0x100);
+    BOOST_TEST(TEST::GET_W(0x1006) == (0x7000 | (2 << 2)));
+    BOOST_TEST(TEST::GET_W(0x100C) == (1 << 8 | 2 << 5 | 1));
+    BOOST_TEST(TEST::GET_L(0x1014) == 0xfffffffe);
+    BOOST_TEST(cpu.PC == 0x3000);
+}
+
+BOOST_AUTO_TEST_CASE(W_half) {
+    uint32_t a = 0x3FFFFFF;
+    if(setjmp(cpu.ex_buf) == 0) {
+        ReadW(a);
+    }
+    BOOST_TEST(cpu.S);
+    BOOST_TEST(cpu.T == 0);
+    BOOST_TEST(TEST::GET_L(0x1002) == 0x100);
+    BOOST_TEST(TEST::GET_W(0x1006) == (0x7000 | (2 << 2)));
+    BOOST_TEST(TEST::GET_W(0x100C) == (1 << 11 | 1 << 8 | 2 << 5 | 1));
+    BOOST_TEST(TEST::GET_L(0x1014) == a);
+    BOOST_TEST(cpu.PC == 0x3000);
+}
+
+BOOST_AUTO_TEST_CASE(L) {
+    if(setjmp(cpu.ex_buf) == 0) {
+        ReadL(0xfffffff0);
+    }
+    BOOST_TEST(cpu.S);
+    BOOST_TEST(cpu.T == 0);
+    BOOST_TEST(TEST::GET_L(0x1002) == 0x100);
+    BOOST_TEST(TEST::GET_W(0x1006) == (0x7000 | (2 << 2)));
+    BOOST_TEST(TEST::GET_W(0x100C) == (1 << 8 | 0 << 5 | 1));
+    BOOST_TEST(TEST::GET_L(0x1014) == 0xfffffff0);
+    BOOST_TEST(cpu.PC == 0x3000);
+}
+
+BOOST_AUTO_TEST_CASE(L_half) {
+    uint32_t a = 0x3FFFFFE;
+    if(setjmp(cpu.ex_buf) == 0) {
+        ReadL(a);
+    }
+    BOOST_TEST(cpu.S);
+    BOOST_TEST(cpu.T == 0);
+    BOOST_TEST(TEST::GET_L(0x1002) == 0x100);
+    BOOST_TEST(TEST::GET_W(0x1006) == (0x7000 | (2 << 2)));
+    BOOST_TEST(TEST::GET_W(0x100C) == (1 << 11 | 1 << 8 | 0 << 5 | 1));
+    BOOST_TEST(TEST::GET_L(0x1014) == a);
+    BOOST_TEST(cpu.PC == 0x3000);
+}
+
+
+BOOST_AUTO_TEST_SUITE_END()
+BOOST_AUTO_TEST_SUITE(Write)
+BOOST_AUTO_TEST_CASE(B) {
+    if(setjmp(cpu.ex_buf) == 0) {
+        WriteB(0xfffffffe, 1);
+    }
+    BOOST_TEST(cpu.S);
+    BOOST_TEST(cpu.T == 0);
+    BOOST_TEST(TEST::GET_L(0x1002) == 0x100);
+    BOOST_TEST(TEST::GET_W(0x1006) == (0x7000 | (2 << 2)));
+    BOOST_TEST(TEST::GET_W(0x100C) == (1 << 5 | 1));
+    BOOST_TEST(TEST::GET_L(0x1014) == 0xfffffffe);
+    BOOST_TEST(cpu.PC == 0x3000);
+}
+
+BOOST_AUTO_TEST_CASE(W) {
+    if(setjmp(cpu.ex_buf) == 0) {
+       WriteW(0xfffffffe, 1);
+    }
+    BOOST_TEST(cpu.S);
+    BOOST_TEST(cpu.T == 0);
+    BOOST_TEST(TEST::GET_L(0x1002) == 0x100);
+    BOOST_TEST(TEST::GET_W(0x1006) == (0x7000 | (2 << 2)));
+    BOOST_TEST(TEST::GET_W(0x100C) == (2 << 5 | 1));
+    BOOST_TEST(TEST::GET_L(0x1014) == 0xfffffffe);
+    BOOST_TEST(cpu.PC == 0x3000);
+}
+
+BOOST_AUTO_TEST_CASE(W_half) {
+     uint32_t a = 0x3FFFFFF;
+    if(setjmp(cpu.ex_buf) == 0) {
+       WriteW(a, 1);
+    }
+    BOOST_TEST(cpu.S);
+    BOOST_TEST(cpu.T == 0);
+    BOOST_TEST(TEST::GET_L(0x1002) == 0x100);
+    BOOST_TEST(TEST::GET_W(0x1006) == (0x7000 | (2 << 2)));
+    BOOST_TEST(TEST::GET_W(0x100C) == (1 << 11 | 2 << 5 | 1));
+    BOOST_TEST(TEST::GET_L(0x1014) == a);
+    BOOST_TEST(cpu.PC == 0x3000);
+}
+
+BOOST_AUTO_TEST_CASE(L) {
+    if(setjmp(cpu.ex_buf) == 0) {
+         WriteL(0xfffffff0, 1);
+    }
+    BOOST_TEST(cpu.S);
+    BOOST_TEST(cpu.T == 0);
+    BOOST_TEST(TEST::GET_L(0x1002) == 0x100);
+    BOOST_TEST(TEST::GET_W(0x1006) == (0x7000 | (2 << 2)));
+    BOOST_TEST(TEST::GET_W(0x100C) == (0 << 5 | 1));
+    BOOST_TEST(TEST::GET_L(0x1014) == 0xfffffff0);
+    BOOST_TEST(cpu.PC == 0x3000);
+}
+
+BOOST_AUTO_TEST_CASE(L_half) {
+     uint32_t a = 0x3FFFFFE;
+    if(setjmp(cpu.ex_buf) == 0) {
+       WriteL(a, 1);
+    }
+    BOOST_TEST(cpu.S);
+    BOOST_TEST(cpu.T == 0);
+    BOOST_TEST(TEST::GET_L(0x1002) == 0x100);
+    BOOST_TEST(TEST::GET_W(0x1006) == (0x7000 | (2 << 2)));
+    BOOST_TEST(TEST::GET_W(0x100C) == (1 << 11 | 0 << 5 | 1));
+    BOOST_TEST(TEST::GET_L(0x1014) == a);
+    BOOST_TEST(cpu.PC == 0x3000);
+}
+BOOST_AUTO_TEST_SUITE_END()
+BOOST_AUTO_TEST_CASE(movem) {
+     cpu.af_value.CM = true;
+     cpu.EA = 0xffffffe0;
+    if(setjmp(cpu.ex_buf) == 0) {
+        ReadL(0xfffffff0);
+    }
+    BOOST_TEST(cpu.S);
+    BOOST_TEST(cpu.T == 0);
+    BOOST_TEST(TEST::GET_L(0x1002) == 0x100);
+    BOOST_TEST(TEST::GET_W(0x1006) == (0x7000 | (2 << 2)));
+    BOOST_TEST(TEST::GET_L(0x1008) == 0xffffffe0);
+    BOOST_TEST(TEST::GET_W(0x100C) & 1 << 12);
+    BOOST_TEST(TEST::GET_L(0x1014) == 0xfffffff0);
+    BOOST_TEST(cpu.PC == 0x3000);
+}
+
+BOOST_AUTO_TEST_CASE(trace) {
+     cpu.must_trace = true;
+     cpu.EA = 0xffffffe0;
+    if(setjmp(cpu.ex_buf) == 0) {
+        ReadL(0xfffffff0);
+    }
+    BOOST_TEST(cpu.S);
+    BOOST_TEST(cpu.T == 0);
+    BOOST_TEST(TEST::GET_L(0x1002) == 0x100);
+    BOOST_TEST(TEST::GET_W(0x1006) == (0x7000 | (2 << 2)));
+    BOOST_TEST(TEST::GET_L(0x1008) == 0xffffffe0);
+    BOOST_TEST(TEST::GET_W(0x100C) & 1 << 13);
+    BOOST_TEST(TEST::GET_L(0x1014) == 0xfffffff0);
+    BOOST_TEST(cpu.PC == 0x3000);
+}
+BOOST_AUTO_TEST_SUITE_END()
+
 BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE_END()

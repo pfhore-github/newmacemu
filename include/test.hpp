@@ -8,7 +8,6 @@
 #include <vector>
 extern std::vector<uint8_t> RAM;
 void reset_fpu();
-void decode();
 std::string disasm();
 
 struct Prepare {
@@ -37,7 +36,7 @@ inline void SET_L(uint32_t addr, uint32_t v) {
 extern const double sg_v[2];
 extern const mpfr_rnd_t RND_MODES[4];
 
-int decode_and_run();
+int run_test();
 
 void qnan_test(uint16_t op);
 void snan_test(uint16_t op);

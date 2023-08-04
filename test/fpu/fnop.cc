@@ -8,7 +8,7 @@ namespace bdata = boost::unit_test::data;
 BOOST_FIXTURE_TEST_CASE(FNOP, Prepare) {
     TEST::SET_W(0, 0171200);
     TEST::SET_W(2, 0);
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 0x4);
 
 }

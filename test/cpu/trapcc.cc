@@ -1,34 +1,36 @@
 #define BOOST_TEST_DYN_LINK
 #include "68040.hpp"
 #include "test.hpp"
+#include <fmt/core.h>
 #include <boost/test/data/monomorphic.hpp>
 #include <boost/test/data/test_case.hpp>
 #include <boost/test/unit_test.hpp>
 namespace bdata = boost::unit_test::data;
 void trap_ng() {
-    decode_and_run();
-    BOOST_TEST(GET_EXCEPTION() == 7);
+    BOOST_TEST(run_test() == 7);
 }
 void trap_ok() {
-    decode_and_run();
-    BOOST_TEST_PASSPOINT();
+    BOOST_TEST(run_test() == 0);
 }
+
 BOOST_FIXTURE_TEST_SUITE(TRAPcc, Prepare)
+
 BOOST_AUTO_TEST_CASE(noext) {
     TEST::SET_W(0, 0050370 | 1 << 8 | 4);
-    auto i = decode_and_run();
-    BOOST_TEST(i == 0);
+    BOOST_TEST(run_test() == 0);
+    BOOST_TEST(cpu.PC == 2);
 }
 
 BOOST_AUTO_TEST_CASE(extW) {
     TEST::SET_W(0, 0050370 | 1 << 8 | 2);
-    auto i = decode_and_run();
-    BOOST_TEST(i == 2);
+    BOOST_TEST(run_test() == 0);
+    BOOST_TEST(cpu.PC == 4);
 }
+
 BOOST_AUTO_TEST_CASE(extL) {
     TEST::SET_W(0, 0050370 | 1 << 8 | 3);
-    auto i = decode_and_run();
-    BOOST_TEST(i == 4);
+    BOOST_TEST(run_test() == 0);
+    BOOST_TEST(cpu.PC == 6);
 }
 BOOST_AUTO_TEST_CASE(T) {
     TEST::SET_W(0, 0050370 | 0 << 8 | 4);

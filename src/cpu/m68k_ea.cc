@@ -12,10 +12,10 @@ static uint32_t parseExt(int reg) {
     uint32_t base = reg >= 0 ? cpu.A[reg] : cpu.PC;
     uint16_t next = FETCH();
     int ri = next >> 12 & 15;
-    bool ri_w = next & 1 << 11;
+    bool ri_l = next & 1 << 11;
     int ri_c = next >> 9 & 3;
     uint32_t rn_v = cpu.R(ri);
-    if(ri_w) {
+    if(!ri_l) {
         rn_v = static_cast<int16_t>(rn_v & 0xffff);
     }
     rn_v <<= ri_c;

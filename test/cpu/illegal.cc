@@ -5,7 +5,10 @@
 #include <boost/test/data/test_case.hpp>
 #include <boost/test/unit_test.hpp>
 namespace bdata = boost::unit_test::data;
-BOOST_FIXTURE_TEST_CASE(ILLEGAL, Prepare) {
+BOOST_FIXTURE_TEST_SUITE(ILLEGAL, Prepare)
+
+BOOST_AUTO_TEST_CASE(execute) {
     TEST::SET_W(0, 0045374);
-    BOOST_CHECK_THROW(decode(), DecodeError);
+    BOOST_TEST(run_test() == 4);
 }
+BOOST_AUTO_TEST_SUITE_END()

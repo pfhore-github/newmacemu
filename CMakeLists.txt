@@ -7,20 +7,30 @@ include(CheckIPOSupported)
 
 check_ipo_supported(RESULT result)
 
-find_package(SDL2 REQUIRED CONFIG REQUIRED COMPONENTS SDL2)
+find_package(SDL2 REQUIRED CONFIG REQUIRED COMPONENTS SDL2 )
+find_package(SDL2_net REQUIRED)
+find_package(SDL2_ttf REQUIRED)
+find_package(Threads REQUIRED)
 enable_language(CXX)
 set(CMAKE_CXX_STANDARD 23) 
 # set(CMAKE_CXX_STANDARD_REQUIRED ON) 
 find_package(Boost REQUIRED CONFIG REQUIRED COMPONENTS unit_test_framework)
 if(CMAKE_COMPILER_IS_GNUCXX)
   # Update if necessary
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra --coverage")
-  set(CMAKE_EXE_LINKER_FLAGS "--coverage")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra")
+#  set(CMAKE_EXE_LINKER_FLAGS "--coverage")
 endif()
 set(SRC_CPU src/cpu/op.cc src/cpu/run.cc src/cpu/m68k_ea.cc src/cpu/bcd.cc src/cpu/arithmetic.cc src/cpu/bits.cc src/cpu/bitfield.cc
-src/cpu/68040_mmu.cc src/cpu/branch.cc src/cpu/disasm.cc
-src/cpu/exception.cc src/cpu/op_move.cc src/cpu/68040_fpu.cc src/bus.cc src/memory.cc )
-add_executable(newmacemu ${SRC_CPU} src/main.cc src/cpu/disasm.cc src/io.cc src/chip/via.cpp)
+src/cpu/68040_mmu.cc src/cpu/branch.cc src/debugger/disasm.cc
+src/cpu/exception.cc src/cpu/op_move.cc src/cpu/68040_fpu.cc src/bus.cc src/memory.cc 
+
+
+)
+add_executable(newmacemu ${SRC_CPU} 
+src/main.cc src/debugger/debugger.cc src/io.cc src/chip/via.cc src/ebus/adb.cc src/video.cc
+src/chip/rtc.cc
+src/rom/macrom.cc
+)
 add_executable(testcpu ${SRC_CPU} test/test_main.cc 
 test/cpu/ea.cc 
 test/cpu/abcd.cc test/cpu/nbcd.cc 
@@ -44,7 +54,7 @@ test/cpu/illegal.cc  test/cpu/nop.cc test/cpu/trap.cc  test/cpu/trapcc.cc test/c
 test/cpu/link.cc test/cpu/rtd.cc  test/cpu/rtr.cc test/cpu/rts.cc test/cpu/unlk.cc
 test/cpu/move.cc test/cpu/movea.cc test/cpu/move16.cc test/cpu/movem.cc test/cpu/movep.cc test/cpu/moveq.cc
 test/cpu/or.cc test/cpu/ori.cc
-test/cpu/tas.cc test/cpu/tst.cc
+test/cpu/tas.cc test/cpu/tst.cc test/cpu/syscall.cc
 test/fpu/common.cc
 test/fpu/fabs.cc test/fpu/fneg.cc  test/fpu/fsub.cc test/fpu/ftan.cc  test/fpu/ftanh.cc
 test/fpu/facos.cc test/fpu/fasin.cc  test/fpu/fatanh.cc  test/fpu/fsinh.cc  test/fpu/fcosh.cc
@@ -63,12 +73,22 @@ test/cpu/cinv.cc test/cpu/cpush.cc test/fpu/frestore.cc test/fpu/fsave.cc
 test/cpu/movec.cc test/cpu/moves.cc test/mmu/pflush.cc 
 test/cpu/reset.cc test/cpu/rte.cc test/cpu/stop.cc
 test/mmu/ptest.cc
+
+test/debugger/disasm_ea.cc
+test/debugger/disasm0.cc
+test/debugger/disasm1_3.cc
+test/debugger/disasm4.cc
+test/debugger/disasm5_7.cc
+test/debugger/disasm8_D.cc
+test/debugger/disasmE.cc
+test/debugger/disasmF.cc
 ) 
 if(result)
   set_property(TARGET newmacemu PROPERTY INTERPROCEDURAL_OPTIMIZATION_Release TRUE)
   set_property(TARGET testcpu PROPERTY INTERPROCEDURAL_OPTIMIZATION_Release TRUE)
 endif()
-target_link_libraries(newmacemu gmp mpfr SDL2::SDL2 fmt)
+target_compile_definitions(testcpu PUBLIC CI)
+target_link_libraries(newmacemu gmp mpfr SDL2::SDL2 fmt SDL2_net Threads::Threads SDL2_ttf)
 target_include_directories(newmacemu PRIVATE "./include")
 target_link_libraries(testcpu gmp mpfr SDL2::SDL2 fmt Boost::unit_test_framework)
 target_include_directories(testcpu PRIVATE "./include" ${Boost_INCLUDE_DIRS})
@@ -159,7 +179,7 @@ add_test(NAME trap COMMAND $<TARGET_FILE:testcpu> -t "TRAP/*")
 add_test(NAME trapcc COMMAND $<TARGET_FILE:testcpu> -t "TRAPcc/*")
 add_test(NAME trapv COMMAND $<TARGET_FILE:testcpu> -t "TRAPV/*")
 add_test(NAME tst COMMAND $<TARGET_FILE:testcpu> -t "TST/*")
-add_test(NAME unlk COMMAND $<TARGET_FILE:testcpu> -t "UNLK"/*)
+add_test(NAME unlk COMMAND $<TARGET_FILE:testcpu> -t "UNLK/*")
 add_test(NAME unpk COMMAND $<TARGET_FILE:testcpu> -t "UNPK/*")
 
 
@@ -242,4 +262,7 @@ add_test(NAME ptest COMMAND $<TARGET_FILE:testcpu> -t "PTEST*/*")
 add_test(NAME reset COMMAND $<TARGET_FILE:testcpu> -t "RESET/*")
 add_test(NAME rte COMMAND $<TARGET_FILE:testcpu> -t "RTE/*")
 add_test(NAME stop COMMAND $<TARGET_FILE:testcpu> -t "STOP/*")
+
+add_test(NAME disasm COMMAND $<TARGET_FILE:testcpu> -t "Disasm/*")
+
 

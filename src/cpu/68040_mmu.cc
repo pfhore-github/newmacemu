@@ -88,7 +88,6 @@ void Set_TTR_t(Cpu::TTR_t &x, uint32_t v) {
     x.CM = v >> 5 & 3;
     x.W = v & 1 << 2;
 }
-struct AccessFault {};
 mmu_result TEST_TTR(const Cpu::TTR_t &x, uint32_t addr, bool S) {
     if(!x.E) {
         return {};
@@ -303,25 +302,25 @@ FOUND : {
     return ret;
 }
 }
+__attribute__((noreturn)) void ATC_Fault() {
+    cpu.af_value.ATC = true;
+    throw AccessFault{};
+}
 uint32_t ptest_and_raise(uint32_t addr, bool sys, bool code, bool W) {
-    auto ret = ptest(addr, sys, code, W);
+    auto ret = ptest(addr >> 12, sys, code, W);
+    if(ret.B) {
+        ATC_Fault();
+    }
     if(!ret.R) {
-        cpu.af_value.MA = true;
-        throw AccessFault{};
+        ATC_Fault();
     }
     if(ret.W && W) {
-        cpu.af_value.MA = true;
-        throw AccessFault{};
-    }
-    if(ret.B) {
-        cpu.af_value.MA = true;
-        throw AccessFault{};
+        ATC_Fault();
     }
     if(ret.S && !sys) {
-        cpu.af_value.MA = true;
-        throw AccessFault{};
+        ATC_Fault();
     }
-    return ret.paddr << 12;
+    return (ret.paddr << 12) | (addr & 0xfff);
 }
 
 static uint32_t page_size() { return cpu.TCR_P ? 0x2000 : 0x100; }
@@ -330,13 +329,13 @@ extern run_t run_table[0x10000];
 
 void cinvl_d(uint32_t base) {
     base &= ~0xf;
-    (void) base;
+    (void)base;
     // date cache is not implemented
 }
 
 void cinvp_d(uint32_t base) {
     base &= ~(page_size() - 1);
-    (void) base;
+    (void)base;
     // date cache is not implemented
 }
 
@@ -346,13 +345,13 @@ void cinva_d() {
 
 void cpushl_d(uint32_t base) {
     base &= ~0xf;
-    (void) base;
+    (void)base;
     // date cache is not implemented
 }
 
 void cpushp_d(uint32_t base) {
     base &= ~(page_size() - 1);
-    (void) base;
+    (void)base;
     // date cache is not implemented
 }
 
@@ -362,13 +361,13 @@ void cpusha_d() {
 
 void cinvl_i(uint32_t base) {
     base &= ~0xf;
-    (void) base;
+    (void)base;
     // TODO: JIT cache must be refreshed
 }
 
 void cinvp_i(uint32_t base) {
     base &= ~(page_size() - 1);
-    (void) base;
+    (void)base;
     // TODO: JIT cache must be refreshed
 }
 
@@ -378,13 +377,13 @@ void cinva_i() {
 
 void cpushl_i(uint32_t base) {
     base &= ~0xf;
-    (void) base;
+    (void)base;
     // TODO: JIT cache must be refreshed
 }
 
 void cpushp_i(uint32_t base) {
     base &= ~(page_size() - 1);
-    (void) base;
+    (void)base;
     // TODO: JIT cache must be refreshed
 }
 
@@ -598,7 +597,6 @@ void init_run_table_mmu() {
         run_table[0172550 | r] = OP::ptestr;
     }
 }
-
 
 void op_ptest(uint32_t addr, bool w) {
     addr >>= 12;

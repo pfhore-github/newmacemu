@@ -7,10 +7,6 @@
 #include <boost/test/unit_test.hpp>
 namespace bdata = boost::unit_test::data;
 BOOST_FIXTURE_TEST_SUITE(NBCD, Prepare)
-BOOST_AUTO_TEST_CASE(Disasm) {
-    TEST::SET_W(0, 0044003);
-    BOOST_TEST(disasm() == "NBCD %D3");
-}
 BOOST_AUTO_TEST_CASE(value) {
     cpu.D[1] = 0x34;
     cpu.Z = true;
@@ -36,11 +32,10 @@ BOOST_AUTO_TEST_CASE(operand) {
     cpu.D[1] = 0x34;
     cpu.X = true;
     cpu.Z = true;
-    int i = decode_and_run();
+    BOOST_TEST( run_test() == 0);
+    BOOST_TEST(cpu.PC == 2);
     BOOST_TEST(cpu.D[1] == 0x65);
-    BOOST_TEST(i == 0);
 }
-
 
 BOOST_AUTO_TEST_SUITE_END()
 

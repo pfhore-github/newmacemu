@@ -7,6 +7,7 @@
 #include <boost/test/unit_test.hpp>
 namespace bdata = boost::unit_test::data;
 BOOST_FIXTURE_TEST_SUITE(BFEXTU, Prepare)
+
 BOOST_AUTO_TEST_SUITE(D)
 BOOST_AUTO_TEST_CASE(normal) {
     BOOST_TEST(BFEXTU_D(0x12345678, 8, 8) == 0x34);
@@ -28,8 +29,8 @@ BOOST_AUTO_TEST_CASE(both_imm) {
     TEST::SET_W(0, 0164700 | 2);
     TEST::SET_W(2, 5 << 12 | 8 << 6 | 4);
     cpu.D[2] = 0x12345678;
-    auto i = decode_and_run();
-    BOOST_TEST(i == 2);
+    BOOST_TEST(run_test() == 0);
+    BOOST_TEST(cpu.PC == 4);
     BOOST_TEST(cpu.D[5] == 3);
 }
 
@@ -38,7 +39,7 @@ BOOST_AUTO_TEST_CASE(off_r) {
     TEST::SET_W(2, 5 << 12 | 1 << 11 | 3 << 6 | 4);
     cpu.D[2] = 0x12345678;
     cpu.D[3] = 8;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.D[5] == 3);
 }
 
@@ -47,7 +48,7 @@ BOOST_AUTO_TEST_CASE(width_r) {
     TEST::SET_W(2, 5 << 12 | 1 << 5 | 8 << 6 | 3);
     cpu.D[2] = 0x12345678;
     cpu.D[3] = 4;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.D[5] == 3);
 }
 
@@ -57,7 +58,7 @@ BOOST_AUTO_TEST_CASE(both_r) {
     cpu.D[2] = 0x12345678;
     cpu.D[3] = 8;
     cpu.D[5] = 4;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.D[5] == 3);
 }
 
@@ -104,8 +105,8 @@ BOOST_AUTO_TEST_CASE(both_imm) {
     TEST::SET_W(2, 5 << 12 | 8 << 6 | 4);
     TEST::SET_L(0x1000, 0x12345678);
     cpu.A[2] = 0x1000;
-    auto i = decode_and_run();
-    BOOST_TEST(i == 2);
+    BOOST_TEST(run_test() == 0);
+    BOOST_TEST(cpu.PC == 4);
     BOOST_TEST(cpu.D[5] == 3);
 }
 
@@ -115,7 +116,7 @@ BOOST_AUTO_TEST_CASE(off_r) {
     TEST::SET_L(0x1000, 0x12345678);
     cpu.A[2] = 0x1000;
     cpu.D[3] = 8;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.D[5] == 3);
 }
 
@@ -125,7 +126,7 @@ BOOST_AUTO_TEST_CASE(width_r) {
     TEST::SET_L(0x1000, 0x12345678);
     cpu.A[2] = 0x1000;
     cpu.D[3] = 4;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.D[5] == 3);
 }
 
@@ -136,7 +137,7 @@ BOOST_AUTO_TEST_CASE(both_r) {
     cpu.A[2] = 0x1000;
     cpu.D[3] = 8;
     cpu.D[5] = 4;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.D[5] == 3);
 }
 

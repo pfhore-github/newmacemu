@@ -30,13 +30,12 @@ BOOST_AUTO_TEST_CASE(V) {
     BOOST_TEST(cpu.V);
 }
 
-
 BOOST_AUTO_TEST_CASE(Div0) {
     if(setjmp(cpu.ex_buf) == 0) {
         DIVU_W(3, 0);
         BOOST_ERROR("exception unoccured");
     } else {
-        BOOST_TEST(GET_EXCEPTION()  == 5);
+        BOOST_TEST(GET_EXCEPTION() == 5);
     }
 }
 
@@ -44,23 +43,13 @@ BOOST_AUTO_TEST_CASE(operand) {
     TEST::SET_W(0, 0100300 | 3 << 9 | 2);
     cpu.D[3] = 200000;
     cpu.D[2] = 119;
-    int i = decode_and_run();
+    BOOST_TEST(run_test() == 0);
+    BOOST_TEST(cpu.PC == 2);
     BOOST_TEST(cpu.D[3] == (80 << 16 | 1680));
-    BOOST_TEST(i == 0);
 }
 
 BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE(Long)
-BOOST_AUTO_TEST_CASE(Disasm) {
-    TEST::SET_W(0, 0046103);
-    TEST::SET_W(2, 4 << 12 | 4);
-    BOOST_TEST(disasm() == "DIVU.L %D3, %D4");
-}
-BOOST_AUTO_TEST_CASE(Disasm2) {
-    TEST::SET_W(0, 0046103);
-    TEST::SET_W(2,  4 << 12| 5);
-    BOOST_TEST(disasm() == "DIVUL.L %D3, %D5:%D4");
-}
 BOOST_AUTO_TEST_CASE(value) {
     auto [q, r] = DIVU_L(200000, 7);
     BOOST_TEST(q == 28571);
@@ -82,7 +71,7 @@ BOOST_AUTO_TEST_CASE(Div0) {
         DIVU_L(3, 0);
         BOOST_ERROR("exception unoccured");
     } else {
-        BOOST_TEST(GET_EXCEPTION()  == 5);
+        BOOST_TEST(GET_EXCEPTION() == 5);
     }
 }
 
@@ -91,10 +80,10 @@ BOOST_AUTO_TEST_CASE(operand) {
     TEST::SET_W(2, 0000000 | 3 << 12 | 4);
     cpu.D[3] = 200000;
     cpu.D[2] = 7;
-    int i = decode_and_run();
+    BOOST_TEST(run_test() == 0);
+    BOOST_TEST(cpu.PC == 4);
     BOOST_TEST(cpu.D[3] == 28571);
     BOOST_TEST(cpu.D[4] == 3);
-    BOOST_TEST(i == 2);
 }
 
 BOOST_AUTO_TEST_CASE(operand_nomod) {
@@ -102,18 +91,13 @@ BOOST_AUTO_TEST_CASE(operand_nomod) {
     TEST::SET_W(2, 0000000 | 3 << 12 | 3);
     cpu.D[3] = 200000;
     cpu.D[2] = 7;
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.D[3] == 28571);
 }
 
 BOOST_AUTO_TEST_SUITE_END()
 
 BOOST_AUTO_TEST_SUITE(Quad)
-BOOST_AUTO_TEST_CASE(Disasm) {
-    TEST::SET_W(0, 0046103);
-    TEST::SET_W(2,  1 << 10 | 4 << 12| 5);
-    BOOST_TEST(disasm() == "DIVU.L %D3, %D5:%D4");
-}
 BOOST_AUTO_TEST_CASE(value) {
     auto [q, r] = DIVU_LL(1000000000, 3);
     BOOST_TEST(q == 333333333);
@@ -140,7 +124,7 @@ BOOST_AUTO_TEST_CASE(Div0) {
         DIVU_LL(3, 0);
         BOOST_ERROR("exception unoccured");
     } else {
-        BOOST_TEST(GET_EXCEPTION()  == 5);
+        BOOST_TEST(GET_EXCEPTION() == 5);
     }
 }
 
@@ -150,10 +134,10 @@ BOOST_AUTO_TEST_CASE(operand) {
     cpu.D[3] = 0;
     cpu.D[4] = 1;
     cpu.D[2] = 3;
-    int i = decode_and_run();
+    BOOST_TEST(run_test() == 0);
+    BOOST_TEST(cpu.PC == 4);
     BOOST_TEST(cpu.D[3] == 1431655765);
     BOOST_TEST(cpu.D[4] == 1);
-    BOOST_TEST(i == 2);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

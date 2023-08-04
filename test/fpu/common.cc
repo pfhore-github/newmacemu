@@ -11,10 +11,10 @@ void qnan_test(uint16_t op) {
     cpu.FP_nan[3] = 0xffff000000000000LLU;
     TEST::SET_W(0, 0171000);
     TEST::SET_W(2, op | 3 << 10 | 2 << 7);
-    int i = decode_and_run();
+    BOOST_TEST(run_test() == 0);
+    BOOST_TEST(cpu.PC == 4);
     BOOST_TEST(mpfr_nan_p(cpu.FP[2]));
     BOOST_TEST(cpu.FP_nan[2] == 0xffff000000000000LLU);
-    BOOST_TEST(i == 2);
 }
 
 void snan_test(uint16_t op) {
@@ -22,7 +22,7 @@ void snan_test(uint16_t op) {
     cpu.FP_nan[3] = 0x0fff000000000000LLU;
     TEST::SET_W(0, 0171000);
     TEST::SET_W(2, op | 3 << 10 | 2 << 7);
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(mpfr_nan_p(cpu.FP[2]));
     BOOST_TEST(cpu.FP_nan[2] == 0x4fff000000000000LLU);
     BOOST_TEST(cpu.FPSR.S_NAN);

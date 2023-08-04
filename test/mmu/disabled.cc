@@ -6,7 +6,6 @@
 #include <boost/test/unit_test.hpp>
 uint32_t ptest(uint32_t addr, bool sys, bool code, bool W);
 namespace bdata = boost::unit_test::data;
-struct AccessFault {};
 
 BOOST_FIXTURE_TEST_CASE(MMU_Disabled, Prepare) {
     cpu.TCR_E = false;

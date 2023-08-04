@@ -38,7 +38,7 @@ inline static void writeBE32(uint8_t *base, uint32_t offset, uint32_t v) {
     v = SDL_SwapBE32(v);
     memcpy(base + offset, &v, 4);
 }
-struct AccessFault {};
+
 class BusBase {
   public:
     virtual uint8_t ReadB(uint32_t /* address */) { throw AccessFault{}; }
@@ -61,31 +61,39 @@ class BusBase {
     }
     virtual ~BusBase() {}
 };
+static uint8_t rom_read8(uint32_t address) {
+    return readBE8(ROM, address & (ROMSize-1));
+}
+
+static uint16_t rom_read16(uint32_t address) {
+    return readBE16(ROM, address& (ROMSize-1));
+}
+
+static uint32_t rom_read32(uint32_t address) {
+    return readBE32(ROM, address& (ROMSize-1));
+}
+
+static void rom_readL(uint32_t address, uint8_t *v) {
+    memcpy(v, ROM + (address & (ROMSize-1)), 16);
+}
+
 class RomBus : public BusBase {
   public:
     uint8_t ReadB(uint32_t address) override {
-        if(address >= ROMSize) {
-            throw AccessFault{};
-        }
-        return readBE8(ROM, address);
+        rom_is_overlay = false;
+        return rom_read8(address);
     }
     uint16_t ReadW(uint32_t address) override {
-        if(address >= ROMSize) {
-            throw AccessFault{};
-        }
-        return readBE16(ROM, address);
+        rom_is_overlay = false;
+        return rom_read16(address);
     }
     uint32_t ReadL(uint32_t address) override {
-        if(address >= ROMSize) {
-            throw AccessFault{};
-        }
-        return readBE32(ROM, address);
+        rom_is_overlay = false;
+        return rom_read32(address);
     }
     void Read16B(uint32_t address, uint8_t *dst) override {
-        if(address >= ROMSize) {
-            throw AccessFault{};
-        }
-        memcpy(dst, ROM + address, 16);
+        rom_is_overlay = false;
+        rom_readL(address, dst);
     }
 
     RomBus() {}
@@ -94,7 +102,7 @@ class RamBus : public BusBase {
   public:
     uint8_t ReadB(uint32_t address) override {
         if(rom_is_overlay) {
-            return RomBus().ReadB(address);
+            return rom_read8(address);
         } else {
             if(address >= RAM.size()) {
                 throw AccessFault{};
@@ -104,7 +112,7 @@ class RamBus : public BusBase {
     }
     uint16_t ReadW(uint32_t address) override {
         if(rom_is_overlay) {
-            return RomBus().ReadW(address);
+            return rom_read16(address);
         } else {
             if(address >= RAM.size()) {
                 throw AccessFault{};
@@ -114,7 +122,7 @@ class RamBus : public BusBase {
     }
     uint32_t ReadL(uint32_t address) override {
         if(rom_is_overlay) {
-            return RomBus().ReadL(address);
+            return rom_read32(address);
         } else {
             if(address >= RAM.size()) {
                 throw AccessFault{};
@@ -124,7 +132,7 @@ class RamBus : public BusBase {
     }
     void Read16B(uint32_t address, uint8_t *dst) override {
         if(rom_is_overlay) {
-            return RomBus().Read16B(address, dst);
+            rom_readL(address, dst);
         } else {
             if(address >= RAM.size()) {
                 throw AccessFault{};
@@ -179,17 +187,23 @@ class RamBus : public BusBase {
 
 class IOBus : public BusBase {
   public:
-    uint8_t ReadB(uint32_t address) override { return LoadIO_B(address & 0x3ffff); }
-    uint16_t ReadW(uint32_t address) override { return LoadIO_W(address& 0x3ffff); }
-    uint32_t ReadL(uint32_t address) override { return LoadIO_L(address& 0x3ffff); }
+    uint8_t ReadB(uint32_t address) override {
+        return LoadIO_B(address & 0x3ffff);
+    }
+    uint16_t ReadW(uint32_t address) override {
+        return LoadIO_W(address & 0x3ffff);
+    }
+    uint32_t ReadL(uint32_t address) override {
+        return LoadIO_L(address & 0x3ffff);
+    }
     void WriteB(uint32_t address, uint8_t from) override {
-        StoreIO_B(address& 0x3ffff, from);
+        StoreIO_B(address & 0x3ffff, from);
     }
     void WriteW(uint32_t address, uint16_t from) override {
-        StoreIO_W(address& 0x3ffff, from);
+        StoreIO_W(address & 0x3ffff, from);
     }
     void WriteL(uint32_t address, uint32_t from) override {
-        StoreIO_L(address& 0x3ffff, from);
+        StoreIO_L(address & 0x3ffff, from);
     }
     IOBus() {}
 };
@@ -239,15 +253,13 @@ void BusWriteL(uint32_t addr, uint32_t v) {
 }
 
 uint32_t ptest_and_raise(uint32_t addr, bool sys, bool code, bool W);
-void Read16(uint32_t from, uint8_t *to) {
+void Read16(uint32_t addr, uint8_t *to) {
     try {
-        auto paddr = ptest_and_raise(from & 0xFFFFF000, cpu.S, false, false) |
-                     (from & 0xfff);
+        auto paddr = ptest_and_raise(addr, cpu.S, false, false);
         auto ba = std::bit_cast<BusAddr>(paddr);
         busMap[ba.top]->Read16B(ba.offset, to);
     } catch(AccessFault &) {
-        cpu.af_value.addr = from;
-        cpu.af_value.ea = 0;
+        cpu.af_value.addr = addr;
         cpu.af_value.RW = true;
         cpu.af_value.size = SIZ::LN;
         cpu.af_value.tt = TT::MOVE16;
@@ -256,15 +268,13 @@ void Read16(uint32_t from, uint8_t *to) {
     }
 }
 
-void Write16(uint32_t from, const uint8_t *to) {
+void Write16(uint32_t addr, const uint8_t *to) {
     try {
-        auto paddr = ptest_and_raise(from & 0xFFFFF000, cpu.S, false, true) |
-                     (from & 0xfff);
+        auto paddr = ptest_and_raise(addr, cpu.S, false, true);
         auto ba = std::bit_cast<BusAddr>(paddr);
         busMap[ba.top]->Write16B(ba.offset, to);
     } catch(AccessFault &) {
-        cpu.af_value.addr = from;
-        cpu.af_value.ea = 0;
+        cpu.af_value.addr = addr;
         cpu.af_value.RW = false;
         cpu.af_value.size = SIZ::LN;
         cpu.af_value.tt = TT::MOVE16;
@@ -274,6 +284,6 @@ void Write16(uint32_t from, const uint8_t *to) {
 }
 void MMU_Transfer16(uint32_t from, uint32_t to) {
     uint8_t buf[16];
-    Read16(from &~ 0xf, buf);
-    Write16(to &~ 0xf, buf);
+    Read16(from & ~0xf, buf);
+    Write16(to & ~0xf, buf);
 }

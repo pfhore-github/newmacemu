@@ -7,41 +7,44 @@
 namespace bdata = boost::unit_test::data;
 BOOST_FIXTURE_TEST_SUITE(BRA, Prepare)
 
-BOOST_DATA_TEST_CASE(traced, bdata::xrange(2), T) {
+BOOST_AUTO_TEST_CASE(execute) {
     TEST::SET_W(0, 0060000 | 4);
-    cpu.T = T;
-    decode_and_run();
-    BOOST_TEST(cpu.must_trace == !!T);
+    BOOST_TEST(run_test() == 0);
+}
+
+BOOST_AUTO_TEST_CASE(traced) {
+    TEST::SET_W(0, 0060000 | 4);
+    cpu.T = 1;
+    BOOST_TEST(run_test() == 9);
 }
 
 BOOST_AUTO_TEST_CASE(addressError) {
     TEST::SET_W(0, 0060000 | 5);
-    decode_and_run();
-    BOOST_TEST(GET_EXCEPTION() == 3);
+    BOOST_TEST(run_test() == 3);
 }
 
 BOOST_AUTO_TEST_CASE(offset1) {
     TEST::SET_W(0, 0060000 | 4);
-    decode_and_run();
+    BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 6);
 }
 
 BOOST_AUTO_TEST_CASE(offsetNeg) {
     TEST::SET_W(0, 0060000 | 0xfe);
-    decode_and_run();
+    run_test();
     BOOST_TEST(cpu.PC == 0);
 }
 
 BOOST_AUTO_TEST_CASE(offset00) {
-    TEST::SET_W(0, 0060000  | 0);
+    TEST::SET_W(0, 0060000 | 0);
     TEST::SET_W(2, 0x1000);
-    decode_and_run();
+    run_test();
     BOOST_TEST(cpu.PC == 0x1002);
 }
 BOOST_AUTO_TEST_CASE(offsetFF) {
-    TEST::SET_W(0, 0060000  | 0xFF);
+    TEST::SET_W(0, 0060000 | 0xFF);
     TEST::SET_L(2, 0x20000);
-    decode_and_run();
+    run_test();
     BOOST_TEST(cpu.PC == 0x20002);
 }
 

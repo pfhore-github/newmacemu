@@ -11,13 +11,14 @@ inline TM GetTM(bool code) {
            : code ? TM::USER_CODE
                   : TM::USER_DATA;
 }
-struct AccessFault {};
 uint32_t ptest_and_raise(uint32_t addr, bool sys, bool code, bool W);
+uint8_t ReadBImpl(uint32_t addr, bool code) {
+    auto paddr = ptest_and_raise(addr, cpu.S, code, false);
+    return BusReadB(paddr);
+}
 uint8_t ReadB(uint32_t addr, bool code) {
     try {
-        auto ret = ptest_and_raise(addr  >>12, cpu.S, code, false);
-        auto paddr = ret | (addr & 0xfff);
-        return BusReadB(paddr);
+        return ReadBImpl(addr, code);
     } catch(AccessFault &) {
         cpu.af_value.addr = addr;
         cpu.af_value.RW = true;
@@ -28,21 +29,20 @@ uint8_t ReadB(uint32_t addr, bool code) {
         __builtin_unreachable();
     }
 }
+
+uint16_t ReadWImpl(uint32_t addr, bool code) {
+    if(addr & 1) {
+        uint16_t v1 = ReadBImpl(addr, code) << 8;
+        cpu.af_value.MA = true;
+        v1 |= ReadBImpl(addr + 1, code);
+        return v1;
+    }
+    auto paddr = ptest_and_raise(addr, cpu.S, code, false);
+    return BusReadW(paddr);
+}
 uint16_t ReadW(uint32_t addr, bool code) {
     try {
-        if(addr & 1) {
-            uint16_t v1 = ReadB(addr, code) << 8;
-            try {
-                v1 |= ReadB(addr + 1, code);
-            } catch(AccessFault &) {
-                cpu.af_value.MA = true;
-                throw;
-            }
-            return v1;
-        }
-        auto ret = ptest_and_raise(addr  >>12, cpu.S, code, false);
-        auto paddr = ret | (addr & 0xfff);
-        return BusReadW(paddr);
+        return ReadWImpl(addr, code);
     } catch(AccessFault &) {
         cpu.af_value.addr = addr;
         cpu.af_value.RW = true;
@@ -53,21 +53,20 @@ uint16_t ReadW(uint32_t addr, bool code) {
         __builtin_unreachable();
     }
 }
+
+uint32_t ReadLImpl(uint32_t addr, bool code) {
+    if(addr & 2) {
+        uint32_t v1 = ReadWImpl(addr, code) << 16;
+        cpu.af_value.MA = true;
+        v1 |= ReadWImpl(addr + 2, code);
+        return v1;
+    }
+    auto paddr = ptest_and_raise(addr, cpu.S, code, false);
+    return BusReadL(paddr);
+}
 uint32_t ReadL(uint32_t addr, bool code) {
     try {
-        if(addr & 2) {
-            uint32_t v1 = ReadW(addr, code) << 16;
-            try {
-                v1 |= ReadW(addr + 2, code);
-            } catch(AccessFault &) {
-                cpu.af_value.MA = true;
-                throw;
-            }
-            return v1;
-        }
-        auto ret = ptest_and_raise(addr  >>12, cpu.S, code, false);
-        auto paddr = ret | (addr & 0xfff);
-        return BusReadL(paddr);
+        return ReadLImpl(addr, code);
     } catch(AccessFault &) {
         cpu.af_value.addr = addr;
         cpu.af_value.RW = true;
@@ -78,11 +77,14 @@ uint32_t ReadL(uint32_t addr, bool code) {
         __builtin_unreachable();
     }
 }
+
+void WriteBImpl(uint32_t addr, uint8_t b) {
+    auto paddr = ptest_and_raise(addr, cpu.S, false, true);
+    BusWriteB(paddr, b);
+}
 void WriteB(uint32_t addr, uint8_t b) {
     try {
-        auto ret = ptest_and_raise(addr >>12, cpu.S, false, true);
-        auto paddr = ret | (addr & 0xfff);
-        return BusWriteB(paddr, b);
+        WriteBImpl(addr, b);
     } catch(AccessFault &) {
         cpu.af_value.addr = addr;
         cpu.af_value.RW = false;
@@ -94,21 +96,20 @@ void WriteB(uint32_t addr, uint8_t b) {
     }
 }
 
+void WriteWImpl(uint32_t addr, uint16_t w) {
+    if(addr & 1) {
+        WriteBImpl(addr, w >> 8);
+        cpu.af_value.MA = true;
+        WriteBImpl(addr + 1, w);
+        return;
+    }
+    auto paddr = ptest_and_raise(addr, cpu.S, false, true);
+    BusWriteW(paddr, w);
+}
 void WriteW(uint32_t addr, uint16_t w) {
     try {
-        if(addr & 1) {
-            WriteB(addr, w >> 8);
-            try {
-                WriteB(addr + 1, w);
-            } catch(AccessFault &) {
-                cpu.af_value.MA = true;
-                throw;
-            }
-            return;
-        }
-        auto ret = ptest_and_raise(addr  >>12, cpu.S, false, true);
-        auto paddr = ret | (addr & 0xfff);
-        BusWriteW(paddr, w);
+        WriteWImpl(addr, w);
+
     } catch(AccessFault &) {
         cpu.af_value.addr = addr;
         cpu.af_value.RW = false;
@@ -119,21 +120,19 @@ void WriteW(uint32_t addr, uint16_t w) {
         __builtin_unreachable();
     }
 }
+void WriteLImpl(uint32_t addr, uint32_t l) {
+    if(addr & 2) {
+        WriteWImpl(addr, l >> 16);
+        cpu.af_value.MA = true;
+        WriteWImpl(addr + 2, l);
+        return;
+    }
+    auto paddr = ptest_and_raise(addr, cpu.S, false, true);
+    BusWriteL(paddr, l);
+}
 void WriteL(uint32_t addr, uint32_t l) {
     try {
-        if(addr & 1) {
-            WriteW(addr, l >> 16);
-            try {
-                WriteW(addr + 2, l);
-            } catch(AccessFault &) {
-                cpu.af_value.MA = true;
-                throw;
-            }
-            return;
-        }
-        auto ret = ptest_and_raise(addr  >>12, cpu.S, false, true);
-        auto paddr = ret | (addr & 0xfff);
-        BusWriteL(paddr, l);
+        WriteLImpl(addr, l);
     } catch(AccessFault &) {
         cpu.af_value.addr = addr;
         cpu.af_value.RW = false;

@@ -4,6 +4,7 @@
 #include <vector>
 #include <optional>
 #include <utility>
+struct AccessFault {};
 uint8_t ReadB(uint32_t addr, bool code = false);
 uint16_t ReadW(uint32_t addr, bool code = false);
 uint32_t ReadL(uint32_t addr, bool code = false);

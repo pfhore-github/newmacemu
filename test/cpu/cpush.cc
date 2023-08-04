@@ -11,24 +11,14 @@ BOOST_DATA_TEST_CASE(Page, bdata::xrange(2) * bdata::xrange(2), tr, s) {
     cpu.S = s;
     cpu.T = tr;
     TEST::SET_W(0, 0172153);
-    decode_and_run();
-    if(s) {
-        BOOST_TEST(cpu.must_trace == !!tr);
-    } else {
-        BOOST_TEST(GET_EXCEPTION() == 8);
-    }
+    BOOST_TEST(run_test() == (!s ? 8 : tr ? 9 : 0));
 }
 
 BOOST_DATA_TEST_CASE(Line, bdata::xrange(2) * bdata::xrange(2), tr, s) {
     cpu.S = s;
     cpu.T = tr;
     TEST::SET_W(0, 0172163);
-    decode_and_run();
-    if(s) {
-        BOOST_TEST(cpu.must_trace == !!tr);
-    } else {
-        BOOST_TEST(GET_EXCEPTION() == 8);
-    }
+    BOOST_TEST(run_test() == (!s ? 8 : tr ? 9 : 0));
 }
 
 
@@ -36,12 +26,7 @@ BOOST_DATA_TEST_CASE(ALL, bdata::xrange(2) * bdata::xrange(2), tr, s) {
     cpu.S = s;
     cpu.T = tr;
     TEST::SET_W(0, 0172170);
-    decode_and_run();
-    if(s) {
-        BOOST_TEST(cpu.must_trace == !!tr);
-    } else {
-        BOOST_TEST(GET_EXCEPTION() == 8);
-    }
+    BOOST_TEST(run_test() == (!s ? 8 : tr ? 9 : 0));
 }
 
 BOOST_AUTO_TEST_SUITE_END()
@@ -50,36 +35,21 @@ BOOST_DATA_TEST_CASE(Page, bdata::xrange(2) * bdata::xrange(2), tr, s) {
     cpu.S = s;
     cpu.T = tr;
     TEST::SET_W(0, 0172253);
-    decode_and_run();
-    if(s) {
-        BOOST_TEST(cpu.must_trace == !!tr);
-    } else {
-        BOOST_TEST(GET_EXCEPTION() == 8);
-    }
+    BOOST_TEST(run_test() == (!s ? 8 : tr ? 9 : 0));
 }
 
 BOOST_DATA_TEST_CASE(Line, bdata::xrange(2) * bdata::xrange(2), tr, s) {
     cpu.S = s;
     cpu.T = tr;
     TEST::SET_W(0, 0172260);
-    decode_and_run();
-    if(s) {
-        BOOST_TEST(cpu.must_trace == !!tr);
-    } else {
-        BOOST_TEST(GET_EXCEPTION() == 8);
-    }
+    BOOST_TEST(run_test() == (!s ? 8 : tr ? 9 : 0));
 }
 
 BOOST_DATA_TEST_CASE(ALL, bdata::xrange(2) * bdata::xrange(2), tr, s) {
     cpu.S = s;
     cpu.T = tr;
     TEST::SET_W(0, 0172270);
-    decode_and_run();
-    if(s) {
-        BOOST_TEST(cpu.must_trace == !!tr);
-    } else {
-        BOOST_TEST(GET_EXCEPTION() == 8);
-    }
+    BOOST_TEST(run_test() == (!s ? 8 : tr ? 9 : 0));
 }
 
 
@@ -89,36 +59,21 @@ BOOST_DATA_TEST_CASE(Page, bdata::xrange(2) * bdata::xrange(2), tr, s) {
     cpu.S = s;
     cpu.T = tr;
     TEST::SET_W(0, 0172353);
-    decode_and_run();
-    if(s) {
-        BOOST_TEST(cpu.must_trace == !!tr);
-    } else {
-        BOOST_TEST(GET_EXCEPTION() == 8);
-    }
+    BOOST_TEST(run_test() == (!s ? 8 : tr ? 9 : 0));
 }
 
 BOOST_DATA_TEST_CASE(Line, bdata::xrange(2) * bdata::xrange(2), tr, s) {
     cpu.S = s;
     cpu.T = tr;
     TEST::SET_W(0, 0172360);
-    decode_and_run();
-    if(s) {
-        BOOST_TEST(cpu.must_trace == !!tr);
-    } else {
-        BOOST_TEST(GET_EXCEPTION() == 8);
-    }
+    BOOST_TEST(run_test() == (!s ? 8 : tr ? 9 : 0));
 }
 
 BOOST_DATA_TEST_CASE(All, bdata::xrange(2) * bdata::xrange(2), tr, s) {
     cpu.S = s;
     cpu.T = tr;
     TEST::SET_W(0, 0172370);
-    decode_and_run();
-    if(s) {
-        BOOST_TEST(cpu.must_trace == !!tr);
-    } else {
-        BOOST_TEST(GET_EXCEPTION() == 8);
-    }
+    BOOST_TEST(run_test() == (!s ? 8 : tr ? 9 : 0));
 }
 
 BOOST_AUTO_TEST_SUITE_END()

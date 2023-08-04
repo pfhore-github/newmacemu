@@ -1,11 +1,23 @@
 #include "exception.hpp"
 #include "68040.hpp"
+#include "SDL_events.h"
+#include "SDL_log.h"
 #include "memory.hpp"
 #include "proto.hpp"
+#include <fmt/core.h>
 static uint16_t exception_entry() {
     if(cpu.in_exception) {
-        // Double Bus Fault
+#ifdef CI
+        fmt::print("double buf fault:{:x}", cpu.PC);
         exit(1);
+#else
+        // Double Bus Fault
+        SDL_LogError(SDL_LOG_CATEGORY_ERROR, "double bus fault:%08x", cpu.PC);
+        SDL_Event ev;
+        ev.type = SDL_QUIT;
+        SDL_PushEvent(&ev);
+        longjmp(cpu.ex_buf, 1);
+#endif
     }
     cpu.in_exception = true;
     uint16_t sr = GetSR();
@@ -44,11 +56,11 @@ static uint16_t exception_entry() {
     longjmp(cpu.ex_buf, 1);
 }
 
-void ACCESS_FAULT() {
+[[noreturn]] void ACCESS_FAULT() {
     uint16_t sr = exception_entry();
-    cpu.A[7] += 4 * 9;
+    cpu.A[7] -= 4 * 9;
     PUSH32(cpu.af_value.addr);
-    cpu.A[7] += 2 * 3;
+    cpu.A[7] -= 2 * 3;
     if(cpu.must_trace) {
         cpu.af_value.CT = true;
     }
@@ -59,44 +71,49 @@ void ACCESS_FAULT() {
            cpu.af_value.LK << 9 | cpu.af_value.RW << 8 |
            int(cpu.af_value.size) << 5 | int(cpu.af_value.tt) << 3 |
            int(cpu.af_value.tm));
-    PUSH32(cpu.af_value.ea);
+    if(cpu.af_value.CP || cpu.af_value.CU || cpu.af_value.CT ||
+       cpu.af_value.CM) {
+        PUSH32(cpu.EA);
+    } else {
+        PUSH32(0);
+    }
     PUSH16(0x7 << 12 | 2 << 2);
-    PUSH32(cpu.PC);
+    PUSH32(cpu.oldpc);
     PUSH16(sr);
     JUMP(ReadL(cpu.VBR + (2 << 2)));
     longjmp(cpu.ex_buf, 1);
 }
 
-void ADDRESS_ERROR(uint32_t next) { exception2(3, cpu.oldpc, next & ~1); }
-void ILLEGAL_OP() { exception0(4, cpu.oldpc); }
+[[noreturn]] void ADDRESS_ERROR(uint32_t next) { exception2(3, cpu.oldpc, next & ~1); }
+[[noreturn]] void ILLEGAL_OP() { exception0(4, cpu.oldpc); }
 
-void DIV0_ERROR() { exception2(5, cpu.PC, cpu.oldpc); }
-void CHK_ERROR() { exception2(6, cpu.PC, cpu.oldpc); }
+[[noreturn]] void DIV0_ERROR() { exception2(5, cpu.PC, cpu.oldpc); }
+[[noreturn]] void CHK_ERROR() { exception2(6, cpu.PC, cpu.oldpc); }
 
-void TRAPX_ERROR() { exception2(7, cpu.PC, cpu.oldpc); }
+[[noreturn]] void TRAPX_ERROR() { exception2(7, cpu.PC, cpu.oldpc); }
 
-void PRIV_ERROR() { exception0(8, cpu.oldpc); }
+[[noreturn]] void PRIV_ERROR() { exception0(8, cpu.oldpc); }
 
-void TRACE() { exception2(9, cpu.PC, cpu.oldpc); }
+[[noreturn]] void TRACE() { exception2(9, cpu.PC, cpu.oldpc); }
 
-void ALINE() { exception0(10, cpu.oldpc); }
+[[noreturn]] void ALINE() { exception0(10, cpu.oldpc); }
 
-void FLINE() { exception0(11, cpu.oldpc); }
+[[noreturn]] void FLINE() { exception0(11, cpu.oldpc); }
 
-void FORMAT_ERROR() { exception0(14, cpu.oldpc); }
+[[noreturn]] void FORMAT_ERROR() { exception0(14, cpu.oldpc); }
 
-void TRAP_ERROR(int n) { exception0(32 + n, cpu.PC); }
+[[noreturn]] void TRAP_ERROR(int n) { exception0(32 + n, cpu.PC); }
 
-void FP_EX_BSUN() { exception3(48); }
+[[noreturn]] void FP_EX_BSUN() { exception3(48); }
 
-void FP_EX_INEX() { exception3(49); }
+[[noreturn]] void FP_EX_INEX() { exception3(49); }
 
-void FP_EX_DIV0() { exception3(50); }
+[[noreturn]] void FP_EX_DIV0() { exception3(50); }
 
-void FP_EX_UNFL() { exception3(51); }
-void FP_EX_OPERR() { exception3(52); }
-void FP_EX_OVFL() { exception3(53); }
-void FP_EX_SNAN() { exception3(54); }
+[[noreturn]] void FP_EX_UNFL() { exception3(51); }
+[[noreturn]] void FP_EX_OPERR() { exception3(52); }
+[[noreturn]] void FP_EX_OVFL() { exception3(53); }
+[[noreturn]] void FP_EX_SNAN() { exception3(54); }
 
 void IRQ(int n) {
     if(n != 7 && n <= cpu.I) {

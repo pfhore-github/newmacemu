@@ -8,6 +8,7 @@
 namespace bdata = boost::unit_test::data;
 BOOST_FIXTURE_TEST_SUITE(CMP, Prepare)
 BOOST_AUTO_TEST_SUITE(Byte)
+
 BOOST_AUTO_TEST_CASE(V1) {
     CMP_B(127, -3);
     BOOST_TEST(cpu.V);
@@ -32,15 +33,14 @@ BOOST_AUTO_TEST_CASE(Z) {
     CMP_B(1, 1);
     BOOST_TEST(cpu.Z);
 }
-BOOST_AUTO_TEST_CASE(size) {
+BOOST_AUTO_TEST_CASE(execute) {
     TEST::SET_W(0, 0130000 | 3 << 9 | 2);
-    auto i = decode_and_run();
-    BOOST_TEST(i == 0);
+    BOOST_TEST(run_test() == 0);
+    BOOST_TEST(cpu.PC == 2);
 }
 
 BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE(Word)
-
 BOOST_AUTO_TEST_CASE(V1) {
     CMP_W(0x7fff, -3);
     BOOST_TEST(cpu.V);
@@ -66,15 +66,14 @@ BOOST_AUTO_TEST_CASE(Z) {
     BOOST_TEST(cpu.Z);
 }
 
-BOOST_AUTO_TEST_CASE(size) {
+BOOST_AUTO_TEST_CASE(execute) {
     TEST::SET_W(0, 0130100 | 3 << 9 | 2);
-    auto i = decode_and_run();
-    BOOST_TEST(i == 0);
+    BOOST_TEST(run_test() == 0);
+    BOOST_TEST(cpu.PC == 2);
 }
 BOOST_AUTO_TEST_SUITE_END()
 
 BOOST_AUTO_TEST_SUITE(Long)
-
 
 BOOST_AUTO_TEST_CASE(V1) {
     CMP_L(0x7fffffff, -3);
@@ -101,10 +100,10 @@ BOOST_AUTO_TEST_CASE(Z) {
     BOOST_TEST(cpu.Z);
 }
 
-BOOST_AUTO_TEST_CASE(size) {
+BOOST_AUTO_TEST_CASE(execute) {
     TEST::SET_W(0, 0130200 | 3 << 9 | 2);
-    auto i = decode_and_run();
-    BOOST_TEST(i == 0);
+    BOOST_TEST(run_test() == 0);
+    BOOST_TEST(cpu.PC == 2);
 }
 BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE_END()
