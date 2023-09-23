@@ -642,13 +642,13 @@ const char *cc_n[] = {"T",  "F",  "HI", "LS", "CC", "CS", "NE", "EQ",
 string disasm_05C3(int cc, int type, int reg) {
     if(type == 1) {
         int16_t imm = FETCH();
-        return format("DB{} %D{}, #{}", cc_n[cc], reg, imm);
+        return format("DB{} %D{}, #{}", cc_n[cc], reg, cpu.PC + imm);
     } else if(type == 7 && reg == 2) {
         uint16_t imm = FETCH();
-        return format("TRAP{} #0x{:04x}", cc_n[cc], imm);
+        return format("TRAP{} #0x{:04X}", cc_n[cc], imm);
     } else if(type == 7 && reg == 3) {
         uint32_t imm = FETCH32();
-        return format("TRAP{} #0x{:08x}", cc_n[cc], imm);
+        return format("TRAP{} #0x{:08X}", cc_n[cc], imm);
     } else if(type == 7 && reg == 4) {
         return format("TRAP{}", cc_n[cc]);
     } else {
@@ -665,11 +665,11 @@ string disasm_6C(int cc, int8_t imm) {
         v = FETCH32();
     }
     if(cc == 0) {
-        return format("BRA #{:06x}", base + v);
+        return format("BRA #{:06X}", base + v);
     } else if(cc == 1) {
-        return format("BSR #{:06x}", base + v);
+        return format("BSR #{:06X}", base + v);
     } else {
-        return format("B{} #{:06x}", cc_n[cc], base + v);
+        return format("B{} #{:06X}", cc_n[cc], base + v);
     }
 }
 string disasm_7XX(int dn, int8_t imm) {
@@ -1397,3 +1397,10 @@ string disasm() {
     return "#INVALID";
 }
 
+uint32_t nextpc() {
+    uint32_t oldpc = cpu.PC;
+    disasm();
+    uint32_t ret = std::exchange(cpu.PC, oldpc);
+    return ret;
+}
+ 

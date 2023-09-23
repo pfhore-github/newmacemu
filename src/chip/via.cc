@@ -1,164 +1,223 @@
-#include "via.hpp"
+#include "chip/via.hpp"
 #include "SDL.h"
 #include "SDL_timer.h"
 #include <deque>
+#include <vector>
+std::shared_ptr<VIA1> via1;
+std::shared_ptr<VIA2> via2;
 void do_irq(int i);
-VIA1 via1;
-VIA2 via2;
 inline int64_t GetVIACounter() {
     return SDL_GetPerformanceCounter() * 1'276'600 /
            SDL_GetPerformanceFrequency();
 }
-uint8_t VIA::read(int n) {
+extern bool adb_irq;
+void do_poweroff();
+void VIA::recieve_cb1() {
+    if(ACR.PB_LATCH) {
+        for(int i = 0; i < 8; ++i) {
+            if(!dirb[i]) {
+                irb[i] = readPB(i);
+            }
+        }
+    }
+}
+void VIA::recieve_ca1() {
+    if(ACR.PA_LATCH) {
+        for(int i = 0; i < 8; ++i) {
+            ira[i] = readPA(i);
+        }
+    }
+}
+
+void nanosleep(uint32_t nanos) {
+    uint64_t ex = SDL_GetPerformanceCounter();
+    uint64_t next = ex + nanos * 1000000000LL / SDL_GetPerformanceFrequency();
+    while(SDL_GetPerformanceCounter() < next) {
+        __builtin_ia32_pause();
+    }
+}
+uint8_t VIA::read(uint32_t addr) {
+    int n = addr >> 9 & 0xf;
+    nanosleep(500);
     uint8_t v = 0;
     switch(n) {
-    case 0:
-        // ORB
+    case 0: {
+        // IRB
+        auto val = irb;
+        IF[int(VIA_IRQ::CB1)] = false;
+        IF[int(VIA_IRQ::CB2)] = false;
         for(int i = 0; i < 8; ++i) {
-            if(dirb & 1 << i) {
-                v |= db & 1 << i;
+            if(!dirb[i]) {
+                if(!ACR.PB_LATCH) {
+                    val[i] = readPB(i);
+                }
             } else {
-                v |= readPB(i) << i;
+                val[i] = orb[i];
             }
         }
-        break;
+        return val.to_ulong();
+    }
+    case 15: {
+        // IRA with no handshake
+        auto val = ira;
+        for(int i = 0; i < 8; ++i) {
+            if(!dira[i]) {
+                val[i] = readPA(i);
+            }
+        }
+        return val.to_ulong();
+    }
     case 1:
-    case 15:
-        // ORA
-        for(int i = 0; i < 8; ++i) {
-            if(dira & 1 << i) {
-                v |= da & 1 << i;
-            } else {
-                v |= readPA(i) << i;
+        // IRA
+        IF[int(VIA_IRQ::CA1)] = false;
+        IF[int(VIA_IRQ::CA2)] = false;
+        if(!ACR.PA_LATCH) {
+            std::bitset<8> val;
+            for(int i = 0; i < 8; ++i) {
+                val[i] = readPA(i);
             }
+            return val.to_ulong();
+        } else {
+            return ira.to_ulong();
         }
-        break;
     case 2:
-        return dirb;
+        return dirb.to_ulong();
     case 3:
-        return dira;
+        return dira.to_ulong();
     case 4:
-        IF.TIMER1 = false;
+        IF[int(VIA_IRQ::TIMER1)] = false;
         return (GetVIACounter() - timer1_base) & 0xff;
     case 5:
         return (GetVIACounter() - timer1_base) >> 16;
     case 6:
-        return timer1_lh[0];
+        return timer1_latch;
     case 7:
-        return timer1_lh[1];
+        return timer1_latch >> 16;
     case 8:
-        IF.TIMER2 = false;
+        IF[int(VIA_IRQ::TIMER2)] = false;
         return (GetVIACounter() - timer2_base) & 0xff;
     case 9:
         return (GetVIACounter() - timer2_base) >> 16;
     case 10:
-        return getSR();
+        IF[int(VIA_IRQ::SR)] = false;
+        if(ACR.sr_c != SR_C::DISABLED && !(int(ACR.sr_c) & 4)) {
+            sr = getSR();
+        }
+        adb_irq = false;
+        return sr;
     case 11:
         return ACR.PB7_ENABLE << 7 | ACR.T1_REP << 6 | ACR.T2_CTL << 5 |
                int(ACR.sr_c) << 2 | ACR.PB_LATCH << 1 | ACR.PA_LATCH;
     case 12:
-        return int(PCR.CB2_CTL) >> 5 | PCR.CB1_CTL << 4 |
-               int(PCR.CA2_CTL) >> 1 | PCR.CA1_CTL;
+        return int(PCR.CB2_CTL) << 5 | PCR.CB1_CTL << 4 |
+               int(PCR.CA2_CTL) << 1 | PCR.CA1_CTL;
     case 13:
-        return IF.IRQ << 7 | IF.TIMER1 << 6 | IF.TIMER2 << 5 | IF.CB1 << 4 |
-               IF.CB2 << 3 | IF.SR << 2 | IF.CA1 << 1 | IF.CA2;
+        return (IF.to_ulong() & 0x7f) | (IF.any() << 7);
     case 14:
-        return 0x80 | IE.TIMER1 << 6 | IE.TIMER2 << 5 | IE.CB1 << 4 |
-               IE.CB2 << 3 | IE.SR << 2 | IE.CA1 << 1 | IF.CA2;
+        return 0x80 | IE.to_ulong();
     }
     return v;
 }
+
+void VIA::irq(VIA_IRQ i) {
+    IF[int(i)] = true;
+    if(IE[int(i)]) {
+        do_irq(irqNum());
+    }
+}
 uint32_t via_timer1_callback(uint32_t, void *t) {
     auto v = static_cast<VIA *>(t);
-    v->IF.TIMER1 = true;
     v->timer1_base = GetVIACounter();
-    if(v->IE.TIMER1) {
-        do_irq(t == &via1 ? 1 : 2);
+    v->irq(VIA_IRQ::TIMER1);
+    if(v->ACR.PB7_ENABLE) {
+        v->writePB(7, true);
     }
     return v->ACR.T1_REP ? v->timer1_cnt : 0;
 }
 
 uint32_t via_timer2_callback(uint32_t, void *t) {
     auto v = static_cast<VIA *>(t);
-    v->IF.TIMER2 = true;
     v->timer2_base = GetVIACounter();
-    if(v->IE.TIMER2) {
-        do_irq(t == &via1 ? 1 : 2);
-    }
+    v->irq(VIA_IRQ::TIMER2);
     return 0;
 }
 
-void VIA::recieve_sr() {
-    if(IE.SR) {
-        do_irq(this == &via1 ? 1 : 2);
-    }
-}
-void VIA::write(int n, uint8_t v) {
+void VIA::recieve_sr() { irq(VIA_IRQ::SR); }
+void VIA::write(uint32_t addr, uint8_t v) {
+    nanosleep(500);
+    int n = addr >> 9 & 0xf;
     switch(n) {
     case 0:
         // ORB
+        IF[int(VIA_IRQ::CB1)] = false;
+        IF[int(VIA_IRQ::CB2)] = false;
         for(int i = 0; i < 8; ++i) {
-            if(dirb & 1 << i) {
-                writePB(i, v >> i & 1);
+            bool p = v & 1 << i;
+            if(dirb[i]) {
+                writePB(i, p);
             } else {
-                db = (db & ~(1 << i)) | (v & 1 << i);
+                orb[i] = p;
             }
         }
         break;
     case 1:
-    case 15:
         // ORA
+        IF[int(VIA_IRQ::CA1)] = false;
+        IF[int(VIA_IRQ::CA2)] = false;
+        /* fall through*/
+    case 15:
+        // ORA (no handshake)
         for(int i = 0; i < 8; ++i) {
-            if(dira & 1 << i) {
-                writePA(i, v >> i & 1);
+            bool p = v & 1 << i;
+            if(dira[i]) {
+                writePA(i, p);
             } else {
-                da = (da & ~(1 << i)) | (v & 1 << i);
+                ora[i] = p;
             }
         }
         break;
     case 2:
         for(int i = 0; i < 8; ++i) {
-            if(v & 1 << i) {
-                writePB(i, db >> i & 1);
+            if((dirb[i] = v & 1 << i)) {
+                writePB(i, orb[i]);
             } else {
-                db = (db & ~(1 << i)) | (readPB(i) << i);
+                irb[i] = readPB(i);
             }
         }
-        dirb = v;
         break;
     case 3:
         for(int i = 0; i < 8; ++i) {
-            if(v & 1 << i) {
-                writePA(i, da >> i & 1);
+            if((dira[i] = v & 1 << i)) {
+                writePA(i, ora[i]);
             } else {
-                da = (da & ~(1 << i)) | (readPA(i) << i);
+                ira[i] = readPA(i);
             }
         }
-        dira = v;
         break;
     case 4:
     case 6:
-        timer1_lh[0] = v;
+        timer1_latch = (timer1_latch & 0xff00) | v;
         break;
     case 5:
-        timer1_lh[1] = v;
-        timer1_cnt = timer1_lh[0] | v << 8;
-        IF.TIMER1 = false;
+        timer1_cnt = timer1_latch = (timer1_latch & 0xff) | (v << 8);
+        IF[int(VIA_IRQ::TIMER1)] = false;
         timer1_base = GetVIACounter();
         timer1 = SDL_AddTimer(timer1_cnt / 1276.6, via_timer1_callback, this);
         break;
     case 8:
-        timer2_lh[0] = v;
+        timer2_latch = (timer2_latch & 0xff00) | v;
         break;
     case 9:
-        timer2_lh[1] = v;
-        timer2_cnt = timer2_lh[0] | v << 8;
-        IF.TIMER2 = false;
+        timer2_cnt = timer2_latch = (timer2_latch & 0xff) | (v << 8);
+        IF[int(VIA_IRQ::TIMER2)] = false;
         timer2_base = GetVIACounter();
         timer2 = SDL_AddTimer(timer2_cnt / 1276.6, via_timer2_callback, this);
         break;
     case 10:
-        setSR(v);
+        IF[int(VIA_IRQ::SR)] = false;
+        if((int(ACR.sr_c) & 4)) {
+            sr = v;
+        }
         break;
     case 11:
         ACR.PB7_ENABLE = v & 1 << 7;
@@ -175,37 +234,14 @@ void VIA::write(int n, uint8_t v) {
         PCR.CA1_CTL = v & 1;
         break;
     case 13:
-        IF.IRQ = v & 1 << 7;
-        IF.TIMER1 = v & 1 << 6;
-        IF.TIMER2 = v & 1 << 5;
-        IF.CB1 = v & 1 << 4;
-        IF.CB2 = v & 1 << 3;
-        IF.SR = v & 1 << 2;
-        IF.CA1 = v & 1 << 1;
-        IF.CA2 = v & 1;
+        IF = v;
         break;
     case 14: {
         bool e = v & 0x80;
-        if(v & 1 << 6) {
-            IE.TIMER1 = e;
-        }
-        if(v & 1 << 5) {
-            IE.TIMER2 = e;
-        }
-        if(v & 1 << 4) {
-            IE.CB1 = e;
-        }
-        if(v & 1 << 3) {
-            IE.CB2 = e;
-        }
-        if(v & 1 << 2) {
-            IE.SR = e;
-        }
-        if(v & 1 << 1) {
-            IE.CA1 = e;
-        }
-        if(v & 1) {
-            IE.CA2 = e;
+        for(int i = 0; i < 7; ++i) {
+            if(v & 1 << i) {
+                IE[i] = e;
+            }
         }
     }
     }
@@ -219,17 +255,6 @@ bool MACHINE_CODE2[4] = {false, false, false, true};
 extern bool rom_is_overlay;
 
 bool scc_wait_req() { return false; }
-void VIA1::writePA(int n, bool v) {
-    switch(n) {
-    case 4:
-        rom_is_overlay = v;
-        break;
-    default:
-        break;
-    }
-}
-bool rtcEnable = false;
-
 bool VIA1::readPA(int n) {
     switch(n) {
     case 1:
@@ -246,23 +271,73 @@ bool VIA1::readPA(int n) {
         return false;
     }
 }
-extern bool adb_irq;
+void VIA1::writePA(int n, bool v) {
+    switch(n) {
+    case 4:
+        //        rom_is_overlay = v;
+        break;
+    default:
+        break;
+    }
+}
+bool rtcEnable = false;
+
 bool VIA1::readPB(int n) {
     switch(n) {
     case 3:
         return adb_irq;
+    case 0:
+        return rtc_val;
     default:
         return false;
     }
 }
-
+void change_adbstate(uint8_t st);
 time_t rtc_diff = 0;
 std::deque<bool> rtc_lines;
-
+static std::vector<uint8_t> adb_buf;
+void adb_run(const std::vector<uint8_t> &b);
+void send_rtc(bool v);
+bool recv_rtc();
 void VIA1::writePB(int n, bool v) {
     switch(n) {
+    case 5:
+    case 4:
+        adb_state[n - 4] = v;
+        switch(adb_state[1] << 1 | adb_state[0]) {
+        case 0:
+            adb_buf.clear();
+            adb_buf.push_back(sr);
+            break;
+        case 1:
+        case 2:
+            adb_buf.push_back(sr);
+            break;
+        case 3:
+            adb_run(adb_buf);
+            adb_buf.clear();
+            break;
+        }
+        break;
     case 2:
         rtcEnable = !v;
+        break;
+    case 1:
+        if(rtcEnable) {
+            if(rtc_clock != v && rtc_clock) {
+                if(dirb[0]) {
+                    send_rtc(rtc_val);
+                } else {
+                    rtc_val = recv_rtc();
+                }
+            }
+            rtc_clock = v;
+        }
+        break;
+    case 0:
+        if(rtcEnable) {
+            rtc_val = v;
+        }
         break;
     default:
         break;
@@ -275,7 +350,7 @@ bool VIA2::readPA(int n) {
     }
 }
 // TODO
-uint8_t NuBusInput() { return 0;}
+uint8_t NuBusInput() { return 0; }
 bool VIA2::readPB(int n) {
     switch(n) {
     case 4:
@@ -297,11 +372,14 @@ void VIA2::writePA(int n, bool) {
 }
 void VIA2::writePB(int n, bool v) {
     switch(n) {
-   
+    case 7:
+        // VBL IRQ
+        via1->recieve_ca1();
+        break;
     case 2:
         // Power OFF
         if(!v) {
-            exit(0);
+            do_poweroff();
         }
         break;
     default:
@@ -310,10 +388,5 @@ void VIA2::writePB(int n, bool v) {
 }
 
 uint8_t adb_in();
-void adb_out(uint8_t v);
 
 uint8_t VIA1::getSR() { return adb_in(); }
-void VIA1::setSR(uint8_t v) { adb_out(v); }
-// unused
-uint8_t VIA2::getSR() { return 0; }
-void VIA2::setSR(uint8_t) {}

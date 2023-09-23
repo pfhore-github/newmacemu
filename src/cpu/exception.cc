@@ -5,8 +5,7 @@
 #include "memory.hpp"
 #include "proto.hpp"
 #include <fmt/core.h>
-static uint16_t exception_entry() {
-    if(cpu.in_exception) {
+[[noreturn]] void double_fault() {
 #ifdef CI
         fmt::print("double buf fault:{:x}", cpu.PC);
         exit(1);
@@ -18,6 +17,10 @@ static uint16_t exception_entry() {
         SDL_PushEvent(&ev);
         longjmp(cpu.ex_buf, 1);
 #endif
+}
+static uint16_t exception_entry() {
+    if(cpu.in_exception) {
+        double_fault();
     }
     cpu.in_exception = true;
     uint16_t sr = GetSR();
@@ -116,14 +119,11 @@ static uint16_t exception_entry() {
 [[noreturn]] void FP_EX_SNAN() { exception3(54); }
 
 void IRQ(int n) {
-    if(n != 7 && n <= cpu.I) {
-        return;
-    }
     cpu.I = n;
     n += 24;
     if(cpu.in_exception) {
         // Double Bus Fault
-        exit(1);
+        double_fault();
     }
     cpu.in_exception = true;
     uint16_t sr = GetSR();

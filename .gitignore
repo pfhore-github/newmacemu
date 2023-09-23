@@ -2,3 +2,5 @@ build/*
 */*.o
 .vscode/*
 *.rom
+rom/**
+unifont.otf

@@ -31,7 +31,7 @@ struct MemBus {
     uint8_t UPM = 0;
     bool RW;
 };
-struct Opcode;
+
 struct AccessFault_t {
     uint32_t addr;
     bool CP = false, CU = false, CT = false, CM = false, MA = false,
@@ -47,12 +47,6 @@ enum class FPU_PREC {
     AUTO,
 };
 
-class Opcode {
-  public:
-    virtual void run() = 0;
-    virtual std::string disasm() = 0;
-    virtual int size() = 0;
-};
 struct Cpu {
     uint32_t D[8];
     uint32_t A[8];

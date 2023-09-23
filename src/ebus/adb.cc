@@ -1,6 +1,6 @@
 #include "SDL.h"
 #include "SDL_scancode.h"
-#include "via.hpp"
+#include "chip/via.hpp"
 #include <algorithm>
 #include <deque>
 #include <list>
@@ -9,11 +9,10 @@
 #include <unordered_map>
 #include <vector>
 std::deque<uint8_t> buf;
-static uint8_t mouse_reg_3[2] = {0x63, 0x01}; // Mouse ADB register 3
-
-static uint8_t key_reg_2[2] = {0xff, 0xff}; // Keyboard ADB register 2
-static uint8_t key_reg_3[2] = {0x62, 0x05}; // Keyboard ADB register 3
-
+uint32_t adb_wait(uint32_t, void *) {
+    via1->recieve_sr();
+    return 0;
+}
 uint8_t adb_in() {
     if(buf.empty()) {
         // empty
@@ -21,9 +20,13 @@ uint8_t adb_in() {
     } else {
         auto v = buf[0];
         buf.pop_front();
+        if(!buf.empty()) {
+            SDL_AddTimer(10, adb_wait, nullptr);
+        }
         return v;
     }
 }
+
 std::list<uint8_t> keys;
 bool adb_irq = false;
 std::unordered_map<SDL_Scancode, uint8_t> mac_keys = {
@@ -139,13 +142,242 @@ std::unordered_map<SDL_Scancode, uint8_t> mac_keys = {
 
 };
 
+void adb_reset() { SDL_ResetKeyboard(); }
+class ADBDev {
+  public:
+    uint8_t reg3[2];
+    virtual void flush() = 0;
+    virtual void listen(int reg, const uint8_t *v) = 0;
+    virtual std::deque<uint8_t> talk(int reg) = 0;
+};
+
+class ADBMouse : public ADBDev {
+
+    friend void adb_run(const std::vector<uint8_t> &b);
+    int old_mx;
+    int old_my;
+
+  public:
+    ADBMouse() {
+        reg3[0] = 0x63;
+        reg3[1] = 0x01;
+        old_mx = 0;
+        old_my = 0;
+    }
+    void flush() override {
+        // do nothing about mouse
+    }
+    void listen(int reg, const uint8_t *v) override {
+        if(reg == 3) {
+            if(v[1] == 0xfe) // Change address
+                reg3[0] = (reg3[0] & 0xf0) | (v[0] & 0x0f);
+            else if(v[1] == 1 || v[1] == 2 ||
+                    v[1] == 4) // Change device handler ID
+                reg3[1] = v[2];
+            else if(v[1] == 0x00) // Change address and enable bit
+                reg3[0] = (reg3[0] & 0xd0) | (v[0] & 0x2f);
+        }
+    }
+    std::deque<uint8_t> talk(int reg) override {
+        std::deque<uint8_t> ret;
+        switch(reg) {
+        case 0: {
+            int x, y;
+            auto btn = SDL_GetMouseState(&x, &y);
+            int dx = x - old_mx;
+            int dy = y - old_my;
+
+            ret.push_back((dx & 0x7f) | (SDL_BUTTON_LMASK & btn ? 0 : 0x80));
+            ret.push_back((dy & 0x7f) | (SDL_BUTTON_RMASK & btn ? 0 : 0x80));
+            ret.push_back(((dy >> 3) & 0x70) | ((dx >> 7) & 0x07) |
+                          (SDL_BUTTON_MMASK & btn ? 0x08 : 0x88));
+            old_mx = x;
+            old_my = y;
+            return ret;
+        }
+
+        case 1: // Extended mouse protocol
+            return {'a', 'p', 'p', 'l', 300 >> 8, 300 & 0xff, 1, 3};
+        case 3: // Address/HandlerID
+            ret.push_back((reg3[0] & 0xf0) | (rand() & 0x0f));
+            ret.push_back(reg3[1]);
+            return ret;
+        default:
+            return {};
+        }
+    }
+};
+
+class ADBKeyboard : public ADBDev {
+    uint8_t reg2[2]; // Keyboard ADB register 2
+  public:
+    ADBKeyboard() {
+        reg2[0] = 0xff;
+        reg2[1] = 0xff;
+        reg3[0] = 0x62;
+        reg3[1] = 0x05;
+    }
+    friend void adb_run(const std::vector<uint8_t> &b);
+    void flush() override {
+        // key  queue clear
+        SDL_ResetKeyboard();
+        keys.clear();
+    }
+    void listen(int reg, const uint8_t *v) override {
+        switch(reg) {
+        case 2:
+            // LEDs/Modifiers
+            // sorry, SDL doesn't support change Keyboard LED!
+            reg2[0] = v[0];
+            reg2[1] = v[1];
+            break;
+        case 3:
+            if(v[1] == 0xfe) // Change address
+                reg3[0] = (reg3[0] & 0xf0) | (v[0] & 0x0f);
+            else if(v[1] == 0x00) // Change address and enable bit
+                reg3[0] = (reg3[0] & 0xd0) | (v[0] & 0x2f);
+            break;
+        }
+    }
+    std::deque<uint8_t> talk(int reg) override {
+        std::deque<uint8_t> ret;
+        switch(reg) {
+        case 0:
+            if(keys.empty()) {
+                return {0xff, 0xff};
+            } else if(keys.size() == 1) {
+                uint8_t v = *keys.begin();
+                keys.clear();
+                return {v, 0xff};
+            } else {
+                auto ky = keys.begin();
+                ret.push_back(*ky);
+                ky = keys.erase(ky);
+                ret.push_back(*ky);
+                keys.erase(ky);
+                return ret;
+            }
+        case 2: { // LEDs/Modifiers
+            auto mod = SDL_GetModState();
+            auto kbd = SDL_GetKeyboardState(nullptr);
+            uint8_t reg2hi = 0xff;
+            uint8_t reg2lo = reg2[1] | 0xf8;
+            if(mod & KMOD_SCROLL) // Scroll Lock
+                reg2lo &= ~0x40;
+            if(mod & KMOD_NUM) // Num Lock
+                reg2lo &= ~0x80;
+            if(mod & KMOD_LGUI) // Command
+                reg2hi &= ~0x01;
+            if(mod & KMOD_LALT) // Option
+                reg2hi &= ~0x02;
+            if(mod & KMOD_LSHIFT) // Shift
+                reg2hi &= ~0x04;
+            if(mod & KMOD_LCTRL) // Control
+                reg2hi &= ~0x08;
+            if(mod & KMOD_CAPS) // Caps Lock
+                reg2hi &= ~0x20;
+            if(kbd[SDL_SCANCODE_DELETE]) // Delete
+                reg2hi &= ~0x40;
+            ret = {reg2hi, reg2lo};
+            return ret;
+        }
+        case 3: // Address/HandlerID
+            ret.push_back((reg3[0] & 0xf0) | (rand() & 0x0f));
+            ret.push_back(reg3[1]);
+            return ret;
+        default:
+            return {};
+        }
+    }
+};
+
+ADBMouse mouse;
+ADBKeyboard kbd;
+uint8_t xpram_read(uint8_t reg);
+void xpram_write(uint8_t reg, uint8_t v);
+bool adb_xprammode = false;
+
+void do_adb_irq() {
+    adb_irq = true;
+    via1->recieve_sr();
+}
+
+void adb_run(const std::vector<uint8_t> &b) {
+    if(b.empty()) {
+        // do nothing
+        return;
+    }
+    uint8_t v = b[0];
+    int adr = v >> 4;
+    int cmd = v >> 2 & 3;
+    int reg = v & 3;
+    if(cmd == 0 && reg == 0) {
+        // SendReset
+        adb_reset();
+        return;
+    }
+    // Check which device was addressed and act accordingly
+    if(v == 1) {
+        // RTC flash
+        adb_xprammode = true;
+        buf = {0};
+        do_adb_irq();
+        return;
+    }
+    if(v == 7) {
+        // RTC weite
+        xpram_write(b[2], b[3]);
+        return;
+    } else if(v == 12) {
+        // RTC read
+        buf = {0, 0, 7, xpram_read(b[2])};
+        via1->recieve_sr();
+        return;
+    }
+    if(adr == (mouse.reg3[0] & 0x0f)) {
+        // Mouse
+        if(cmd == 0 && reg == 1) {
+            // flush
+            mouse.flush();
+        } else if(cmd == 2) {
+            // Listen
+            mouse.listen(reg, &b[1]);
+            return;
+        } else if(cmd == 3) {
+            // Talk
+            buf = mouse.talk(reg);
+            if(!buf.empty()) {
+                via1->recieve_sr();
+            }
+        }
+
+    } else if(adr == (kbd.reg3[0] & 0x0f)) {
+        // Keyboard
+        if(cmd == 0 && reg == 1) {
+            // flush
+            kbd.flush();
+        } else if(cmd == 2) {
+            kbd.listen(reg, &b[1]);
+        } else if(cmd == 3) {
+            // Talk
+            buf = kbd.talk(reg);
+            if(!buf.empty()) {
+                via1->recieve_sr();
+            }
+        }
+
+    } else // Unknown address
+        if(cmd == 3)
+            buf.clear(); // Talk: 0 bytes of data
+}
+
 void keydown(const SDL_KeyboardEvent *e) {
     adb_irq = true;
     if(mac_keys.contains(e->keysym.scancode)) {
         keys.push_back(mac_keys[e->keysym.scancode]);
     }
 
-    via1.recieve_sr();
+    via1->recieve_sr();
 }
 
 void keyup(const SDL_KeyboardEvent *e) {
@@ -157,161 +389,4 @@ void keyup(const SDL_KeyboardEvent *e) {
             keys.erase(ret);
         }
     }
-}
-
-static std::vector<uint8_t> listen_buffer;
-void talk(uint8_t op, const uint8_t *data) {
-    int adr = op >> 4;
-    int reg = op & 3;
-    if(adr == (mouse_reg_3[0] & 0x0f)) {
-        switch(reg) {
-        case 3:                 // Address/HandlerID
-            if(data[2] == 0xfe) // Change address
-                mouse_reg_3[0] = (mouse_reg_3[0] & 0xf0) | (data[1] & 0x0f);
-            else if(data[2] == 1 || data[2] == 2 ||
-                    data[2] == 4) // Change device handler ID
-                mouse_reg_3[1] = data[2];
-            else if(data[2] == 0x00) // Change address and enable bit
-                mouse_reg_3[0] = (mouse_reg_3[0] & 0xd0) | (data[1] & 0x2f);
-            break;
-        }
-    } else if(adr == (key_reg_3[0] & 0x0f)) {
-        switch(reg) {
-        case 2: // LEDs/Modifiers
-            key_reg_2[0] = data[1];
-            key_reg_2[1] = data[2];
-            break;
-        case 3:                 // Address/HandlerID
-            if(data[2] == 0xfe) // Change address
-                key_reg_3[0] = (key_reg_3[0] & 0xf0) | (data[1] & 0x0f);
-            else if(data[2] == 0x00) // Change address and enable bit
-                key_reg_3[0] = (key_reg_3[0] & 0xd0) | (data[1] & 0x2f);
-            break;
-        }
-    }
-}
-void adb_reset() { SDL_ResetKeyboard(); }
-static int old_mx, old_my;
-void adb_out(uint8_t v) {
-    if(!listen_buffer.empty()) {
-        listen_buffer.push_back(v);
-        if(listen_buffer.size() == 4) {
-            talk(listen_buffer[0], listen_buffer.data() + 1);
-            listen_buffer.clear();
-            return;
-        }
-    }
-    int adr = v >> 4;
-    int cmd = v >> 2 & 3;
-    int reg = v & 3;
-
-    if((v & 0xf) == 0) {
-        // SendReset
-        adb_reset();
-        return;
-    }
-    // Check which device was addressed and act accordingly
-    if(adr == (mouse_reg_3[0] & 0x0f)) {
-
-        // Mouse
-        if(cmd == 2) {
-            // Listen Begin
-            listen_buffer.push_back(v);
-            return;
-        } else if(cmd == 3) {
-            // Talk
-            switch(reg) {
-            case 0: {
-                int x, y;
-                auto btn = SDL_GetMouseState(&x, &y);
-                int dx = x - old_mx;
-                int dy = y - old_my;
-
-                buf.push_back((dx & 0x7f) |
-                              (SDL_BUTTON_LMASK & btn ? 0 : 0x80));
-                buf.push_back((dy & 0x7f) |
-                              (SDL_BUTTON_RMASK & btn ? 0 : 0x80));
-                buf.push_back(((dy >> 3) & 0x70) | ((dx >> 7) & 0x07) |
-                              (SDL_BUTTON_MMASK & btn ? 0x08 : 0x88));
-                old_mx = x;
-                old_my = y;
-                break;
-            }
-
-            case 1: // Extended mouse protocol
-                buf = {'a', 'p', 'p', 'l', 300 >> 8, 300 & 0xff, 1, 3};
-                break;
-            case 3: // Address/HandlerID
-                buf.push_back((mouse_reg_3[0] & 0xf0) | (rand() & 0x0f));
-                buf.push_back(mouse_reg_3[1]);
-                break;
-            default:
-                buf.clear();
-                break;
-            }
-        }
-
-    } else if(adr == (key_reg_3[0] & 0x0f)) {
-
-        // Keyboard
-        if(cmd == 2) {
-            // Listen Begin
-            listen_buffer.push_back(v);
-            return;
-        } else if(cmd == 3) {
-
-            // Talk
-            switch(reg) {
-            case 0:
-                if(keys.empty()) {
-                    buf = {0xff, 0xff};
-                } else if(keys.size() == 1) {
-                    buf = {*keys.begin(), 0xff};
-                    keys.clear();
-                } else {
-                    buf.clear();
-                    auto ky = keys.begin();
-                    buf.push_back(*ky);
-                    ky = keys.erase(ky);
-                    buf.push_back(*ky);
-                    ky = keys.erase(ky);
-                }
-                break;
-            case 2: { // LEDs/Modifiers
-                auto mod = SDL_GetModState();
-                auto kbd = SDL_GetKeyboardState(nullptr);
-                uint8_t reg2hi = 0xff;
-                uint8_t reg2lo = key_reg_2[1] | 0xf8;
-                if(mod & KMOD_SCROLL) // Scroll Lock
-                    reg2lo &= ~0x40;
-                if(mod & KMOD_NUM) // Num Lock
-                    reg2lo &= ~0x80;
-                if(mod & KMOD_LGUI) // Command
-                    reg2hi &= ~0x01;
-                if(mod & KMOD_LALT) // Option
-                    reg2hi &= ~0x02;
-                if(mod & KMOD_LSHIFT) // Shift
-                    reg2hi &= ~0x04;
-                if(mod & KMOD_LCTRL) // Control
-                    reg2hi &= ~0x08;
-                if(mod & KMOD_CAPS) // Caps Lock
-                    reg2hi &= ~0x20;
-                if(kbd[SDL_SCANCODE_DELETE]) // Delete
-                    reg2hi &= ~0x40;
-                buf = {reg2hi, reg2lo};
-                break;
-            }
-            case 3: // Address/HandlerID
-                buf.push_back((key_reg_3[0] & 0xf0) | (rand() & 0x0f));
-                buf.push_back(key_reg_3[1]);
-                break;
-            default:
-                buf.clear();
-                break;
-            }
-        }
-
-    } else // Unknown address
-        if(cmd == 3)
-            buf.clear(); // Talk: 0 bytes of data
 }

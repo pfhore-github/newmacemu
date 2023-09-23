@@ -2,14 +2,18 @@
 #include "68040.hpp"
 #include "SDL_events.h"
 #include "SDL_keycode.h"
+#include "SDL_render.h"
 #include "SDL_ttf.h"
 #include "bus.hpp"
 #include "memory.hpp"
+#include <condition_variable>
 #include <fmt/format.h>
+#include <mutex>
+#include <thread>
 #include <unordered_set>
 static std::unordered_set<uint32_t> breakpoints;
-static uint32_t stoppoints;
 constexpr int SIZE = 14;
+
 static char RND_S() {
     switch(cpu.FPCR.RND) {
     case MPFR_RNDN:
@@ -24,17 +28,18 @@ static char RND_S() {
         return '?';
     }
 }
-std::string disasm();
-void run_op();
-static char PREC_S[] = {'X', 'S', 'D', '?'};
 static SDL_Window *debugWin;
 static SDL_Renderer *renderer;
 static TTF_Font *font = nullptr;
 constexpr SDL_Color WHITE = SDL_Color{0xff, 0xff, 0xff, 0xff};
 constexpr SDL_Color GRAY = SDL_Color{0xff, 0xff, 0xff, 0xff};
-static int draw_string(int x, int y, const std::string &s,
-                       SDL_Color c = WHITE) {
+static int draw_string(int x, int y, const std::string &s, SDL_Color c = WHITE,
+                       bool underline = false) {
+    if(underline) {
+        TTF_SetFontStyle(font, TTF_STYLE_UNDERLINE);
+    }
     auto tt = TTF_RenderUTF8_Solid(font, s.c_str(), c);
+
     auto tx = SDL_CreateTextureFromSurface(renderer, tt);
     SDL_Rect d;
     d.x = x;
@@ -44,119 +49,149 @@ static int draw_string(int x, int y, const std::string &s,
     SDL_RenderCopy(renderer, tx, nullptr, &d);
     SDL_DestroyTexture(tx);
     SDL_FreeSurface(tt);
+    TTF_SetFontStyle(font, TTF_STYLE_NORMAL);
     return d.w;
 }
+static std::string prompt;
+static uint8_t vs[8];
+static unsigned int pos;
+enum class CMD { NONE, MEM, JUMP, CONTINUE };
+CMD cmd = CMD::NONE;
+std::string disasm();
+void run_op();
+static char PREC_S[] = {'X', 'S', 'D', '?'};
+
 constexpr SDL_Color RED = {0xff, 0, 0, 0xff};
+class Console {
+    int x, y;
+    int xbase;
+
+  public:
+    Console(int x, int y) : x(x), y(y), xbase(x) {}
+    void newLine() {
+        y += SIZE;
+        x = xbase;
+    }
+    void draw(const std::string &s, SDL_Color c = WHITE, int style = 0) {
+        TTF_SetFontStyle(font, style);
+        x += draw_string(x, y, s, c);
+        TTF_SetFontStyle(font, 0);
+    }
+    void drawRed(const char *c, bool b) { draw(c, b ? RED : WHITE); }
+    void moveTo(int newx, int newy) {
+        x = xbase = newx;
+        y = newy;
+    }
+};
+
 void drawReg() {
+    Console cc(0, 0);
     for(int i = 0; i < 8; ++i) {
-        draw_string(0, SIZE * i, fmt::format("D{}: {:08X}", i, cpu.D[i]));
+        cc.draw(fmt::format("D{}: {:08X}", i, cpu.D[i]));
+        cc.newLine();
     }
     for(int i = 0; i < 8; ++i) {
-        draw_string(0, SIZE * (i + 8), fmt::format("A{}: {:08X}", i, cpu.A[i]));
+        cc.draw(fmt::format("A{}: {:08X}", i, cpu.A[i]));
+        cc.newLine();
     }
-    int x1 = draw_string(0, SIZE * 16, fmt::format("SR: T{}", cpu.T));
+    cc.draw(fmt::format("SR: T{}", cpu.T));
+    cc.drawRed("S", cpu.S);
+    cc.drawRed("M", cpu.M);
+    cc.draw(fmt::format("I{}/", cpu.I));
+    cc.drawRed("X", cpu.X);
+    cc.drawRed("N", cpu.N);
+    cc.drawRed("Z", cpu.Z);
+    cc.drawRed("V", cpu.V);
+    cc.drawRed("C", cpu.C);
+    cc.newLine();
+    cc.draw(fmt::format("PC: {:08X}", cpu.PC));
 
-    x1 += draw_string(x1, SIZE * 16, "S", cpu.S ? RED : WHITE);
-    x1 += draw_string(x1, SIZE * 16, "M", cpu.M ? RED : WHITE);
-    x1 += draw_string(x1, SIZE * 16, fmt::format("I{}/", cpu.I));
-    x1 += draw_string(x1, SIZE * 16, "X", cpu.X ? RED : WHITE);
-    x1 += draw_string(x1, SIZE * 16, "N", cpu.N ? RED : WHITE);
-    x1 += draw_string(x1, SIZE * 16, "Z", cpu.Z ? RED : WHITE);
-    x1 += draw_string(x1, SIZE * 16, "V", cpu.V ? RED : WHITE);
-    x1 += draw_string(x1, SIZE * 16, "C", cpu.C ? RED : WHITE);
-    draw_string(0, SIZE * 17, fmt::format("PC: {:08x}", cpu.PC));
-
+    cc.moveTo(120, 0);
     for(int i = 0; i < 8; ++i) {
         char *p;
         mpfr_asprintf(&p, "%RNf", cpu.FP[i]);
-        draw_string(120, SIZE * i, fmt::format("FP{} : {}", i, p));
+        cc.draw(fmt::format("FP{} : {}", i, p));
+        cc.newLine();
         mpfr_free_str(p);
     }
-    x1 = 120;
-    x1 += draw_string(x1, SIZE * 8, "FPCR:");
-    x1 += draw_string(x1, SIZE * 8, "B", cpu.FPCR.BSUN ? RED : WHITE);
-    x1 += draw_string(x1, SIZE * 8, "S", cpu.FPCR.S_NAN ? RED : WHITE);
-    x1 += draw_string(x1, SIZE * 8, "E", cpu.FPCR.OPERR ? RED : WHITE);
-    x1 += draw_string(x1, SIZE * 8, "O", cpu.FPCR.OVFL ? RED : WHITE);
-    x1 += draw_string(x1, SIZE * 8, "U", cpu.FPCR.UNFL ? RED : WHITE);
-    x1 += draw_string(x1, SIZE * 8, "Z", cpu.FPCR.DZ ? RED : WHITE);
-    x1 += draw_string(x1, SIZE * 8, "I", cpu.FPCR.INEX2 ? RED : WHITE);
-    x1 += draw_string(x1, SIZE * 8, "i", cpu.FPCR.INEX1 ? RED : WHITE);
-    x1 +=
-        draw_string(x1, SIZE * 8,
-                    fmt::format("{} {}", RND_S(), PREC_S[int(cpu.FPCR.PREC)]));
+    cc.draw("FPCR:");
+    cc.drawRed("B", cpu.FPCR.BSUN);
+    cc.drawRed("S", cpu.FPCR.S_NAN);
+    cc.drawRed("E", cpu.FPCR.OPERR);
+    cc.drawRed("O", cpu.FPCR.OVFL);
+    cc.drawRed("U", cpu.FPCR.UNFL);
+    cc.drawRed("Z", cpu.FPCR.DZ);
+    cc.drawRed("I", cpu.FPCR.INEX2);
+    cc.drawRed("i", cpu.FPCR.INEX1);
+    cc.draw(fmt::format("{}{}", RND_S(), PREC_S[int(cpu.FPCR.PREC)]));
+    cc.newLine();
 
-    x1 = 120;
-    x1 += draw_string(x1, SIZE * 9, "FPSR:");
-    x1 += draw_string(x1, SIZE * 9, "N", cpu.FPSR.CC_N ? RED : WHITE);
-    x1 += draw_string(x1, SIZE * 9, "Z", cpu.FPSR.CC_Z ? RED : WHITE);
-    x1 += draw_string(x1, SIZE * 9, "I", cpu.FPSR.CC_I ? RED : WHITE);
-    x1 += draw_string(x1, SIZE * 9, "n", cpu.FPSR.CC_NAN ? RED : WHITE);
-    x1 += draw_string(
-        x1, SIZE * 9,
+    cc.draw("FPSR:");
+    cc.drawRed("N", cpu.FPSR.CC_N);
+    cc.drawRed("Z", cpu.FPSR.CC_Z);
+    cc.drawRed("I", cpu.FPSR.CC_I);
+    cc.drawRed("n", cpu.FPSR.CC_NAN);
+    cc.draw(
         fmt::format("F{}{:<3d}", cpu.FPSR.QuatSign ? '-' : '+', cpu.FPSR.Quat));
-    x1 = 120;
-    x1 += draw_string(x1, SIZE * 10, " EXE;");
-    x1 += draw_string(x1, SIZE * 10, "B", cpu.FPSR.BSUN ? RED : WHITE);
-    x1 += draw_string(x1, SIZE * 10, "X", cpu.FPSR.S_NAN ? RED : WHITE);
-    x1 += draw_string(x1, SIZE * 10, "E", cpu.FPSR.OPERR ? RED : WHITE);
-    x1 += draw_string(x1, SIZE * 10, "O", cpu.FPSR.OVFL ? RED : WHITE);
-    x1 += draw_string(x1, SIZE * 10, "U", cpu.FPSR.UNFL ? RED : WHITE);
-    x1 += draw_string(x1, SIZE * 10, "Z", cpu.FPSR.DZ ? RED : WHITE);
-    x1 += draw_string(x1, SIZE * 10, "I", cpu.FPSR.INEX2 ? RED : WHITE);
-    x1 += draw_string(x1, SIZE * 10, "i", cpu.FPSR.INEX1 ? RED : WHITE);
-    x1 = 120;
-    x1 += draw_string(x1, SIZE * 11, " Acc;");
-    x1 += draw_string(x1, SIZE * 11, "E", cpu.FPSR.EXC_IOP ? RED : WHITE);
-    x1 += draw_string(x1, SIZE * 11, "O", cpu.FPSR.EXC_OVFL ? RED : WHITE);
-    x1 += draw_string(x1, SIZE * 11, "U", cpu.FPSR.EXC_UNFL ? RED : WHITE);
-    x1 += draw_string(x1, SIZE * 11, "Z", cpu.FPSR.EXC_DZ ? RED : WHITE);
-    x1 += draw_string(x1, SIZE * 11, "I", cpu.FPSR.EXC_INEX ? RED : WHITE);
-    draw_string(120, SIZE * 12, fmt::format("FPIR:{:08x}", cpu.FPIAR));
-    draw_string(120, SIZE * 13, fmt::format("VBR :{:08x}", cpu.VBR));
-    draw_string(120, SIZE * 14,
-                fmt::format("SFC:{}, DFC:{}", cpu.SFC, cpu.DFC));
+    cc.newLine();
 
-    x1 = 120;
-    x1 += draw_string(x1, SIZE * 15,
-                      fmt::format("ITTR0:{:02X}{:02X}", cpu.ITTR[0].logic_base,
-                                  cpu.ITTR[0].logic_mask));
-    x1 += draw_string(x1, SIZE * 15, "E", cpu.ITTR[0].E ? RED : WHITE);
-    x1 += draw_string(x1, SIZE * 15,
-                      fmt::format("S{}U{}C{}", cpu.ITTR[0].S, cpu.ITTR[0].U,
-                                  cpu.ITTR[0].CM));
-    x1 += draw_string(x1, SIZE * 15, "W", cpu.ITTR[0].W ? RED : WHITE);
+    cc.draw(" EXE;");
+    cc.drawRed("B", cpu.FPSR.BSUN);
+    cc.drawRed("X", cpu.FPSR.S_NAN);
+    cc.drawRed("E", cpu.FPSR.OPERR);
+    cc.drawRed("O", cpu.FPSR.OVFL);
+    cc.drawRed("U", cpu.FPSR.UNFL);
+    cc.drawRed("Z", cpu.FPSR.DZ);
+    cc.drawRed("I", cpu.FPSR.INEX2);
+    cc.drawRed("i", cpu.FPSR.INEX1);
+    cc.newLine();
 
-    x1 = 120;
-    x1 += draw_string(x1, SIZE * 16,
-                      fmt::format("    1:{:02X}{:02X}", cpu.ITTR[1].logic_base,
-                                  cpu.ITTR[1].logic_mask));
-    x1 += draw_string(x1, SIZE * 16, "E", cpu.ITTR[1].E ? RED : WHITE);
-    x1 += draw_string(x1, SIZE * 16,
-                      fmt::format("S{}U{}C{}", cpu.ITTR[1].S, cpu.ITTR[1].U,
-                                  cpu.ITTR[1].CM));
-    x1 += draw_string(x1, SIZE * 16, "W", cpu.ITTR[1].W ? RED : WHITE);
+    cc.draw(" AcE;");
+    cc.drawRed("E", cpu.FPSR.EXC_IOP);
+    cc.drawRed("O", cpu.FPSR.EXC_OVFL);
+    cc.drawRed("U", cpu.FPSR.EXC_UNFL);
+    cc.drawRed("Z", cpu.FPSR.EXC_DZ);
+    cc.drawRed("I", cpu.FPSR.EXC_INEX);
+    cc.newLine();
 
-    x1 = 120;
-    x1 += draw_string(x1, SIZE * 17,
-                      fmt::format("DTTR0:{:02X}{:02X}", cpu.DTTR[0].logic_base,
-                                  cpu.DTTR[0].logic_mask));
-    x1 += draw_string(x1, SIZE * 17, "E", cpu.DTTR[0].E ? RED : WHITE);
-    x1 += draw_string(x1, SIZE * 17,
-                      fmt::format("S{}U{}C{}", cpu.DTTR[0].S, cpu.DTTR[0].U,
-                                  cpu.DTTR[0].CM));
-    x1 += draw_string(x1, SIZE * 17, "W", cpu.DTTR[0].W ? RED : WHITE);
+    cc.draw(fmt::format("FPIR:{:08X}", cpu.FPIAR));
+    cc.newLine();
+    cc.draw(fmt::format("VBR :{:08X}", cpu.VBR));
+    cc.newLine();
+    cc.draw(fmt::format("SFC:{}, DFC:{}", cpu.SFC, cpu.DFC));
+    cc.newLine();
 
-    x1 = 120;
-    x1 += draw_string(x1, SIZE * 18,
-                      fmt::format("    1:{:02X}{:02X}", cpu.DTTR[1].logic_base,
-                                  cpu.DTTR[1].logic_mask));
-    x1 += draw_string(x1, SIZE * 18, "E", cpu.DTTR[1].E ? RED : WHITE);
-    x1 += draw_string(x1, SIZE * 18,
-                      fmt::format("S{}U{}C{}", cpu.DTTR[1].S, cpu.DTTR[1].U,
-                                  cpu.DTTR[1].CM));
-    x1 += draw_string(x1, SIZE * 18, "W", cpu.DTTR[1].W ? RED : WHITE);
+    cc.draw(fmt::format("ITTR0:{:02X}{:02X}", cpu.ITTR[0].logic_base,
+                        cpu.ITTR[0].logic_mask));
+    cc.drawRed("E", cpu.ITTR[0].E);
+    cc.draw(
+        fmt::format("S{}U{}C{}", cpu.ITTR[0].S, cpu.ITTR[0].U, cpu.ITTR[0].CM));
+    cc.drawRed("W", cpu.ITTR[0].W);
+    cc.newLine();
 
+    cc.draw(fmt::format("    1:{:02X}{:02X}", cpu.ITTR[1].logic_base,
+                        cpu.ITTR[1].logic_mask));
+    cc.drawRed("E", cpu.ITTR[0].E);
+    cc.draw(
+        fmt::format("S{}U{}C{}", cpu.ITTR[1].S, cpu.ITTR[1].U, cpu.ITTR[1].CM));
+    cc.drawRed("W", cpu.ITTR[1].W);
+    cc.newLine();
+
+    cc.draw(fmt::format("DTTR0:{:02X}{:02X}", cpu.DTTR[0].logic_base,
+                        cpu.DTTR[0].logic_mask));
+    cc.drawRed("E", cpu.DTTR[0].E);
+    cc.draw(
+        fmt::format("S{}U{}C{}", cpu.DTTR[0].S, cpu.DTTR[0].U, cpu.DTTR[0].CM));
+    cc.drawRed("W", cpu.DTTR[0].W);
+    cc.newLine();
+
+    cc.draw(fmt::format("    1:{:02X}{:02X}", cpu.DTTR[1].logic_base,
+                        cpu.DTTR[1].logic_mask));
+    cc.drawRed("E", cpu.DTTR[0].E);
+    cc.draw(
+        fmt::format("S{}U{}C{}", cpu.DTTR[1].S, cpu.DTTR[1].U, cpu.DTTR[1].CM));
+    cc.drawRed("W", cpu.DTTR[1].W);
+    cc.newLine();
 }
 uint32_t mem_v_addr = 0;
 
@@ -202,9 +237,262 @@ void update() {
                     fmt::format("{}{:08X}: {}", u == 0 ? '>' : ' ', p, ret));
     }
     cpu.PC = pc;
+
+    if(!prompt.empty()) {
+        draw_string(0, 300, prompt);
+
+        int x = 0;
+        for(int k = 7; k >= 0; --k) {
+            auto v2 = fmt::format("{:X}", vs[k]);
+            x += draw_string(x, 300 + SIZE, v2, WHITE,
+                             static_cast<int>(pos) == k);
+        }
+    }
     SDL_RenderPresent(renderer);
 }
 void video_update();
+std::atomic<uint32_t> until = 0;
+std::atomic<int64_t> stepc = 0;
+static int debugger_cpu(void *) {
+    for(;;) {
+        while(cpu.run.load() && (cpu.PC & 0xfffff) != (until & 0xfffff) &&
+              --stepc >= 0) {
+            if(setjmp(cpu.ex_buf) == 0) {
+                run_op();
+            }
+        }
+        cpu.run.store(false);
+        cpu.run.wait(false);
+    }
+    return 0;
+}
+uint32_t nextpc();
+void continue_cpu() {
+    cpu.run.store(true);
+    cpu.run.notify_one();
+}
+void input_hex(int c) {
+    vs[pos] = c;
+    if(pos != 0) {
+        --pos;
+    }
+}
+
+uint32_t debug_value() {
+    uint32_t x = 0;
+    for(int k = 0; k < 8; ++k) {
+        x |= vs[k] << (k * 4);
+    }
+    return x;
+}
+void handler_debuggerEvent(const SDL_Event &e) {
+    switch(e.type) {
+    case SDL_KEYDOWN:
+        if(e.key.windowID == SDL_GetWindowID(debugWin)) {
+            if(cpu.run.load()) {
+                if(e.key.keysym.sym == SDLK_SPACE) {
+                    cpu.run.store(false);
+                }
+                return;
+            }
+            switch(e.key.keysym.sym) {
+            case SDLK_m:
+                prompt = "address";
+                cmd = CMD::MEM;
+                for(int i = 0; i < 8; ++i) {
+                    vs[i] = (mem_v_addr >> (4 * i)) & 0xf;
+                }
+                pos = 7;
+                break;
+            case SDLK_RETURN:
+                switch(cmd) {
+                case CMD::MEM: 
+                    mem_v_addr = debug_value()  & ~7;
+                    break;
+                case CMD::CONTINUE:
+                    until = debug_value()  & ~1;
+                    stepc = 0x7FFFFFFFLL;
+                    continue_cpu();
+                    break;
+                case CMD::JUMP:
+                    cpu.PC = debug_value()  & ~1;
+                    break;
+                }
+                prompt = "";
+                cmd = CMD::NONE;
+                break;
+            case SDLK_0:
+            case SDLK_KP_0:
+                if(prompt == "address") {
+                    input_hex(0);
+                }
+                break;
+            case SDLK_1:
+            case SDLK_KP_1:
+                if(prompt == "address") {
+                    input_hex(1);
+                }
+                break;
+            case SDLK_2:
+            case SDLK_KP_2:
+                if(prompt == "address") {
+                    input_hex(2);
+                }
+                break;
+            case SDLK_3:
+            case SDLK_KP_3:
+                if(prompt == "address") {
+                    input_hex(3);
+                }
+                break;
+            case SDLK_4:
+            case SDLK_KP_4:
+                if(prompt == "address") {
+                    input_hex(4);
+                }
+                break;
+            case SDLK_5:
+            case SDLK_KP_5:
+                if(prompt == "address") {
+                    input_hex(5);
+                }
+                break;
+            case SDLK_6:
+            case SDLK_KP_6:
+                if(prompt == "address") {
+                    input_hex(6);
+                }
+                break;
+            case SDLK_7:
+            case SDLK_KP_7:
+                if(prompt == "address") {
+                    input_hex(7);
+                }
+                break;
+            case SDLK_8:
+            case SDLK_KP_8:
+                if(prompt == "address") {
+                    input_hex(8);
+                }
+                break;
+            case SDLK_9:
+            case SDLK_KP_9:
+                if(prompt == "address") {
+                    input_hex(9);
+                }
+                break;
+            case SDLK_a:
+            case SDLK_KP_A:
+                if(prompt == "address") {
+                    input_hex(10);
+                }
+                break;
+            case SDLK_b:
+            case SDLK_KP_B:
+                if(prompt == "address") {
+                    input_hex(11);
+                }
+                break;
+            case SDLK_KP_C:
+                if(prompt == "address") {
+                    input_hex(12);
+                }
+                break;
+            case SDLK_d:
+            case SDLK_KP_D:
+                if(prompt == "address") {
+                    input_hex(13);
+                }
+                break;
+            case SDLK_e:
+            case SDLK_KP_E:
+                if(prompt == "address") {
+                    input_hex(14);
+                }
+                break;
+            case SDLK_f:
+            case SDLK_KP_F:
+                if(prompt == "address") {
+                    input_hex(15);
+                }
+                break;
+            case SDLK_q:
+                SDL_DestroyRenderer(renderer);
+                SDL_DestroyWindow(debugWin);
+                return;
+            case SDLK_s:
+                stepc = 1;
+                until = 0;
+                continue_cpu();
+                break;
+            case SDLK_r:
+                until = cpu.A[6];
+                stepc = 0x7FFFFFFFFFFFFFFFLL;
+                continue_cpu();
+                break;
+
+            case SDLK_c:
+                if(prompt == "address") {
+                    input_hex(12);
+                } else {
+                    prompt = "address";
+                    cmd = CMD::CONTINUE;
+                    pos = 7;
+                }
+                break;
+            case SDLK_g:
+                prompt = "address";
+                cmd = CMD::JUMP;
+                pos = 7;
+                break;
+            case SDLK_ESCAPE:
+                prompt = "";
+                cmd = CMD::NONE;
+                break;
+            case SDLK_UP:
+                if(prompt == "address") {
+                    vs[pos] = (vs[pos] - 1) & 0xf;
+                } else {
+                    mem_v_addr -= 8;
+                }
+                break;
+            case SDLK_DOWN:
+                if(prompt == "address") {
+                    vs[pos] = (vs[pos] + 1) & 0xf;
+                } else {
+                    mem_v_addr += 8;
+                }
+                break;
+            case SDLK_LEFT:
+                if(prompt == "address") {
+                    pos = std::min(7u, pos + 1);
+                } else {
+                    mem_v_addr -= 0x100;
+                }
+                break;
+            case SDLK_RIGHT:
+                if(prompt == "address") {
+                    pos = std::max(0u, pos - 1);
+                } else {
+                    mem_v_addr += 0x100;
+                }
+                break;
+            }
+        } else {
+            keydown(&e.key);
+        }
+        break;
+    case SDL_KEYUP:
+        keyup(&e.key);
+        break;
+
+    case SDL_QUIT:
+        SDL_DestroyRenderer(renderer);
+        SDL_DestroyWindow(debugWin);
+        exit(0);
+    }
+}
+
 void debug_activate() {
     if(!TTF_WasInit()) {
         TTF_Init();
@@ -215,98 +503,18 @@ void debug_activate() {
         SDL_CreateWindow("DEBUGGER", SDL_WINDOWPOS_UNDEFINED,
                          SDL_WINDOWPOS_UNDEFINED, 640, 480, SDL_WINDOW_SHOWN);
     renderer = SDL_CreateRenderer(debugWin, -1, SDL_RENDERER_ACCELERATED);
+    SDL_Thread *tt = SDL_CreateThread(debugger_cpu, "CPU", nullptr);
+    SDL_DetachThread(tt);
+
+    cpu.run.store(false);
     for(;;) {
-        video_update();
+        //        video_update();
         update();
         SDL_Event e;
         while(SDL_PollEvent(&e)) {
-            switch(e.type) {
-            case SDL_KEYDOWN:
-                if(e.key.windowID == SDL_GetWindowID(debugWin)) {
-                    switch(e.key.keysym.sym) {
-                    case SDLK_m: {
-#if 0
-    printf("address?");
-            char cc[64];
-            echo();
-            mvwgetstr(adr, 1, 0, cc);
-            noecho();
-            mem_v_addr = strtoul(cc, nullptr, 16) & ~7;
-            delwin(adr);
-            break;
-#endif
-                    }
-                    case SDLK_q:
-                        SDL_DestroyRenderer(renderer);
-                        SDL_DestroyWindow(debugWin);
-                        return;
-                    case SDLK_s:
-                        run_op();
-                        break;
-                    case SDLK_r: {
-                        uint32_t cont = cpu.A[6];
-                        while(cpu.PC != cont) {
-                            run_op();
-                            update();
-                        }
-                        break;
-                    }
-
-                    case SDLK_c: {
-#if 0
-                        auto adr = subwin(stdscr, 4, 20, 8, 50);
-                        wbkgd(adr, COLOR_PAIR(0));
-                        werase(adr);
-                        mvwprintw(adr, 0, 0, "address?");
-                        char cc[64];
-                        echo();
-                        mvwgetstr(adr, 1, 0, cc);
-                        noecho();
-                        delwin(adr);
-                        if(cc[0] != '\0') {
-                            uint32_t cont = strtoul(cc, nullptr, 16) & ~1;
-                            while(cpu.PC != cont) {
-                                run_op();
-                                update();
-                            }
-                        } else {
-                            timeout(1);
-                            while(getch() == -1) {
-                                run_op();
-                                update();
-                            }
-                        }
-#endif
-                        break;
-                    }
-
-                    case SDLK_UP:
-                        mem_v_addr -= 8;
-                        break;
-                    case SDLK_DOWN:
-                        mem_v_addr += 8;
-                        break;
-                    case SDLK_LEFT:
-                        mem_v_addr -= 0x100;
-                        break;
-                    case SDLK_RIGHT:
-                        mem_v_addr += 0x100;
-                        break;
-                    }
-                } else {
-                    keydown(&e.key);
-                }
-                break;
-            case SDL_KEYUP:
-                keyup(&e.key);
-                break;
-
-            case SDL_QUIT:
-                SDL_DestroyRenderer(renderer);
-                SDL_DestroyWindow(debugWin);
-                exit(0);
-            }
+            handler_debuggerEvent(e);
         }
+        SDL_Delay(20);
     }
 }
 #else

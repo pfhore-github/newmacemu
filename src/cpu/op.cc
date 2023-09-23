@@ -1882,7 +1882,7 @@ void init_run_table() {
         }
         for(int c = 0; c < 16; ++c) {
             if(ea < 072) {
-                run_table[0050300 | c << 8 | ea] = OP::scc_dn;
+                run_table[0050300 | c << 8 | ea] = OP::scc_ea;
             }
         }
     }

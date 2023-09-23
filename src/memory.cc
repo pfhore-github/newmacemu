@@ -6,6 +6,9 @@
 #include "exception.hpp"
 #include "io.hpp"
 #include "memory.hpp"
+uint8_t ReadBImpl(uint32_t addr, bool code = false);
+uint16_t ReadWImpl(uint32_t addr, bool code = false);
+uint32_t ReadLImpl(uint32_t addr, bool code = false);
 inline TM GetTM(bool code) {
     return cpu.S  ? code ? TM::SYS_CODE : TM::SYS_DATA
            : code ? TM::USER_CODE

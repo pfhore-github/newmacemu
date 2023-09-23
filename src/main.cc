@@ -29,15 +29,18 @@ void do_irq(int i) {
     cpu.inturrupt.store(i);
 }
 int cpu_thread(void *) {
-    while(cpu.run.load()) {
-        if(int i = cpu.inturrupt.load(); i >= 0) {
-            IRQ(i);
-            cpu.inturrupt.store(-1);
-        } else {
-            run_op();
+    for(;;) {
+        if(setjmp(cpu.ex_buf) == 0) {
+            while(cpu.run.load()) {
+                run_op();
+            }
+            break;
         }
     }
     return 0;
+}
+void do_poweroff() {
+    quick_exit(0);
 }
 void debug_activate();
 void video_update();
@@ -56,7 +59,7 @@ int main(int argc, char **argv) {
                          0); // TODO We should use GL shader?
     r = SDL_CreateRenderer(w, -1, SDL_RENDERER_ACCELERATED);
     RAM.resize(64 * 1024 * 1024);
-    int fd = open("../quadra950.ROM", O_RDONLY);
+    int fd = open("../quadra950.rom", O_RDONLY);
     if(fd == -1) {
         perror("cannot open rom");
         exit(1);
@@ -73,7 +76,7 @@ int main(int argc, char **argv) {
     initBus();
     init_fpu();
     RESET();
-    cpu.PC = 0x2A;
+    cpu.PC = 0x4080002A;
     cpu.movem_run = false;
     for(int i = 1; i < argc; ++i) {
         if(strcmp(argv[i], "-d") == 0) {

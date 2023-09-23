@@ -627,65 +627,131 @@ void op_ptest(uint32_t addr, bool w) {
         break;
     }
 }
-
-namespace OP {
-void movec_from_cr(uint16_t, int, int, int) {
-    PRIV_CHECK();
-    uint16_t extw = FETCH();
-    int rn = extw >> 12 & 15;
-    switch(extw & 0xfff) {
+bool movec_from_cr_impl(uint16_t extw, uint32_t* rn) {
+    switch(extw) {
     case 0:
-        cpu.R(rn) = cpu.SFC;
+        *rn = cpu.SFC;
         break;
     case 1:
-        cpu.R(rn) = cpu.DFC;
+        *rn = cpu.DFC;
         break;
     case 2:
-        cpu.R(rn) = cpu.CACR_DE << 31 | cpu.CACR_IE << 15;
+        *rn = cpu.CACR_DE << 31 | cpu.CACR_IE << 15;
         break;
     case 3:
-        cpu.R(rn) = cpu.TCR_E << 15 | cpu.TCR_P << 14;
+        *rn = cpu.TCR_E << 15 | cpu.TCR_P << 14;
         break;
     case 4:
-        cpu.R(rn) = Get_TTR_t(cpu.ITTR[0]);
+        *rn = Get_TTR_t(cpu.ITTR[0]);
         break;
     case 5:
-        cpu.R(rn) = Get_TTR_t(cpu.ITTR[1]);
+        *rn = Get_TTR_t(cpu.ITTR[1]);
         break;
     case 6:
-        cpu.R(rn) = Get_TTR_t(cpu.DTTR[0]);
+        *rn = Get_TTR_t(cpu.DTTR[0]);
         break;
     case 7:
-        cpu.R(rn) = Get_TTR_t(cpu.DTTR[1]);
+        *rn = Get_TTR_t(cpu.DTTR[1]);
         break;
     case 0x800:
-        cpu.R(rn) = cpu.USP;
+        *rn = cpu.USP;
         break;
     case 0x801:
-        cpu.R(rn) = cpu.VBR;
+        *rn = cpu.VBR;
         break;
     case 0x803:
         if(cpu.M) {
             cpu.MSP = cpu.A[7];
         }
-        cpu.R(rn) = cpu.MSP;
+        *rn = cpu.MSP;
         break;
     case 0x804:
         if(!cpu.M) {
             cpu.ISP = cpu.A[7];
         }
-        cpu.R(rn) = cpu.ISP;
+        *rn = cpu.ISP;
         break;
     case 0x805:
-        cpu.R(rn) = cpu.MMUSR;
+        *rn = cpu.MMUSR;
         break;
     case 0x806:
-        cpu.R(rn) = cpu.URP;
+        *rn = cpu.URP;
         break;
     case 0x807:
-        cpu.R(rn) = cpu.SRP;
+        *rn = cpu.SRP;
         break;
     default:
+        return false;
+    }
+    return true;
+}
+
+bool movec_to_cr_impl(uint16_t extw, uint32_t v) {
+     switch(extw & 0xfff) {
+    case 0:
+        cpu.SFC = v & 7;
+        break;
+    case 1:
+        cpu.DFC = v & 7;
+        break;
+    case 2:
+        cpu.CACR_DE = v >> 31 & 1;
+        cpu.CACR_IE = v >> 15 & 1;
+        break;
+    case 3:
+        cpu.TCR_E = v >> 15 & 1;
+        cpu.TCR_P = v >> 14 & 1;
+        break;
+    case 4:
+        Set_TTR_t(cpu.ITTR[0], v);
+        break;
+    case 5:
+        Set_TTR_t(cpu.ITTR[1], v);
+        break;
+    case 6:
+        Set_TTR_t(cpu.DTTR[0], v);
+        break;
+    case 7:
+        Set_TTR_t(cpu.DTTR[1], v);
+        break;
+    case 0x800:
+        cpu.USP = v;
+        break;
+    case 0x801:
+        cpu.VBR = v;
+        break;
+    case 0x803:
+        cpu.MSP = v;
+        if(cpu.M) {
+            cpu.A[7] = cpu.MSP;
+        }
+        break;
+    case 0x804:
+        cpu.ISP = v;
+        if(!cpu.M) {
+            cpu.A[7] = cpu.ISP;
+        }
+        break;
+    case 0x805:
+        cpu.MMUSR = v;
+        break;
+    case 0x806:
+        cpu.URP = v & ~0x1ff;
+        break;
+    case 0x807:
+        cpu.SRP = v & ~0x1ff;
+        break;
+    default:
+        return false;
+    }
+    return true;
+}
+namespace OP {
+void movec_from_cr(uint16_t, int, int, int) {
+    PRIV_CHECK();
+    uint16_t extw = FETCH();
+    int rn = extw >> 12 & 15;
+    if( ! movec_from_cr_impl(extw & 0xfff, &cpu.R(rn)) ) {
         ILLEGAL_OP();
     }
     TRACE_BRANCH();
@@ -694,63 +760,10 @@ void movec_to_cr(uint16_t, int, int, int) {
     PRIV_CHECK();
     uint16_t extw = FETCH();
     int rn = extw >> 12 & 15;
-    switch(extw & 0xfff) {
-    case 0:
-        cpu.SFC = cpu.R(rn) & 7;
-        break;
-    case 1:
-        cpu.DFC = cpu.R(rn) & 7;
-        break;
-    case 2:
-        cpu.CACR_DE = cpu.R(rn) >> 31 & 1;
-        cpu.CACR_IE = cpu.R(rn) >> 15 & 1;
-        break;
-    case 3:
-        cpu.TCR_E = cpu.R(rn) >> 15 & 1;
-        cpu.TCR_P = cpu.R(rn) >> 14 & 1;
-        break;
-    case 4:
-        Set_TTR_t(cpu.ITTR[0], cpu.R(rn));
-        break;
-    case 5:
-        Set_TTR_t(cpu.ITTR[1], cpu.R(rn));
-        break;
-    case 6:
-        Set_TTR_t(cpu.DTTR[0], cpu.R(rn));
-        break;
-    case 7:
-        Set_TTR_t(cpu.DTTR[1], cpu.R(rn));
-        break;
-    case 0x800:
-        cpu.USP = cpu.R(rn);
-        break;
-    case 0x801:
-        cpu.VBR = cpu.R(rn);
-        break;
-    case 0x803:
-        cpu.MSP = cpu.R(rn);
-        if(cpu.M) {
-            cpu.A[7] = cpu.MSP;
-        }
-        break;
-    case 0x804:
-        cpu.ISP = cpu.R(rn);
-        if(!cpu.M) {
-            cpu.A[7] = cpu.ISP;
-        }
-        break;
-    case 0x805:
-        cpu.MMUSR = cpu.R(rn);
-        break;
-    case 0x806:
-        cpu.URP = cpu.R(rn) & ~0x1ff;
-        break;
-    case 0x807:
-        cpu.SRP = cpu.R(rn) & ~0x1ff;
-        break;
-    default:
+      if( ! movec_to_cr_impl(extw & 0xfff, cpu.R(rn)) ) {
         ILLEGAL_OP();
     }
+
     TRACE_BRANCH();
 }
 } // namespace OP
