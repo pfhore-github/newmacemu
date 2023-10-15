@@ -1,15 +1,16 @@
 #include "chip/iop.hpp"
 #include "SDL_timer.h"
 
-uint8_t IOP::read(uint8_t addr) {
-    switch(addr >> 1) {
+uint8_t IOP::read(uint32_t addr) {
+    switch(addr) {
     case 0:
         return RamAddress >> 8;
     case 1:
         return RamAddress;
     case 2:
         return status;
-    case 3: {
+    case 4:
+    case 5: {
         auto v = MEM[RamAddress];
         if(status & 2) {
             RamAddress++;
@@ -21,8 +22,8 @@ uint8_t IOP::read(uint8_t addr) {
     }
 }
 
-void IOP::write(uint8_t addr, uint8_t val) {
-    switch(addr >> 1) {
+void IOP::write(uint32_t addr, uint8_t val) {
+    switch(addr) {
     case 0:
         RamAddress = (RamAddress & 0xff) | val << 8;
         break;
@@ -33,14 +34,15 @@ void IOP::write(uint8_t addr, uint8_t val) {
         /* TODO */
         if(!(val & 4)) {
             PC = 0;
-            running.store(false);            
+            running.store(false);
         } else {
-            running.store(true);            
+            running.store(true);
             running.notify_one();
         }
         status = val;
         break;
-    case 3: 
+    case 4:
+    case 5:
         MEM[RamAddress] = val;
         if(status & 2) {
             RamAddress++;

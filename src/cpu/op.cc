@@ -357,6 +357,7 @@ void moves_b(uint16_t, int, int type, int reg) {
     uint16_t extw = FETCH();
     int rn = extw >> 12 & 15;
     cpu.EA = ea_getaddr(type, reg, 1);
+    cpu.af_value.tt = TT::ALT;
     if(extw & 1 << 11) {
         WriteB(cpu.EA, cpu.R(rn));
     } else {
@@ -370,6 +371,7 @@ void moves_w(uint16_t, int, int type, int reg) {
     uint16_t extw = FETCH();
     int rn = extw >> 12 & 15;
     cpu.EA = ea_getaddr(type, reg, 2);
+    cpu.af_value.tt = TT::ALT;
     if(extw & 1 << 11) {
         WriteW(cpu.EA, cpu.R(rn));
     } else {
@@ -383,6 +385,7 @@ void moves_l(uint16_t, int, int type, int reg) {
     uint16_t extw = FETCH();
     int rn = extw >> 12 & 15;
     cpu.EA = ea_getaddr(type, reg, 4);
+    cpu.af_value.tt = TT::ALT;
     if(extw & 1 << 11) {
         WriteL(cpu.EA, cpu.R(rn));
     } else {

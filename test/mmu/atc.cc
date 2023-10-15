@@ -4,14 +4,14 @@
 #include <boost/test/data/monomorphic.hpp>
 #include <boost/test/data/test_case.hpp>
 #include <boost/test/unit_test.hpp>
-uint32_t ptest(uint32_t addr, bool sys, bool code, bool W);
+mmu_result ptest(uint32_t addr, bool sys, bool code, bool W);
 namespace bdata = boost::unit_test::data;
 
 BOOST_FIXTURE_TEST_SUITE(ATC, Prepare) 
 BOOST_AUTO_TEST_CASE(Resident)
 {
     cpu.TCR_E = true;
-    cpu.u_atc[0x00300] = {
+    cpu.l_atc[0][0x00300] = {
         0x20,
         0,
         false,
@@ -19,13 +19,17 @@ BOOST_AUTO_TEST_CASE(Resident)
         true, false, true,
     };
     auto v = ptest(0x00300, false, false, false);
-    BOOST_TEST(v ==  (0x20001 | 1 << 4));
+    BOOST_TEST(v.paddr == 0x20);
+    BOOST_TEST(v.R);
+    BOOST_TEST(v.M);
+    BOOST_TEST(!v.G);
+    BOOST_TEST(!v.S);
 }
 
 BOOST_AUTO_TEST_CASE(ResidentG)
 {
     cpu.TCR_E = true;
-    cpu.ug_atc[0x00300] = {
+    cpu.g_atc[0][0x00300] = {
         0x20,
         0,
         false,
@@ -33,13 +37,17 @@ BOOST_AUTO_TEST_CASE(ResidentG)
         true, false, true,
     };
     auto v = ptest(0x00300, false, false, false);
-    BOOST_TEST(v ==  (0x20001 | 1 << 4 | 1 << 10));
+    BOOST_TEST(v.paddr == 0x20);
+    BOOST_TEST(v.R);
+    BOOST_TEST(v.M);
+    BOOST_TEST(v.G);
+    BOOST_TEST(!v.S);
 }
 
 BOOST_AUTO_TEST_CASE(ResidentS)
 {
     cpu.TCR_E = true;
-    cpu.s_atc[0x00300] = {
+    cpu.l_atc[1][0x00300] = {
         0x20,
         0,
         false,
@@ -47,13 +55,17 @@ BOOST_AUTO_TEST_CASE(ResidentS)
         true, false, true,
     };
     auto v = ptest(0x00300, true, false, false);
-    BOOST_TEST(v ==  (0x20001 | 1 << 4));
+    BOOST_TEST(v.paddr == 0x20);
+    BOOST_TEST(v.R);
+    BOOST_TEST(v.M);
+    BOOST_TEST(!v.G);
+    BOOST_TEST(!v.S);
 }
 
 BOOST_AUTO_TEST_CASE(ResidentSG)
 {
     cpu.TCR_E = true;
-    cpu.sg_atc[0x00300] = {
+    cpu.g_atc[1][0x00300] = {
         0x20,
         0,
         false,
@@ -61,13 +73,17 @@ BOOST_AUTO_TEST_CASE(ResidentSG)
         true, false, true,
     };
     auto v = ptest(0x00300, true, false, false);
-    BOOST_TEST(v ==  (0x20001 | 1 << 4 | 1 << 10));
+    BOOST_TEST(v.paddr == 0x20);
+    BOOST_TEST(v.R);
+    BOOST_TEST(v.M);
+    BOOST_TEST(v.G);
+    BOOST_TEST(!v.S);
 }
 
 BOOST_AUTO_TEST_CASE(NonResident)
 {
     cpu.TCR_E = true;
-    cpu.u_atc[0x00300] = {
+    cpu.l_atc[0][0x00300] = {
         0,
         0,
         false,
@@ -75,7 +91,7 @@ BOOST_AUTO_TEST_CASE(NonResident)
         false, false, false,
     };
     auto v = ptest(0x00300, false, false, false);
-    BOOST_TEST(v == 0);
+    BOOST_TEST(!v.R);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

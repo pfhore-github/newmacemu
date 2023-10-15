@@ -104,7 +104,7 @@ struct Cpu {
         bool M, W, R;
     };
 
-    std::unordered_map<uint32_t, atc_entry> s_atc, sg_atc, u_atc, ug_atc;
+    std::unordered_map<uint32_t, atc_entry> l_atc[2], g_atc[2];
 
     // internal
     jmp_buf ex_buf;
@@ -126,6 +126,24 @@ struct Cpu {
     std::atomic<int> inturrupt;
     std::atomic<bool> run;
 };
+
+struct mmu_result {
+    uint32_t paddr = 0;
+    uint8_t Ux = 0;
+    uint8_t CM = 0;
+    bool R = false;
+    bool T = false;
+    bool W = false;
+    bool M = false;
+    bool S = false;
+    bool G = false;
+    bool B = false;
+    uint32_t value() const {
+        return R | T << 1 | W << 2 | M << 4 | CM << 5 | S << 7 | Ux << 8 |
+               G << 10 | B << 11 | paddr << 12;
+    }
+};
+
 struct DecodeError {};
 // Mac 68K has no multi CPU, so doesn't support multi CPU!
 extern Cpu cpu;

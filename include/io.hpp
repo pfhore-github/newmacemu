@@ -3,21 +3,28 @@
 #include <stdint.h>
 #include <unordered_map>
 #include <memory>
-struct CHIP_B {
-    virtual uint8_t read(uint32_t addr) = 0;
-    virtual void write(uint32_t addr, uint8_t v) = 0;
-};
-struct CHIP_L {
-    virtual uint32_t read(uint32_t addr) = 0;
-    virtual void write(uint32_t addr, uint32_t v) = 0;
+
+struct IO_BUS {
+    virtual uint8_t Read8(uint32_t addr) = 0;
+    virtual uint16_t Read16(uint32_t addr) {
+        return Read8(addr) << 8 | Read8(addr+1);
+    }
+    virtual uint32_t Read32(uint32_t addr) {
+        return Read16(addr) << 16 | Read16(addr + 2);
+    }
+    virtual void Write8(uint32_t addr, uint8_t value) = 0;
+    virtual void Write16(uint32_t addr, uint16_t value) {
+        Write8(addr, value >> 8);
+        Write8(addr + 1, value);
+    }
+    virtual void Write32(uint32_t addr, uint32_t value) {
+        Write16(addr, value >> 16);
+        Write16(addr + 2, value);
+    }
 };
 
-extern std::unordered_map<int, std::shared_ptr<CHIP_B>> chipsB;
-extern std::unordered_map<int, std::shared_ptr<CHIP_L>> chipsL;
-uint8_t LoadIO_B(uint32_t addr);
-uint32_t LoadIO_L(uint32_t addr);
-void StoreIO_B(uint32_t addr, uint8_t b);
-void StoreIO_L(uint32_t addr, uint32_t l);
+extern std::unique_ptr<IO_BUS> io;
+
 // convinence wrapper
 inline uint16_t SET_B1_W(uint16_t v, uint8_t b) {
     return (v & 0x00ff) | (b << 8);
@@ -45,6 +52,10 @@ inline uint32_t SET_B3(uint32_t v, uint8_t b) {
 inline uint32_t SET_B4(uint32_t v, uint8_t b) {
     return (v & 0xffffff00) | (b);
 }
+inline uint32_t SET_Bn(uint32_t v, uint8_t b, uint8_t n) {
+    n = (3 - n)* 8;
+    return (v &~ (0xff << n)) | (b << n);
+}
 
 inline uint8_t GET_B1(uint32_t v) {
     return v >> 24;
@@ -58,4 +69,9 @@ inline uint8_t GET_B3(uint32_t v) {
 inline uint8_t GET_B4(uint32_t v) {
     return v;
 }
+inline uint8_t GET_Bn(uint32_t v, uint8_t n) {
+    n = (3 - n)* 8;
+    return v >> n;
+}
+
 #endif

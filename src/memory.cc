@@ -26,7 +26,6 @@ uint8_t ReadB(uint32_t addr, bool code) {
         cpu.af_value.addr = addr;
         cpu.af_value.RW = true;
         cpu.af_value.size = SIZ::B;
-        cpu.af_value.tt = TT::NORMAL;
         cpu.af_value.tm = GetTM(code);
         ACCESS_FAULT();
         __builtin_unreachable();
@@ -50,7 +49,6 @@ uint16_t ReadW(uint32_t addr, bool code) {
         cpu.af_value.addr = addr;
         cpu.af_value.RW = true;
         cpu.af_value.size = SIZ::W;
-        cpu.af_value.tt = TT::NORMAL;
         cpu.af_value.tm = GetTM(code);
         ACCESS_FAULT();
         __builtin_unreachable();
@@ -74,7 +72,6 @@ uint32_t ReadL(uint32_t addr, bool code) {
         cpu.af_value.addr = addr;
         cpu.af_value.RW = true;
         cpu.af_value.size = SIZ::L;
-        cpu.af_value.tt = TT::NORMAL;
         cpu.af_value.tm = GetTM(code);
         ACCESS_FAULT();
         __builtin_unreachable();
@@ -92,7 +89,6 @@ void WriteB(uint32_t addr, uint8_t b) {
         cpu.af_value.addr = addr;
         cpu.af_value.RW = false;
         cpu.af_value.size = SIZ::B;
-        cpu.af_value.tt = TT::NORMAL;
         cpu.af_value.tm = GetTM(false);
         ACCESS_FAULT();
         __builtin_unreachable();
@@ -112,12 +108,10 @@ void WriteWImpl(uint32_t addr, uint16_t w) {
 void WriteW(uint32_t addr, uint16_t w) {
     try {
         WriteWImpl(addr, w);
-
     } catch(AccessFault &) {
         cpu.af_value.addr = addr;
         cpu.af_value.RW = false;
         cpu.af_value.size = SIZ::W;
-        cpu.af_value.tt = TT::NORMAL;
         cpu.af_value.tm = GetTM(false);
         ACCESS_FAULT();
         __builtin_unreachable();
@@ -140,7 +134,6 @@ void WriteL(uint32_t addr, uint32_t l) {
         cpu.af_value.addr = addr;
         cpu.af_value.RW = false;
         cpu.af_value.size = SIZ::L;
-        cpu.af_value.tt = TT::NORMAL;
         cpu.af_value.tm = GetTM(false);
         ACCESS_FAULT();
         __builtin_unreachable();

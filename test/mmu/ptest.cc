@@ -4,7 +4,6 @@
 #include <boost/test/data/monomorphic.hpp>
 #include <boost/test/data/test_case.hpp>
 #include <boost/test/unit_test.hpp>
-uint32_t ptest(uint32_t addr, bool sys, bool code, bool W);
 namespace bdata = boost::unit_test::data;
 struct MMU_Dafault : Prepare {
     MMU_Dafault() {
@@ -15,6 +14,58 @@ struct MMU_Dafault : Prepare {
         cpu.ITTR[0].logic_mask = 0;
     }
 };
+BOOST_AUTO_TEST_SUITE(MMU_RESULT)
+BOOST_DATA_TEST_CASE(R, bdata::xrange(2), v) {
+    mmu_result re;
+    re.R = v;
+    BOOST_TEST((re.value() & 1) == v);
+}
+BOOST_DATA_TEST_CASE(T, bdata::xrange(2), v) {
+    mmu_result re;
+    re.T = v;
+    BOOST_TEST((re.value() >> 1 & 1) == v);
+}
+BOOST_DATA_TEST_CASE(W, bdata::xrange(2), v) {
+    mmu_result re;
+    re.W = v;
+    BOOST_TEST((re.value() >> 2 & 1) == v);
+}
+BOOST_DATA_TEST_CASE(M, bdata::xrange(2), v) {
+    mmu_result re;
+    re.M = v;
+    BOOST_TEST((re.value() >> 4 & 1) == v);
+}
+BOOST_DATA_TEST_CASE(CM, bdata::xrange(4), v) {
+    mmu_result re;
+    re.CM = v;
+    BOOST_TEST((re.value() >> 5 & 3) == v);
+}
+BOOST_DATA_TEST_CASE(S, bdata::xrange(2), v) {
+    mmu_result re;
+    re.S = v;
+    BOOST_TEST((re.value() >> 7 & 1) == v);
+}
+BOOST_DATA_TEST_CASE(Ux, bdata::xrange(4), v) {
+    mmu_result re;
+    re.Ux = v;
+    BOOST_TEST((re.value() >> 8 & 3) == v);
+}
+BOOST_DATA_TEST_CASE(G, bdata::xrange(2), v) {
+    mmu_result re;
+    re.G = v;
+    BOOST_TEST((re.value() >> 10 & 1) == v);
+}
+BOOST_DATA_TEST_CASE(B, bdata::xrange(2), v) {
+    mmu_result re;
+    re.B = v;
+    BOOST_TEST((re.value() >> 11 & 1) == v);
+}
+BOOST_AUTO_TEST_CASE(Addr) {
+    mmu_result re;
+    re.paddr = 0x12345;
+    BOOST_TEST((re.value() >> 12) == 0x12345);
+}
+BOOST_AUTO_TEST_SUITE_END()
 BOOST_FIXTURE_TEST_SUITE(PTESTR, MMU_Dafault)
 BOOST_AUTO_TEST_CASE(err) {
     cpu.S = false;

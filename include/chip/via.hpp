@@ -36,13 +36,13 @@ enum class VIA_IRQ {
     TIMER2,
     TIMER1,
 };
-class VIA : public CHIP_B {
+class VIA  {
   public:
     uint32_t delay_count = 0;
     uint64_t timer1_base;
     uint64_t timer2_base;
-    SDL_TimerID timer1;
-    SDL_TimerID timer2;
+    SDL_TimerID timer1 = 0;
+    SDL_TimerID timer2 = 0;
     uint16_t timer1_cnt;
     uint16_t timer2_cnt;
     uint16_t timer1_latch;
@@ -75,26 +75,29 @@ class VIA : public CHIP_B {
     uint8_t read(uint32_t n);
     void write(uint32_t n, uint8_t v);
     void irq(VIA_IRQ i);
+    void irq_off(VIA_IRQ i);
     virtual bool readPA(int n) = 0;
     virtual bool readPB(int n) = 0;
     virtual void writePA(int n, bool v) = 0;
     virtual void writePB(int n, bool v) = 0;
     virtual int irqNum() = 0;
-    virtual uint8_t getSR() { return 0; }
 
     void recieve_ca1();
     void recieve_cb1();
     void recieve_sr();
+    ~VIA() ;
 };
 struct VIA1 : public VIA {
     bool adb_state[2] = {true, true};
+    uint8_t old_state = 3;
     bool rtc_clock = true;
     bool rtc_val = false;
+    bool appleTalkDebug = false;
+    bool appleTalkDebugEnabled = false;
     bool readPA(int n) override;
     bool readPB(int n) override;
     void writePA(int n, bool v) override;
     void writePB(int n, bool v) override;
-    uint8_t getSR() override;
     // TODO: may vary with machine?
     int irqNum() override { return 1; }
 };

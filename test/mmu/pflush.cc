@@ -24,46 +24,46 @@ BOOST_AUTO_TEST_CASE(traced) {
 BOOST_AUTO_TEST_CASE(user) {
     cpu.S = true;
     cpu.DFC = 2;
-    cpu.s_atc[1] = {2, 0, false, 0, false, false, true};
-    cpu.s_atc[2] = {2, 0, false, 0, false, false, true};
-    cpu.u_atc[1] = {3, 0, false, 0, false, false, true};
-    cpu.u_atc[2] = {3, 0, false, 0, false, false, true};
-    cpu.sg_atc[1] = {4, 0, false, 0, false, false, true};
-    cpu.sg_atc[2] = {4, 0, false, 0, false, false, true};
-    cpu.ug_atc[1] = {5, 0, false, 0, false, false, true};
-    cpu.ug_atc[2] = {5, 0, false, 0, false, false, true};
+    cpu.l_atc[1][1] = {2, 0, false, 0, false, false, true};
+    cpu.l_atc[1][2] = {2, 0, false, 0, false, false, true};
+    cpu.l_atc[0][1] = {3, 0, false, 0, false, false, true};
+    cpu.l_atc[0][2] = {3, 0, false, 0, false, false, true};
+    cpu.g_atc[1][1] = {4, 0, false, 0, false, false, true};
+    cpu.g_atc[1][2] = {4, 0, false, 0, false, false, true};
+    cpu.g_atc[0][1] = {5, 0, false, 0, false, false, true};
+    cpu.g_atc[0][2] = {5, 0, false, 0, false, false, true};
     cpu.A[3] = 0x1 << 12;
     TEST::SET_W(0, 0172403);
     BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 2);
-    BOOST_TEST(!cpu.u_atc.contains(1));
-    BOOST_TEST(cpu.s_atc.contains(1));
-    BOOST_TEST(cpu.ug_atc.contains(1));
-    BOOST_TEST(cpu.sg_atc.contains(1));
-    BOOST_TEST(cpu.u_atc.contains(2));
-    BOOST_TEST(cpu.s_atc.contains(2));
-    BOOST_TEST(cpu.ug_atc.contains(2));
-    BOOST_TEST(cpu.sg_atc.contains(2));
+    BOOST_TEST(!cpu.l_atc[0].contains(1));
+    BOOST_TEST(cpu.l_atc[1].contains(1));
+    BOOST_TEST(cpu.g_atc[0].contains(1));
+    BOOST_TEST(cpu.g_atc[1].contains(1));
+    BOOST_TEST(cpu.l_atc[0].contains(2));
+    BOOST_TEST(cpu.l_atc[1].contains(2));
+    BOOST_TEST(cpu.g_atc[0].contains(2));
+    BOOST_TEST(cpu.g_atc[1].contains(2));
 }
 
 BOOST_AUTO_TEST_CASE(sys) {
     cpu.S = true;
     cpu.DFC = 5;
-    cpu.s_atc[1] = {2, 0, false, 0, false, false, true};
-    cpu.s_atc[2] = {2, 0, false, 0, false, false, true};
-    cpu.u_atc[1] = {3, 0, false, 0, false, false, true};
-    cpu.u_atc[2] = {3, 0, false, 0, false, false, true};
-    cpu.sg_atc[1] = {4, 0, false, 0, false, false, true};
-    cpu.sg_atc[2] = {4, 0, false, 0, false, false, true};
-    cpu.ug_atc[1] = {5, 0, false, 0, false, false, true};
-    cpu.ug_atc[2] = {5, 0, false, 0, false, false, true};
+    cpu.l_atc[1][1] = {2, 0, false, 0, false, false, true};
+    cpu.l_atc[1][2] = {2, 0, false, 0, false, false, true};
+    cpu.l_atc[0][1] = {3, 0, false, 0, false, false, true};
+    cpu.l_atc[0][2] = {3, 0, false, 0, false, false, true};
+    cpu.g_atc[1][1] = {4, 0, false, 0, false, false, true};
+    cpu.g_atc[1][2] = {4, 0, false, 0, false, false, true};
+    cpu.g_atc[0][1] = {5, 0, false, 0, false, false, true};
+    cpu.g_atc[0][2] = {5, 0, false, 0, false, false, true};
     cpu.A[3] = 0x1 << 12;
     TEST::SET_W(0, 0172403);
     BOOST_TEST(run_test() == 0);
-    BOOST_TEST(cpu.u_atc.contains(1));
-    BOOST_TEST(!cpu.s_atc.contains(1));
-    BOOST_TEST(cpu.ug_atc.contains(1));
-    BOOST_TEST(cpu.sg_atc.contains(1));
+    BOOST_TEST(cpu.l_atc[0].contains(1));
+    BOOST_TEST(!cpu.l_atc[1].contains(1));
+    BOOST_TEST(cpu.g_atc[0].contains(1));
+    BOOST_TEST(cpu.g_atc[1].contains(1));
 }
 
 BOOST_AUTO_TEST_SUITE_END()
@@ -87,50 +87,50 @@ BOOST_AUTO_TEST_CASE(traced) {
 BOOST_AUTO_TEST_CASE(user) {
     cpu.S = true;
     cpu.DFC = 2;
-    cpu.s_atc[1] = {2, 0, false, 0, false, false, true};
-    cpu.s_atc[2] = {2, 0, false, 0, false, false, true};
-    cpu.u_atc[1] = {3, 0, false, 0, false, false, true};
-    cpu.u_atc[2] = {3, 0, false, 0, false, false, true};
-    cpu.sg_atc[1] = {4, 0, false, 0, false, false, true};
-    cpu.sg_atc[2] = {4, 0, false, 0, false, false, true};
-    cpu.ug_atc[1] = {5, 0, false, 0, false, false, true};
-    cpu.ug_atc[2] = {5, 0, false, 0, false, false, true};
+    cpu.l_atc[1][1] = {2, 0, false, 0, false, false, true};
+    cpu.l_atc[1][2] = {2, 0, false, 0, false, false, true};
+    cpu.l_atc[0][1] = {3, 0, false, 0, false, false, true};
+    cpu.l_atc[0][2] = {3, 0, false, 0, false, false, true};
+    cpu.g_atc[1][1] = {4, 0, false, 0, false, false, true};
+    cpu.g_atc[1][2] = {4, 0, false, 0, false, false, true};
+    cpu.g_atc[0][1] = {5, 0, false, 0, false, false, true};
+    cpu.g_atc[0][2] = {5, 0, false, 0, false, false, true};
     cpu.A[3] = 0x1 << 12;
     TEST::SET_W(0, 0172413);
     BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 2);
-    BOOST_TEST(!cpu.u_atc.contains(1));
-    BOOST_TEST(cpu.s_atc.contains(1));
-    BOOST_TEST(!cpu.ug_atc.contains(1));
-    BOOST_TEST(cpu.sg_atc.contains(1));
-    BOOST_TEST(cpu.u_atc.contains(2));
-    BOOST_TEST(cpu.s_atc.contains(2));
-    BOOST_TEST(cpu.ug_atc.contains(2));
-    BOOST_TEST(cpu.sg_atc.contains(2));
+    BOOST_TEST(!cpu.l_atc[0].contains(1));
+    BOOST_TEST(cpu.l_atc[1].contains(1));
+    BOOST_TEST(!cpu.g_atc[0].contains(1));
+    BOOST_TEST(cpu.g_atc[1].contains(1));
+    BOOST_TEST(cpu.l_atc[0].contains(2));
+    BOOST_TEST(cpu.l_atc[1].contains(2));
+    BOOST_TEST(cpu.g_atc[0].contains(2));
+    BOOST_TEST(cpu.g_atc[1].contains(2));
 }
 
 BOOST_AUTO_TEST_CASE(sys) {
     cpu.S = true;
     cpu.DFC = 5;
-    cpu.s_atc[1] = {2, 0, false, 0, false, false, true};
-    cpu.s_atc[2] = {2, 0, false, 0, false, false, true};
-    cpu.u_atc[1] = {3, 0, false, 0, false, false, true};
-    cpu.u_atc[2] = {3, 0, false, 0, false, false, true};
-    cpu.sg_atc[1] = {4, 0, false, 0, false, false, true};
-    cpu.sg_atc[2] = {4, 0, false, 0, false, false, true};
-    cpu.ug_atc[1] = {5, 0, false, 0, false, false, true};
-    cpu.ug_atc[2] = {5, 0, false, 0, false, false, true};
+    cpu.l_atc[1][1] = {2, 0, false, 0, false, false, true};
+    cpu.l_atc[1][2] = {2, 0, false, 0, false, false, true};
+    cpu.l_atc[0][1] = {3, 0, false, 0, false, false, true};
+    cpu.l_atc[0][2] = {3, 0, false, 0, false, false, true};
+    cpu.g_atc[1][1] = {4, 0, false, 0, false, false, true};
+    cpu.g_atc[1][2] = {4, 0, false, 0, false, false, true};
+    cpu.g_atc[0][1] = {5, 0, false, 0, false, false, true};
+    cpu.g_atc[0][2] = {5, 0, false, 0, false, false, true};
     cpu.A[3] = 0x1 << 12;
     TEST::SET_W(0, 0172413);
     BOOST_TEST(run_test() == 0);
-    BOOST_TEST(cpu.u_atc.contains(1));
-    BOOST_TEST(!cpu.s_atc.contains(1));
-    BOOST_TEST(cpu.ug_atc.contains(1));
-    BOOST_TEST(!cpu.sg_atc.contains(1));
-    BOOST_TEST(cpu.u_atc.contains(2));
-    BOOST_TEST(cpu.s_atc.contains(2));
-    BOOST_TEST(cpu.ug_atc.contains(2));
-    BOOST_TEST(cpu.sg_atc.contains(2));
+    BOOST_TEST(cpu.l_atc[0].contains(1));
+    BOOST_TEST(!cpu.l_atc[1].contains(1));
+    BOOST_TEST(cpu.g_atc[0].contains(1));
+    BOOST_TEST(!cpu.g_atc[1].contains(1));
+    BOOST_TEST(cpu.l_atc[0].contains(2));
+    BOOST_TEST(cpu.l_atc[1].contains(2));
+    BOOST_TEST(cpu.g_atc[0].contains(2));
+    BOOST_TEST(cpu.g_atc[1].contains(2));
 }
 
 BOOST_AUTO_TEST_SUITE_END()
@@ -154,48 +154,48 @@ BOOST_AUTO_TEST_CASE(traced) {
 BOOST_AUTO_TEST_CASE(user) {
     cpu.S = true;
     cpu.DFC = 2;
-    cpu.s_atc[1] = {2, 0, false, 0, false, false, true};
-    cpu.s_atc[2] = {2, 0, false, 0, false, false, true};
-    cpu.u_atc[1] = {3, 0, false, 0, false, false, true};
-    cpu.u_atc[2] = {3, 0, false, 0, false, false, true};
-    cpu.sg_atc[1] = {4, 0, false, 0, false, false, true};
-    cpu.sg_atc[2] = {4, 0, false, 0, false, false, true};
-    cpu.ug_atc[1] = {5, 0, false, 0, false, false, true};
-    cpu.ug_atc[2] = {5, 0, false, 0, false, false, true};
+    cpu.l_atc[1][1] = {2, 0, false, 0, false, false, true};
+    cpu.l_atc[1][2] = {2, 0, false, 0, false, false, true};
+    cpu.l_atc[0][1] = {3, 0, false, 0, false, false, true};
+    cpu.l_atc[0][2] = {3, 0, false, 0, false, false, true};
+    cpu.g_atc[1][1] = {4, 0, false, 0, false, false, true};
+    cpu.g_atc[1][2] = {4, 0, false, 0, false, false, true};
+    cpu.g_atc[0][1] = {5, 0, false, 0, false, false, true};
+    cpu.g_atc[0][2] = {5, 0, false, 0, false, false, true};
     cpu.A[3] = 0x1 << 12;
     TEST::SET_W(0, 0172423);
     BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 2);
-    BOOST_TEST(cpu.u_atc.empty());
-    BOOST_TEST(cpu.ug_atc.contains(1));
-    BOOST_TEST(cpu.s_atc.contains(1));
-    BOOST_TEST(cpu.sg_atc.contains(1));
-    BOOST_TEST(cpu.ug_atc.contains(2));
-    BOOST_TEST(cpu.s_atc.contains(2));
-    BOOST_TEST(cpu.sg_atc.contains(2));
+    BOOST_TEST(cpu.l_atc[0].empty());
+    BOOST_TEST(cpu.g_atc[0].contains(1));
+    BOOST_TEST(cpu.l_atc[1].contains(1));
+    BOOST_TEST(cpu.g_atc[1].contains(1));
+    BOOST_TEST(cpu.g_atc[0].contains(2));
+    BOOST_TEST(cpu.l_atc[1].contains(2));
+    BOOST_TEST(cpu.g_atc[1].contains(2));
 }
 
 BOOST_AUTO_TEST_CASE(sys) {
     cpu.S = true;
     cpu.DFC = 5;
-    cpu.s_atc[1] = {2, 0, false, 0, false, false, true};
-    cpu.s_atc[2] = {2, 0, false, 0, false, false, true};
-    cpu.u_atc[1] = {3, 0, false, 0, false, false, true};
-    cpu.u_atc[2] = {3, 0, false, 0, false, false, true};
-    cpu.sg_atc[1] = {4, 0, false, 0, false, false, true};
-    cpu.sg_atc[2] = {4, 0, false, 0, false, false, true};
-    cpu.ug_atc[1] = {5, 0, false, 0, false, false, true};
-    cpu.ug_atc[2] = {5, 0, false, 0, false, false, true};
+    cpu.l_atc[1][1] = {2, 0, false, 0, false, false, true};
+    cpu.l_atc[1][2] = {2, 0, false, 0, false, false, true};
+    cpu.l_atc[0][1] = {3, 0, false, 0, false, false, true};
+    cpu.l_atc[0][2] = {3, 0, false, 0, false, false, true};
+    cpu.g_atc[1][1] = {4, 0, false, 0, false, false, true};
+    cpu.g_atc[1][2] = {4, 0, false, 0, false, false, true};
+    cpu.g_atc[0][1] = {5, 0, false, 0, false, false, true};
+    cpu.g_atc[0][2] = {5, 0, false, 0, false, false, true};
     cpu.A[3] = 0x1 << 12;
     TEST::SET_W(0, 0172423);
     BOOST_TEST(run_test() == 0);
-    BOOST_TEST(cpu.s_atc.empty());
-    BOOST_TEST(cpu.ug_atc.contains(1));
-    BOOST_TEST(cpu.u_atc.contains(1));
-    BOOST_TEST(cpu.sg_atc.contains(1));
-    BOOST_TEST(cpu.u_atc.contains(2));
-    BOOST_TEST(cpu.ug_atc.contains(2));
-    BOOST_TEST(cpu.sg_atc.contains(2));
+    BOOST_TEST(cpu.l_atc[1].empty());
+    BOOST_TEST(cpu.g_atc[0].contains(1));
+    BOOST_TEST(cpu.l_atc[0].contains(1));
+    BOOST_TEST(cpu.g_atc[1].contains(1));
+    BOOST_TEST(cpu.l_atc[0].contains(2));
+    BOOST_TEST(cpu.g_atc[0].contains(2));
+    BOOST_TEST(cpu.g_atc[1].contains(2));
 }
 
 BOOST_AUTO_TEST_SUITE_END()
@@ -219,46 +219,46 @@ BOOST_AUTO_TEST_CASE(traced) {
 BOOST_AUTO_TEST_CASE(user) {
     cpu.S = true;
     cpu.DFC = 2;
-    cpu.s_atc[1] = {2, 0, false, 0, false, false, true};
-    cpu.s_atc[2] = {2, 0, false, 0, false, false, true};
-    cpu.u_atc[1] = {3, 0, false, 0, false, false, true};
-    cpu.u_atc[2] = {3, 0, false, 0, false, false, true};
-    cpu.sg_atc[1] = {4, 0, false, 0, false, false, true};
-    cpu.sg_atc[2] = {4, 0, false, 0, false, false, true};
-    cpu.ug_atc[1] = {5, 0, false, 0, false, false, true};
-    cpu.ug_atc[2] = {5, 0, false, 0, false, false, true};
+    cpu.l_atc[1][1] = {2, 0, false, 0, false, false, true};
+    cpu.l_atc[1][2] = {2, 0, false, 0, false, false, true};
+    cpu.l_atc[0][1] = {3, 0, false, 0, false, false, true};
+    cpu.l_atc[0][2] = {3, 0, false, 0, false, false, true};
+    cpu.g_atc[1][1] = {4, 0, false, 0, false, false, true};
+    cpu.g_atc[1][2] = {4, 0, false, 0, false, false, true};
+    cpu.g_atc[0][1] = {5, 0, false, 0, false, false, true};
+    cpu.g_atc[0][2] = {5, 0, false, 0, false, false, true};
     cpu.A[3] = 0x1 << 12;
     TEST::SET_W(0, 0172433);
     BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 2);
-    BOOST_TEST(cpu.u_atc.empty());
-    BOOST_TEST(cpu.ug_atc.empty());
-    BOOST_TEST(cpu.s_atc.contains(1));
-    BOOST_TEST(cpu.sg_atc.contains(1));
-    BOOST_TEST(cpu.s_atc.contains(2));
-    BOOST_TEST(cpu.sg_atc.contains(2));
+    BOOST_TEST(cpu.l_atc[0].empty());
+    BOOST_TEST(cpu.g_atc[0].empty());
+    BOOST_TEST(cpu.l_atc[1].contains(1));
+    BOOST_TEST(cpu.g_atc[1].contains(1));
+    BOOST_TEST(cpu.l_atc[1].contains(2));
+    BOOST_TEST(cpu.g_atc[1].contains(2));
 }
 
 BOOST_AUTO_TEST_CASE(sys) {
     cpu.S = true;
     cpu.DFC = 5;
-    cpu.s_atc[1] = {2, 0, false, 0, false, false, true};
-    cpu.s_atc[2] = {2, 0, false, 0, false, false, true};
-    cpu.u_atc[1] = {3, 0, false, 0, false, false, true};
-    cpu.u_atc[2] = {3, 0, false, 0, false, false, true};
-    cpu.sg_atc[1] = {4, 0, false, 0, false, false, true};
-    cpu.sg_atc[2] = {4, 0, false, 0, false, false, true};
-    cpu.ug_atc[1] = {5, 0, false, 0, false, false, true};
-    cpu.ug_atc[2] = {5, 0, false, 0, false, false, true};
+    cpu.l_atc[1][1] = {2, 0, false, 0, false, false, true};
+    cpu.l_atc[1][2] = {2, 0, false, 0, false, false, true};
+    cpu.l_atc[0][1] = {3, 0, false, 0, false, false, true};
+    cpu.l_atc[0][2] = {3, 0, false, 0, false, false, true};
+    cpu.g_atc[1][1] = {4, 0, false, 0, false, false, true};
+    cpu.g_atc[1][2] = {4, 0, false, 0, false, false, true};
+    cpu.g_atc[0][1] = {5, 0, false, 0, false, false, true};
+    cpu.g_atc[0][2] = {5, 0, false, 0, false, false, true};
     cpu.A[3] = 0x1 << 12;
     TEST::SET_W(0, 0172433);
     BOOST_TEST(run_test() == 0);
-    BOOST_TEST(cpu.s_atc.empty());
-    BOOST_TEST(cpu.sg_atc.empty());
-    BOOST_TEST(cpu.ug_atc.contains(1));
-    BOOST_TEST(cpu.u_atc.contains(1));
-    BOOST_TEST(cpu.u_atc.contains(2));
-    BOOST_TEST(cpu.ug_atc.contains(2));
+    BOOST_TEST(cpu.l_atc[1].empty());
+    BOOST_TEST(cpu.g_atc[1].empty());
+    BOOST_TEST(cpu.g_atc[0].contains(1));
+    BOOST_TEST(cpu.l_atc[0].contains(1));
+    BOOST_TEST(cpu.l_atc[0].contains(2));
+    BOOST_TEST(cpu.g_atc[0].contains(2));
 }
 
 BOOST_AUTO_TEST_SUITE_END()

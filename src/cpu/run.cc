@@ -17,6 +17,7 @@ void run_op() {
         return;
     }
     cpu.EA = 0;
+    cpu.af_value.tt = TT::NORMAL;
     cpu.must_trace = cpu.T == 2;
     cpu.oldpc = cpu.PC;
     uint16_t op = FETCH();

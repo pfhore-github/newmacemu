@@ -642,7 +642,7 @@ const char *cc_n[] = {"T",  "F",  "HI", "LS", "CC", "CS", "NE", "EQ",
 string disasm_05C3(int cc, int type, int reg) {
     if(type == 1) {
         int16_t imm = FETCH();
-        return format("DB{} %D{}, #{}", cc_n[cc], reg, cpu.PC + imm);
+        return format("DB{} %D{}, #{:X}", cc_n[cc], reg, cpu.PC + imm-2);
     } else if(type == 7 && reg == 2) {
         uint16_t imm = FETCH();
         return format("TRAP{} #0x{:04X}", cc_n[cc], imm);

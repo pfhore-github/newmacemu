@@ -1,79 +1,555 @@
 #include "io.hpp"
-#include "chip/asc.hpp"
-#include "memory.hpp"
+#include "chip/iifx.hpp"
+#include "chip/iop.hpp"
+#include "chip/rbv.hpp"
+#include "chip/scc.hpp"
+#include "chip/scsi.hpp"
+#include "chip/swim.hpp"
+#include "chip/vdac.hpp"
 #include "chip/via.hpp"
+#include "mb/glue.hpp"
+#include "mb/jaws.hpp"
+#include "mb/mcu.hpp"
+#include "mb/mdu.hpp"
+#include "mb/oss.hpp"
+#include "mb/v8.hpp"
+#include "memory.hpp"
 #include <optional>
-// chip may alias in several range
-std::unordered_map<int, std::shared_ptr<CHIP_B>> chipsB;
-std::unordered_map<int, std::shared_ptr<CHIP_L>> chipsL;
-uint8_t LoadIO_B(uint32_t addr) {
-    int tp = addr >> 13;
-    if(chipsB.contains(tp)) {
-        return chipsB[tp]->read(addr);
+
+extern std::shared_ptr<VIA1> via1;
+extern std::shared_ptr<VIA2> via2;
+extern std::shared_ptr<ASC> asc;
+extern std::shared_ptr<ASC> asc;
+uint8_t *pds = nullptr;
+
+uint8_t GLUE::Read8(uint32_t addr) {
+    if(addr & 0x8000000) {
+        if(pds) {
+            return pds[addr & 0x7ffffff];
+        } else {
+            throw AccessFault{};
+        }
+    }
+    switch((addr >> 13) & 0xf) {
+    case 0:
+        return via1->read(addr >> 9 & 0xf);
+    case 1:
+        return via2->read(addr >> 9 & 0xf);
+    case 2:
+        return scc.read(addr >> 1 & 3);
+    case 3:
+        return scsi_handshake.read(addr >> 4 & 3);
+    case 8:
+        return scsi.read(addr >> 4 & 3);
+    case 9:
+        return scsi_pdma.read(addr >> 4 & 3);
+    case 10:
+        return asc->read(addr & 0xfff);
+    case 11:
+        return swim.read(addr >> 9 & 0xf);
     }
     throw AccessFault{};
 }
 
+void GLUE::Write8(uint32_t addr, uint8_t value) {
+    if(addr & 0x8000000) {
+        if(pds) {
+            pds[addr & 0x7ffffff] = value;
+        } else {
+            throw AccessFault{};
+        }
+    }
+    switch((addr >> 13) & 0xf) {
+    case 0:
+        via1->write(addr >> 9 & 0xf, value);
+        return;
+    case 1:
+        via2->write(addr >> 9 & 0xf, value);
+        return;
+    case 2:
+        scc.write(addr >> 1 & 3, value);
+        return;
+    case 3:
+        scsi_handshake.write(addr >> 4 & 3, value);
+        return;
+    case 8:
+        scsi.write(addr >> 4 & 3, value);
+        return;
+    case 9:
+        scsi_pdma.write(addr >> 4 & 3, value);
+        return;
+    case 10:
+        asc->write(addr & 0xfff, value);
+        return;
+    case 11:
+        swim.write(addr >> 9 & 0xf, value);
+        return;
+    }
+    throw AccessFault{};
+}
+
+uint8_t MDU::Read8(uint32_t addr) {
+    if(addr & 0x8000000) {
+        if(pds) {
+            return pds[addr & 0x7ffffff];
+        } else {
+            throw AccessFault{};
+        }
+    }
+    switch((addr >> 13) & 0x1f) {
+    case 0:
+        return via1->read(addr >> 9 & 0xf);
+    case 2:
+        return scc.read(addr >> 1 & 3);
+    case 3:
+        return scsi_handshake.read(addr >> 4 & 3);
+    case 8:
+        return scsi.read(addr >> 4 & 3);
+    case 9:
+        return scsi_pdma.read(addr >> 4 & 3);
+    case 10:
+        return asc->read(addr & 0xfff);
+    case 11:
+        return swim.read(addr >> 9 & 0xf);
+    case 18:
+        return vdac.read(addr >> 2 & 7);
+    case 19:
+        return rbv.read(addr & 0xff);
+    }
+    throw AccessFault{};
+}
+
+void MDU::Write8(uint32_t addr, uint8_t value) {
+    if(addr & 0x8000000) {
+        if(pds) {
+            pds[addr & 0x7ffffff] = value;
+        } else {
+            throw AccessFault{};
+        }
+    }
+    switch((addr >> 13) & 0x1f) {
+    case 0:
+        via1->write(addr >> 9 & 0xf, value);
+        return;
+    case 2:
+        scc.write(addr >> 1 & 3, value);
+        return;
+    case 3:
+        scsi_handshake.write(addr >> 4 & 3, value);
+        return;
+    case 8:
+        scsi.write(addr >> 4 & 3, value);
+        return;
+    case 9:
+        scsi_pdma.write(addr >> 4 & 3, value);
+        return;
+    case 10:
+        asc->write(addr & 0xfff, value);
+        return;
+    case 11:
+        swim.write(addr >> 9 & 0xf, value);
+        return;
+    case 18:
+        vdac.write(addr >> 2 & 7, value);
+        return;
+    case 19:
+        rbv.write(addr & 0xff, value);
+        return;
+    }
+    throw AccessFault{};
+}
+
+uint8_t OSS::Read8(uint32_t addr) {
+    if(addr & 0x8000000) {
+        if(pds) {
+            return pds[addr & 0x7ffffff];
+        } else {
+            throw AccessFault{};
+        }
+    }
+    switch((addr >> 13) & 0x1f) {
+    case 0:
+        return via1->read(addr >> 9 & 0xf);
+    case 2:
+        return iop_scc.read(addr >> 1 & 0x1f);
+    case 8:
+        return asc->read(addr & 0xfff);
+    case 9:
+        return iop_swim.read(addr >> 1 & 0x1f);
+    case 13:
+        return oss.read((addr & 0xf) | (addr & 0x1E00) >> 5);
+    case 14:
+        return exp0.read(addr & 0x1fff);
+    case 15:
+        return exp1.read(addr & 0x1fff);
+    }
+    throw AccessFault{};
+}
+void OSS::Write8(uint32_t addr, uint8_t value) {
+    if(addr & 0x8000000) {
+        if(pds) {
+            pds[addr & 0x7ffffff] = value;
+        } else {
+            throw AccessFault{};
+        }
+    }
+    switch((addr >> 13) & 0x1f) {
+    case 0:
+        via1->write(addr >> 9 & 0xf, value);
+        return;
+    case 2:
+        iop_scc.write(addr >> 1 & 0x1f, value);
+        return;
+    case 8:
+        asc->write(addr & 0xfff, value);
+        return;
+    case 9:
+        iop_swim.write(addr >> 1 & 0x1f, value);
+        return;
+    case 13:
+        oss.write((addr & 0xf) | (addr & 0x1E00) >> 5, value);
+        return;
+    case 14:
+        exp0.write(addr & 0x1fff, value);
+        return;
+    case 15:
+        exp1.write(addr & 0x1fff, value);
+        return;
+    }
+    throw AccessFault{};
+}
+
+uint32_t OSS::Read32(uint32_t addr) {
+    if(!(addr & 0x8000000)) {
+        switch((addr >> 13) & 0x1f) {
+        case 4:
+            return scsi_dma.read(addr & 0x1fff);
+        }
+    }
+    return IO_BUS::Read32(addr);
+}
+void OSS::Write32(uint32_t addr, uint32_t v) {
+    if(!(addr & 0x8000000)) {
+        switch((addr >> 13) & 0x1f) {
+        case 4:
+            scsi_dma.write(addr >> 4 & 3, v);
+            return;
+        }
+    }
+    IO_BUS::Write32(addr, v);
+}
+
+uint8_t V8::Read8(uint32_t addr) {
+    if(addr > 0xF80000) {
+        if(pds) {
+            return pds[addr & 0x7ffff];
+        } else {
+            throw AccessFault{};
+        }
+    }
+    if(!(addr & 0xf00000)) {
+        throw AccessFault{};
+    }
+    switch((addr >> 13) & 0x1f) {
+    case 0:
+        return via1->read(addr >> 9 & 0xf);
+    case 2:
+        return scc.read(addr >> 1 & 3);
+    case 3:
+        return scsi_handshake.read(addr >> 4 & 3);
+    case 8:
+        return scsi.read(addr >> 4 & 3);
+    case 9:
+        return scsi_pdma.read(addr >> 4 & 3);
+    case 10:
+        return asc->read(addr & 0xfff);
+    case 11:
+        return swim.read(addr >> 9 & 0xf);
+    case 18:
+        return vdac.read(addr >> 2 & 7);
+    case 19:
+        return rbv.read(addr & 0xff);
+    }
+    throw AccessFault{};
+}
+
+void V8::Write8(uint32_t addr, uint8_t value) {
+    if(addr > 0xF80000) {
+        if(pds) {
+            pds[addr & 0x7ffff] = value;
+        } else {
+            throw AccessFault{};
+        }
+    }
+    if(!(addr & 0xf00000)) {
+        throw AccessFault{};
+    }
+    switch((addr >> 13) & 0x1f) {
+    case 0:
+        via1->write(addr >> 9 & 0xf, value);
+        return;
+    case 2:
+        scc.write(addr >> 1 & 3, value);
+        return;
+    case 3:
+        scsi_handshake.write(addr >> 4 & 3, value);
+        return;
+    case 8:
+        scsi.write(addr >> 4 & 3, value);
+        return;
+    case 9:
+        scsi_pdma.write(addr >> 4 & 3, value);
+        return;
+    case 10:
+        asc->write(addr & 0xfff, value);
+        return;
+    case 11:
+        swim.write(addr >> 9 & 0xf, value);
+        return;
+    case 18:
+        vdac.write(addr >> 2 & 7, value);
+        return;
+    case 19:
+        rbv.write(addr & 0xff, value);
+        return;
+    }
+    throw AccessFault{};
+}
+
+uint8_t MCU_Q900::Read8(uint32_t addr) {
+    if(addr & 0x8000000) {
+        if(pds) {
+            return pds[addr & 0x7ffffff];
+        } else {
+            throw AccessFault{};
+        }
+    }
+    switch((addr >> 13) & 0x1f) {
+    case 0:
+        return via1->read(addr >> 9 & 0xf);
+    case 1:
+        return via2->read(addr >> 9 & 0xf);
+    case 6:
+        return iop_scc.read(addr >> 1 & 0x1f);
+    case 7:
+        return mcu.read(addr & 0x1fff);
+    case 10:
+        return asc->read(addr & 0xfff);
+    case 15:
+        return iop_swim.read(addr >> 1 & 0x1f);
+    }
+    throw AccessFault{};
+}
+void MCU_Q900::Write8(uint32_t addr, uint8_t value) {
+    if(addr & 0x8000000) {
+        if(pds) {
+            pds[addr & 0x7ffffff] = value;
+        } else {
+            throw AccessFault{};
+        }
+    }
+    switch((addr >> 13) & 0x1f) {
+    case 0:
+        via1->write(addr >> 9 & 0xf, value);
+        return;
+    case 1:
+        via2->write(addr >> 9 & 0xf, value);
+        return;
+    case 6:
+        iop_scc.write(addr >> 1 & 0x1f, value);
+        return;
+    case 7:
+        mcu.write(addr & 0x1fff, value);
+        return;
+    case 10:
+        asc->write(addr & 0xfff, value);
+        return;
+    case 15:
+        iop_swim.write(addr >> 1 & 0x1f, value);
+        return;
+    }
+    throw AccessFault{};
+}
+
+uint32_t MCU_Q900::Read32(uint32_t addr) {
+    switch((addr >> 13) & 0x1f) {
+    case 7:
+        return mcu.read(addr & 0x1fff);
+    }
+    return IO_BUS::Read32(addr);
+}
+
+void MCU_Q900::Write32(uint32_t addr, uint32_t value) {
+    switch((addr >> 13) & 0x1f) {
+    case 7:
+        mcu.write(addr & 0x1fff, value);
+        return;
+    }
+    IO_BUS::Write32(addr, value);
+}
+
+uint8_t MCU_Q700::Read8(uint32_t addr) {
+    if(addr & 0x8000000) {
+        if(pds) {
+            return pds[addr & 0x7ffffff];
+        } else {
+            throw AccessFault{};
+        }
+    }
+    switch((addr >> 13) & 0x1f) {
+    case 0:
+        return via1->read(addr >> 9 & 0xf);
+    case 1:
+        return via2->read(addr >> 9 & 0xf);
+    case 6:
+        return scc.read(addr >> 1 & 0x1f);
+    case 7:
+        return mcu.read(addr & 0x1fff);
+    case 10:
+        return asc->read(addr & 0xfff);
+    case 15:
+        return swim.read(addr >> 1 & 0x1f);
+    }
+    throw AccessFault{};
+}
+void MCU_Q700::Write8(uint32_t addr, uint8_t value) {
+    if(addr & 0x8000000) {
+        if(pds) {
+            pds[addr & 0x7ffffff] = value;
+        } else {
+            throw AccessFault{};
+        }
+    }
+    switch((addr >> 13) & 0x1f) {
+    case 0:
+        via1->write(addr >> 9 & 0xf, value);
+        return;
+    case 1:
+        via2->write(addr >> 9 & 0xf, value);
+        return;
+    case 6:
+        scc.write(addr >> 1 & 0x1f, value);
+        return;
+    case 7:
+        mcu.write(addr & 0x1fff, value);
+        return;
+    case 10:
+        asc->write(addr & 0xfff, value);
+        return;
+    case 15:
+        swim.write(addr >> 1 & 0x1f, value);
+        return;
+    }
+    throw AccessFault{};
+}
+
+uint32_t MCU_Q700::Read32(uint32_t addr) {
+    switch((addr >> 13) & 0x1f) {
+    case 7:
+        return mcu.read(addr & 0x1fff);
+    }
+    return IO_BUS::Read32(addr);
+}
+
+void MCU_Q700::Write32(uint32_t addr, uint32_t value) {
+    switch((addr >> 13) & 0x1f) {
+    case 7:
+        mcu.write(addr & 0x1fff, value);
+        return;
+    }
+    IO_BUS::Write32(addr, value);
+}
+
+uint8_t JAWS::Read8(uint32_t addr) {
+    if(addr & 0x8000000) {
+        if(pds) {
+            return pds[addr & 0x7ffffff];
+        } else {
+            throw AccessFault{};
+        }
+    }
+    switch((addr >> 13) & 0x7f) {
+    case 0:
+        return via1->read(addr >> 9 & 0xf);
+    case 1:
+        return via2->read(addr >> 9 & 0xf);
+    case 2:
+        return scc.read(addr >> 1 & 3);
+    case 3:
+        return scsi_handshake.read(addr >> 4 & 3);
+    case 8:
+        return scsi.read(addr >> 4 & 3);
+    case 9:
+        return scsi_pdma.read(addr >> 4 & 3);
+    case 10:
+        return asc->read(addr & 0xfff);
+    case 11:
+        return swim.read(addr >> 9 & 0xf);
+    default:
+        if((addr & 0xfffff) >= 0x80000) {
+            return jaws.read(addr);
+        }
+        break;
+    }
+    throw AccessFault{};
+}
+
+void JAWS::Write8(uint32_t addr, uint8_t value) {
+    if(addr & 0x8000000) {
+        if(pds) {
+            pds[addr & 0x7ffffff] = value;
+        } else {
+            throw AccessFault{};
+        }
+    }
+    switch((addr >> 13) & 0x7f) {
+    case 0:
+        via1->write(addr >> 9 & 0xf, value);
+        return;
+    case 1:
+        via2->write(addr >> 9 & 0xf, value);
+        return;
+    case 2:
+        scc.write(addr >> 1 & 3, value);
+        return;
+    case 3:
+        scsi_handshake.write(addr >> 4 & 3, value);
+        return;
+    case 8:
+        scsi.write(addr >> 4 & 3, value);
+        return;
+    case 9:
+        scsi_pdma.write(addr >> 4 & 3, value);
+        return;
+    case 10:
+        asc->write(addr & 0xfff, value);
+        return;
+    case 11:
+        swim.write(addr >> 9 & 0xf, value);
+        return;
+    default:
+        if((addr & 0xfffff) >= 0x80000) {
+            return jaws.write(addr, value);
+        }
+        break;
+    }
+    throw AccessFault{};
+}
 // TODO
-struct MCU_ctl : CHIP_L {
-    uint32_t ctls[64];
-    uint32_t read(uint32_t addr) override { return ctls[(addr >> 2) & 63]; }
-    void write(uint32_t addr, uint32_t v) override {
-        ctls[(addr >> 2) & 63] = v;
-    }
-};
-
-uint32_t LoadIO_L(uint32_t addr) {
-    int tp = addr >> 13;
-    if(chipsL.contains(tp)) {
-        return chipsL[tp]->read(addr);
-    }
-
-    return LoadIO_B(addr) << 24 | LoadIO_B(addr + 1) << 16 |
-           LoadIO_B(addr + 2) << 8 | LoadIO_B(addr + 3);
-}
-void StoreIO_B(uint32_t addr, uint8_t b) {
-    int tp = addr >> 13;
-    if(chipsB.contains(tp)) {
-        return chipsB[tp]->write(addr, b);
-    }
-    throw AccessFault{};
-}
-
-void StoreIO_L(uint32_t addr, uint32_t l) {
-    int tp = addr >> 13;
-    if(chipsL.contains(tp)) {
-        return chipsL[tp]->write(addr, l);
-    }
-    StoreIO_B(addr, l >> 24);
-    StoreIO_B(addr + 1, l >> 16);
-    StoreIO_B(addr + 2, l >> 8);
-    StoreIO_B(addr + 3, l);
-}
 void rtc_reset();
 void adb_reset();
 void asc_reset();
 void initBus() {
     // chips initilize
-    chipsB.clear();
-    chipsB[0] = via1 = std::make_shared<VIA1>();
-    chipsB[1] = via2 = std::make_shared<VIA2>();
-    chipsB[10] = easc = std::make_shared<EASC>();
-    chipsL[7] = std::make_shared<MCU_ctl>();
-    // mirror
-    for(auto [k, v] : chipsB) {
-        for(int i = 1; i < 256; ++i) {
-            chipsB[32 * i + k] = v;
-        }
-    }
-    for(auto [k, v] : chipsL) {
-        for(int i = 1; i < 256; ++i) {
-            chipsL[32 * i + k] = v;
-        }
-    }
+    asc = std::make_shared<ASC>();
+    via1 = std::make_shared<VIA1>();
+    via2 = std::make_shared<VIA2>();
+    io = std::make_unique<MCU_Q900>();
 }
 void bus_reset() {
     rtc_reset();
     adb_reset();
     asc_reset();
 }
+
+std::unique_ptr<IO_BUS> io;

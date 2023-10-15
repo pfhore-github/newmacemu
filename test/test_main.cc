@@ -1,8 +1,9 @@
 #define BOOST_TEST_MODULE test
 #define BOOST_TEST_DYN_LINK
 #include "68040.hpp"
-#include "test.hpp"
+#include "SDL.h"
 #include "memory.hpp"
+#include "test.hpp"
 #include <boost/test/unit_test.hpp>
 #include <errno.h>
 #include <fcntl.h>
@@ -37,28 +38,30 @@ Prepare::Prepare() {
     cpu.TCR_E = false;
     cpu.TCR_P = false;
     cpu.must_trace = false;
-    cpu.u_atc.clear();
-    cpu.ug_atc.clear();
-    cpu.s_atc.clear();
-    cpu.sg_atc.clear();
+    for(int i = 0; i < 2; ++i) {
+        cpu.l_atc[i].clear();
+        cpu.g_atc[i].clear();
+    }
     cpu.DTTR[0].E = false;
     cpu.DTTR[1].E = false;
     cpu.ITTR[0].E = false;
     cpu.ITTR[1].E = false;
-
+    cpu.in_exception = false;
     // EXCEPTION TABLE
     cpu.VBR = 0x400;
     for(int i = 0; i < 64; ++i) {
         TEST::SET_L(0x400 + (i << 2), 0x5000 + (i << 2));
     }
+    cpu.I = 0;
 }
 int GET_EXCEPTION() { return (cpu.PC - 0x5000) >> 2; }
 void init_run_table();
 extern bool rom_is_overlay;
 struct MyGlobalFixture {
     MyGlobalFixture() {
-        RAM.resize(64 * 1024 * 1024);
-        int fd = open("../quadra700.rom", O_RDONLY);
+        SDL_Init(SDL_INIT_AUDIO | SDL_INIT_TIMER);
+        RAM.resize(4 * 1024 * 1024);
+        int fd = open("../quadra950.rom", O_RDONLY);
         if(fd == -1) {
             perror("cannot open rom");
         }
@@ -70,24 +73,18 @@ struct MyGlobalFixture {
         ROM = static_cast<uint8_t *>(
             mmap(nullptr, ROMSize, PROT_READ, MAP_SHARED, fd, 0));
         init_run_table();
-
         initBus();
         init_fpu();
-        rom_is_overlay = false;
     }
+    ~MyGlobalFixture() { SDL_Quit(); }
 };
-std::unordered_map<uint32_t, void(*)()> rom_funcs;
 BOOST_TEST_GLOBAL_FIXTURE(MyGlobalFixture);
 
-uint8_t LoadIO_B(uint32_t) { return 0; }
-uint16_t LoadIO_W(uint32_t) { return 0; }
-uint32_t LoadIO_L(uint32_t) { return 0; }
-void StoreIO_B(uint32_t, uint8_t) {}
-void StoreIO_W(uint32_t, uint16_t) {}
-void StoreIO_L(uint32_t, uint32_t) {}
 bool is_reset = false;
-void bus_reset() { is_reset = true; }
+__attribute__((weak)) void bus_reset() { is_reset = true; }
 void run_op();
+
+void do_poweroff() { quick_exit(0); }
 
 void do_irq(int i) {
     std::lock_guard<std::mutex> lk(cpu.mtx_);
@@ -98,8 +95,10 @@ void do_irq(int i) {
 
 int run_test() {
     cpu.in_exception = false;
-    run_op();
-    if( cpu.PC >= 0x5000 ) {
+    if(setjmp(cpu.ex_buf) == 0) {
+        run_op();
+    }
+    if(cpu.PC >= 0x5000) {
         return GET_EXCEPTION();
     } else {
         return 0;

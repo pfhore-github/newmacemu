@@ -36,14 +36,14 @@ uint8_t BusReadB(uint32_t addr) {
     case 2:
     case 3:
         // RAM
-        if(offset >= RAM.size()) {
+        if(addr >= RAM.size()) {
             throw AccessFault{};
         }
-        return RAM[offset];
+        return RAM[addr];
     case 4:
         return ROM[offset & (ROMSize - 1)];
-    case 5: 
-        return LoadIO_B(offset);
+    case 5:
+        return io->Read8(offset);
     default:
         throw AccessFault{};
     }
@@ -56,13 +56,13 @@ void BusWriteB(uint32_t addr, uint8_t v) {
     case 2:
     case 3:
         // RAM
-        if(offset >= RAM.size()) {
+        if(addr >= RAM.size()) {
             throw AccessFault{};
         }
-        RAM[offset] = v;
+        RAM[addr] = v;
         break;
-    case 5:
-        StoreIO_B(offset, v);
+    case 5:      
+        io->Write8(offset, v);
         break;
     default:
         throw AccessFault{};
@@ -77,15 +77,14 @@ uint16_t BusReadW(uint32_t addr) {
     case 2:
     case 3:
         // RAM
-        if(offset >= RAM.size()) {
+        if(addr >= RAM.size()) {
             throw AccessFault{};
         }
-        return readBE16(RAM.data(), offset);
+        return readBE16(RAM.data(), addr);
     case 4:
         return readBE16(ROM, offset & (ROMSize - 1));
     case 5:
-        // thare are no 16bit-width chip
-        return LoadIO_B(offset) << 8 | LoadIO_B(offset + 1);
+        return io->Read16(offset);
     default:
         throw AccessFault{};
     }
@@ -99,15 +98,13 @@ void BusWriteW(uint32_t addr, uint16_t v) {
     case 2:
     case 3:
         // RAM
-        if(offset >= RAM.size()) {
+        if(addr >= RAM.size()) {
             throw AccessFault{};
         }
-        writeBE16(RAM.data(), offset, v);
+        writeBE16(RAM.data(), addr, v);
         break;
     case 5:
-        // thare are no 16bit-width chip
-        StoreIO_B(offset, v >> 8);
-        StoreIO_B(offset + 1, v);
+        io->Write16(offset, v);
         break;
     default:
         throw AccessFault{};
@@ -121,14 +118,14 @@ uint32_t BusReadL(uint32_t addr) {
     case 2:
     case 3:
         // RAM
-        if(offset >= RAM.size()) {
+        if(addr >= RAM.size()) {
             throw AccessFault{};
         }
-        return readBE32(RAM.data(), offset);
+        return readBE32(RAM.data(), addr);
     case 4:
         return readBE32(ROM, offset & (ROMSize - 1));
     case 5:
-        return LoadIO_L(offset);
+        return io->Read32(offset);
     default:
         throw AccessFault{};
     }
@@ -141,10 +138,13 @@ void BusWriteL(uint32_t addr, uint32_t v) {
     case 2:
     case 3:
         // RAM
-        writeBE32(RAM.data(), offset, v);
+        if(addr >= RAM.size()) {
+            throw AccessFault{};
+        }
+        writeBE32(RAM.data(), addr, v);
         break;
     case 5:
-        StoreIO_L(offset, v);
+        io->Write32(offset, v);
         break;
     default:
         throw AccessFault{};

@@ -4,7 +4,7 @@
 #include <boost/test/data/monomorphic.hpp>
 #include <boost/test/data/test_case.hpp>
 #include <boost/test/unit_test.hpp>
-uint32_t ptest(uint32_t addr, bool sys, bool code, bool W);
+mmu_result ptest(uint32_t addr, bool sys, bool code, bool W);
 namespace bdata = boost::unit_test::data;
 
 BOOST_FIXTURE_TEST_SUITE(PSERACH, Prepare)
@@ -17,8 +17,8 @@ BOOST_AUTO_TEST_CASE(User) {
     TEST::SET_L(0x300C, 0x4001 | 2 << 5 | 1 << 8);
     uint32_t vaddr = 1 << 13 | 2 << 6 | 3;
     ptest(vaddr, false, false, false);
-    auto found = cpu.u_atc.find(vaddr);
-    BOOST_REQUIRE(!!(found != cpu.u_atc.end()));
+    auto found = cpu.l_atc[0].find(vaddr);
+    BOOST_REQUIRE(!!(found != cpu.l_atc[0].end()));
     BOOST_TEST(found->second.paddr == 4);
     BOOST_TEST(found->second.U == 1);
     BOOST_TEST(!found->second.S);
@@ -36,11 +36,11 @@ BOOST_AUTO_TEST_CASE(System) {
     TEST::SET_L(0x300C, 0x4001 | 2 << 5 | 1 << 8 | 1 << 7);
     uint32_t vaddr = 1 << 13 | 2 << 6 | 3;
     ptest(vaddr, true, false, false);
-    auto found = cpu.s_atc.find(vaddr);
+    auto found = cpu.l_atc[1].find(vaddr);
     BOOST_TEST(TEST::GET_L(0x1004) == 0x200A);
     BOOST_TEST(TEST::GET_L(0x2008) == 0x300A);
     BOOST_TEST(TEST::GET_L(0x300C) == (0x4009 | 2 << 5 | 1 << 8 | 1 << 7));
-    BOOST_REQUIRE(!!(found != cpu.s_atc.end()));
+    BOOST_REQUIRE(!!(found != cpu.l_atc[1].end()));
     BOOST_TEST(found->second.paddr == 4);
     BOOST_TEST(found->second.U == 1);
     BOOST_TEST(found->second.S);
@@ -59,11 +59,11 @@ BOOST_AUTO_TEST_CASE(P) {
     TEST::SET_L(0x300C, 0x4001);
     uint32_t vaddr = 1 << 13 | 2 << 6 | 3 << 1 | 1;
     ptest(vaddr, false, false, false);
-    auto found = cpu.u_atc.find(vaddr);
+    auto found = cpu.l_atc[0].find(vaddr);
     BOOST_TEST(TEST::GET_L(0x1004) == 0x200A);
     BOOST_TEST(TEST::GET_L(0x2008) == 0x300A);
     BOOST_TEST(TEST::GET_L(0x300C) == 0x4009);
-    BOOST_REQUIRE(!!(found != cpu.u_atc.end()));
+    BOOST_REQUIRE(!!(found != cpu.l_atc[0].end()));
     BOOST_TEST(found->second.paddr == 4);
     BOOST_TEST(found->second.R);
 }
@@ -79,11 +79,11 @@ BOOST_AUTO_TEST_CASE(Indirect) {
     TEST::SET_L(0x4000, 0x5001);
     uint32_t vaddr = 1 << 13 | 2 << 6 | 3;
     ptest(vaddr, false, false, false);
-    auto found = cpu.u_atc.find(vaddr);
+    auto found = cpu.l_atc[0].find(vaddr);
     BOOST_TEST(TEST::GET_L(0x1004) == 0x200A);
     BOOST_TEST(TEST::GET_L(0x2008) == 0x300A);
     BOOST_TEST(TEST::GET_L(0x4000) == 0x5009);
-    BOOST_REQUIRE(!!(found != cpu.u_atc.end()));
+    BOOST_REQUIRE(!!(found != cpu.l_atc[0].end()));
     BOOST_TEST(found->second.paddr == 5);
     BOOST_TEST(found->second.R);
 }
@@ -95,8 +95,8 @@ BOOST_DATA_TEST_CASE(User, bdata::xrange(2), P) {
     TEST::SET_L(0x1004, 0x2000);
     uint32_t vaddr = 1 << 13;
     ptest(vaddr, false, false, false);
-    auto found = cpu.ug_atc.find(vaddr);
-    BOOST_REQUIRE(!!(found != cpu.ug_atc.end()));
+    auto found = cpu.g_atc[0].find(vaddr);
+    BOOST_REQUIRE(!!(found != cpu.g_atc[0].end()));
     BOOST_TEST(!found->second.R);
 }
 
@@ -107,8 +107,8 @@ BOOST_DATA_TEST_CASE(System, bdata::xrange(2), P) {
     TEST::SET_L(0x1004, 0x2000);
     uint32_t vaddr = 1 << 13;
     ptest(vaddr, true, false, false);
-    auto found = cpu.sg_atc.find(vaddr);
-    BOOST_REQUIRE(!!(found != cpu.sg_atc.end()));
+    auto found = cpu.g_atc[1].find(vaddr);
+    BOOST_REQUIRE(!!(found != cpu.g_atc[1].end()));
     BOOST_TEST(!found->second.R);
 }
 BOOST_AUTO_TEST_SUITE_END()
@@ -121,8 +121,8 @@ BOOST_DATA_TEST_CASE(RootNotFound, bdata::xrange(2), P) {
     TEST::SET_L(0x1004, 0x2000);
     uint32_t vaddr = 1 << 13;
     ptest(vaddr, false, false, false);
-    auto found = cpu.ug_atc.find(vaddr);
-    BOOST_REQUIRE(!!(found != cpu.ug_atc.end()));
+    auto found = cpu.g_atc[0].find(vaddr);
+    BOOST_REQUIRE(!!(found != cpu.g_atc[0].end()));
     BOOST_TEST(!found->second.R);
 }
 BOOST_DATA_TEST_CASE(PtrNotFound, bdata::xrange(2), P) {
@@ -134,8 +134,8 @@ BOOST_DATA_TEST_CASE(PtrNotFound, bdata::xrange(2), P) {
     TEST::SET_L(0x2008, 0x3000);
     uint32_t vaddr = 1 << 13 | 2 << 6;
     ptest(vaddr, false, false, false);
-    auto found = cpu.ug_atc.find(vaddr);
-    BOOST_REQUIRE(!!(found != cpu.ug_atc.end()));
+    auto found = cpu.g_atc[0].find(vaddr);
+    BOOST_REQUIRE(!!(found != cpu.g_atc[0].end()));
     BOOST_TEST(!found->second.R);
 }
 
@@ -149,8 +149,8 @@ BOOST_AUTO_TEST_CASE(PageNotFound) {
     TEST::SET_L(0x300C, 0x4000);
     uint32_t vaddr = 1 << 13 | 2 << 6 | 3;
     ptest(vaddr, false, false, false);
-    auto found = cpu.ug_atc.find(vaddr);
-    BOOST_REQUIRE(!!(found != cpu.ug_atc.end()));
+    auto found = cpu.g_atc[0].find(vaddr);
+    BOOST_REQUIRE(!!(found != cpu.g_atc[0].end()));
     BOOST_TEST(!found->second.R);
 }
 
@@ -164,8 +164,8 @@ BOOST_AUTO_TEST_CASE(PPageNotFound) {
     TEST::SET_L(0x300C, 0x4000);
     uint32_t vaddr = 1 << 13 | 2 << 6 | 3 << 1 | 1;
     ptest(vaddr, false, false, false);
-    auto found = cpu.ug_atc.find(vaddr);
-    BOOST_REQUIRE(!!(found != cpu.ug_atc.end()));
+    auto found = cpu.g_atc[0].find(vaddr);
+    BOOST_REQUIRE(!!(found != cpu.g_atc[0].end()));
     BOOST_TEST(!found->second.R);
 }
 
@@ -180,8 +180,8 @@ BOOST_AUTO_TEST_CASE(Root) {
     TEST::SET_L(0x300C, 0x4001 | 2 << 5 | 1 << 8);
     uint32_t vaddr = 1 << 13 | 2 << 6 | 3;
     ptest(vaddr, false, false, true);
-    auto found = cpu.u_atc.find(vaddr);
-    BOOST_REQUIRE(!!(found != cpu.u_atc.end()));
+    auto found = cpu.l_atc[0].find(vaddr);
+    BOOST_REQUIRE(!!(found != cpu.l_atc[0].end()));
     BOOST_TEST(found->second.W);
 }
 
@@ -195,8 +195,8 @@ BOOST_AUTO_TEST_CASE(Ptr) {
     TEST::SET_L(0x300C, 0x4001 | 2 << 5 | 1 << 8);
     uint32_t vaddr = 1 << 13 | 2 << 6 | 3;
     ptest(vaddr, false, false, true);
-    auto found = cpu.u_atc.find(vaddr);
-    BOOST_REQUIRE(!!(found != cpu.u_atc.end()));
+    auto found = cpu.l_atc[0].find(vaddr);
+    BOOST_REQUIRE(!!(found != cpu.l_atc[0].end()));
     BOOST_TEST(found->second.W);
 }
 
@@ -209,8 +209,8 @@ BOOST_AUTO_TEST_CASE(Page) {
     TEST::SET_L(0x300C, 0x4005 | 2 << 5 | 1 << 8);
     uint32_t vaddr = 1 << 13 | 2 << 6 | 3;
     ptest(vaddr, false, false, true);
-    auto found = cpu.u_atc.find(vaddr);
-    BOOST_REQUIRE(!!(found != cpu.u_atc.end()));
+    auto found = cpu.l_atc[0].find(vaddr);
+    BOOST_REQUIRE(!!(found != cpu.l_atc[0].end()));
     BOOST_TEST(found->second.W);
 }
 
@@ -222,7 +222,7 @@ BOOST_AUTO_TEST_CASE(MUpdate) {
     TEST::SET_L(0x2008, 0x3002);
     TEST::SET_L(0x300C, 0x4002 | 2 << 5 | 1 << 8);
     uint32_t vaddr = 1 << 13 | 2 << 6 | 3;
-    cpu.u_atc[vaddr] = {
+    cpu.l_atc[0][vaddr] = {
         .paddr = 0,
         .U = 0,
         .S = false,
@@ -232,8 +232,8 @@ BOOST_AUTO_TEST_CASE(MUpdate) {
         .R = true,
     };
     ptest(vaddr, false, false, true);
-    auto found = cpu.u_atc.find(vaddr);
-    BOOST_REQUIRE(!!(found != cpu.u_atc.end()));
+    auto found = cpu.l_atc[0].find(vaddr);
+    BOOST_REQUIRE(!!(found != cpu.l_atc[0].end()));
     BOOST_TEST(found->second.M);
 }
 BOOST_AUTO_TEST_SUITE_END()
@@ -244,7 +244,8 @@ BOOST_AUTO_TEST_CASE(B) {
     cpu.SRP = 0;
     TEST::SET_L(0x1004, 0xFFFFFFF2);
     uint32_t vaddr = 1 << 13;
-    BOOST_TEST(ptest(vaddr, false, false, false) & 1 << 11);
+    auto p = ptest(vaddr, false, false, false);
+    BOOST_TEST(p.B);
 }
 
 BOOST_AUTO_TEST_CASE(U) {
@@ -284,8 +285,8 @@ BOOST_DATA_TEST_CASE(CM, bdata::xrange(4), cm) {
     TEST::SET_L(0x300C, 0x4001 | cm << 5);
     uint32_t vaddr = 1 << 13 | 2 << 6 | 3;
     ptest(vaddr, false, false, false);
-    auto found = cpu.u_atc.find(vaddr);
-    BOOST_TEST(!!(found != cpu.u_atc.end()));
+    auto found = cpu.l_atc[0].find(vaddr);
+    BOOST_TEST(!!(found != cpu.l_atc[0].end()));
     BOOST_TEST(found->second.CM == cm);
 }
 
@@ -298,8 +299,8 @@ BOOST_AUTO_TEST_CASE(S) {
     TEST::SET_L(0x300C, 0x4001 | 1 << 7);
     uint32_t vaddr = 1 << 13 | 2 << 6 | 3;
     ptest(vaddr, false, false, false);
-    auto found = cpu.u_atc.find(vaddr);
-    BOOST_TEST(!!(found != cpu.u_atc.end()));
+    auto found = cpu.l_atc[0].find(vaddr);
+    BOOST_TEST(!!(found != cpu.l_atc[0].end()));
     BOOST_TEST(found->second.S);
 }
 
@@ -312,8 +313,8 @@ BOOST_DATA_TEST_CASE(Ux, bdata::xrange(4), x) {
     TEST::SET_L(0x300C, 0x4001 | x << 8);
     uint32_t vaddr = 1 << 13 | 2 << 6 | 3;
     ptest(vaddr, false, false, false);
-    auto found = cpu.u_atc.find(vaddr);
-    BOOST_TEST(!!(found != cpu.u_atc.end()));
+    auto found = cpu.l_atc[0].find(vaddr);
+    BOOST_TEST(!!(found != cpu.l_atc[0].end()));
     BOOST_TEST(found->second.U == x);
 }
 
@@ -326,8 +327,8 @@ BOOST_AUTO_TEST_CASE(G) {
     TEST::SET_L(0x300C, 0x4001 | 1 << 10);
     uint32_t vaddr = 1 << 13 | 2 << 6 | 3;
     ptest(vaddr, false, false, false);
-    auto found = cpu.ug_atc.find(vaddr);
-    BOOST_TEST(!!(found != cpu.ug_atc.end()));
+    auto found = cpu.g_atc[0].find(vaddr);
+    BOOST_TEST(!!(found != cpu.g_atc[0].end()));
 }
 
 BOOST_AUTO_TEST_CASE(SG) {
@@ -339,8 +340,8 @@ BOOST_AUTO_TEST_CASE(SG) {
     TEST::SET_L(0x300C, 0x4001 | 1 << 10);
     uint32_t vaddr = 1 << 13 | 2 << 6 | 3;
     ptest(vaddr, true, false, false);
-    auto found = cpu.sg_atc.find(vaddr);
-    BOOST_TEST(!!(found != cpu.sg_atc.end()));
+    auto found = cpu.g_atc[1].find(vaddr);
+    BOOST_TEST(!!(found != cpu.g_atc[1].end()));
 }
 
 BOOST_AUTO_TEST_SUITE_END()

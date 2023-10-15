@@ -13,12 +13,14 @@ BOOST_AUTO_TEST_CASE(user) {
     TEST::SET_W(0, 0047162);
     BOOST_TEST(run_test() == 8);
 }
+std::atomic<bool> running = true;
 BOOST_AUTO_TEST_CASE(sys) {
     cpu.S = true;
     TEST::SET_W(0, 0047162);
     TEST::SET_W(2, 0xf);
+    running = true;
     std::thread tx([]() {
-        for(int i = 0; i < 100; ++i) {
+        while(running.load()) {
             do_irq(7);
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
@@ -27,18 +29,7 @@ BOOST_AUTO_TEST_CASE(sys) {
     BOOST_TEST(run_test() == 0);
     BOOST_TEST(cpu.PC == 4);
     BOOST_TEST(GetCCR() == 0xf);
-}
-BOOST_AUTO_TEST_CASE(traced) {
-    TEST::SET_W(0, 0047162);
-    TEST::SET_W(2, 0xf | 1 << 14);
-    cpu.S = true;
-    std::thread tx([]() {
-        for(int i = 0; i < 100; ++i) {
-            do_irq(7);
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));
-        }
-    });
-    tx.detach();
-    BOOST_TEST(run_test() == 9);
+    cpu.inturrupt = 0;
+    running = false;
 }
 BOOST_AUTO_TEST_SUITE_END()

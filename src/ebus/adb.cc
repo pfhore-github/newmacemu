@@ -240,23 +240,25 @@ class ADBKeyboard : public ADBDev {
         }
     }
     std::deque<uint8_t> talk(int reg) override {
-        std::deque<uint8_t> ret;
+        std::deque<uint8_t> ret = {1};
         switch(reg) {
         case 0:
             if(keys.empty()) {
-                return {0xff, 0xff};
+                ret.push_back(0xff);
+                ret.push_back(0xff);
             } else if(keys.size() == 1) {
                 uint8_t v = *keys.begin();
                 keys.clear();
-                return {v, 0xff};
+                ret.push_back(v);
+                ret.push_back(0xff);
             } else {
                 auto ky = keys.begin();
                 ret.push_back(*ky);
                 ky = keys.erase(ky);
                 ret.push_back(*ky);
                 keys.erase(ky);
-                return ret;
             }
+            break;
         case 2: { // LEDs/Modifiers
             auto mod = SDL_GetModState();
             auto kbd = SDL_GetKeyboardState(nullptr);
@@ -278,16 +280,17 @@ class ADBKeyboard : public ADBDev {
                 reg2hi &= ~0x20;
             if(kbd[SDL_SCANCODE_DELETE]) // Delete
                 reg2hi &= ~0x40;
-            ret = {reg2hi, reg2lo};
-            return ret;
+            ret.push_back(reg2hi);
+            ret.push_back(reg2lo);
+            break;
         }
         case 3: // Address/HandlerID
+            ret.push_back(1);
             ret.push_back((reg3[0] & 0xf0) | (rand() & 0x0f));
             ret.push_back(reg3[1]);
-            return ret;
-        default:
-            return {};
+            break;
         }
+        return ret;
     }
 };
 
@@ -320,7 +323,7 @@ void adb_run(const std::vector<uint8_t> &b) {
     if(v == 1) {
         // RTC flash
         adb_xprammode = true;
-        buf = {0};
+        buf = {1, 0};
         do_adb_irq();
         return;
     }
@@ -330,7 +333,7 @@ void adb_run(const std::vector<uint8_t> &b) {
         return;
     } else if(v == 12) {
         // RTC read
-        buf = {0, 0, 7, xpram_read(b[2])};
+        buf = {1, 0, 0, 7, xpram_read(b[2]), 0};
         via1->recieve_sr();
         return;
     }
@@ -346,9 +349,9 @@ void adb_run(const std::vector<uint8_t> &b) {
         } else if(cmd == 3) {
             // Talk
             buf = mouse.talk(reg);
-            if(!buf.empty()) {
-                via1->recieve_sr();
-            }
+            // terminate byte
+            buf.push_back(0);
+            via1->recieve_sr();
         }
 
     } else if(adr == (kbd.reg3[0] & 0x0f)) {
@@ -361,6 +364,8 @@ void adb_run(const std::vector<uint8_t> &b) {
         } else if(cmd == 3) {
             // Talk
             buf = kbd.talk(reg);
+            // terminate byte
+            buf.push_back(0);
             if(!buf.empty()) {
                 via1->recieve_sr();
             }
@@ -370,7 +375,53 @@ void adb_run(const std::vector<uint8_t> &b) {
         if(cmd == 3)
             buf.clear(); // Talk: 0 bytes of data
 }
+ std::vector<uint8_t> adb_buf;
+ bool adb_attentioned = false;
+uint8_t recieveAdb(uint8_t adbState) {
+    switch(adbState) {
+    case 0:
+        buf.clear();
+        return 0;
+    case 1:
+    case 2:
+        return adb_in();
+    case 3:
+        return 0;
+    default:
+        __builtin_unreachable();
+    }
+}
+void transmitAdb(uint8_t adbState, uint8_t v) {
+    switch(adbState) {
+    case 0:
+        adb_run(adb_buf);
+        adb_buf.clear();
+        adb_attentioned = false;
 
+        // response
+        adb_irq = true;
+        via1->sr = 1;
+        via1->recieve_sr();
+        break;
+    case 1:
+    case 2:
+        if(!adb_attentioned) {
+            if(v == 1) {
+                // first bit is attention data
+                adb_attentioned = true;
+            }
+        } else {
+            adb_buf.push_back(v);
+        }
+        // response
+        adb_irq = true;
+        via1->sr = 1;
+        via1->recieve_sr();
+        break;
+    case 3:
+        break;
+    }
+}
 void keydown(const SDL_KeyboardEvent *e) {
     adb_irq = true;
     if(mac_keys.contains(e->keysym.scancode)) {

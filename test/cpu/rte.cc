@@ -525,7 +525,7 @@ BOOST_AUTO_TEST_CASE(W) {
 }
 
 BOOST_AUTO_TEST_CASE(W_half) {
-    uint32_t a = 0x3FFFFFF;
+    uint32_t a = 0x3FFFFF;
     if(setjmp(cpu.ex_buf) == 0) {
         ReadW(a);
     }
@@ -540,19 +540,19 @@ BOOST_AUTO_TEST_CASE(W_half) {
 
 BOOST_AUTO_TEST_CASE(L) {
     if(setjmp(cpu.ex_buf) == 0) {
-        ReadL(0xfffffff0);
+        ReadL(0xfffffffe);
     }
     BOOST_TEST(cpu.S);
     BOOST_TEST(cpu.T == 0);
     BOOST_TEST(TEST::GET_L(0x1002) == 0x100);
     BOOST_TEST(TEST::GET_W(0x1006) == (0x7000 | (2 << 2)));
     BOOST_TEST(TEST::GET_W(0x100C) == (1 << 8 | 0 << 5 | 1));
-    BOOST_TEST(TEST::GET_L(0x1014) == 0xfffffff0);
+    BOOST_TEST(TEST::GET_L(0x1014) == 0xfffffffe);
     BOOST_TEST(cpu.PC == 0x3000);
 }
 
 BOOST_AUTO_TEST_CASE(L_half) {
-    uint32_t a = 0x3FFFFFE;
+    uint32_t a = 0x3FFFFE;
     if(setjmp(cpu.ex_buf) == 0) {
         ReadL(a);
     }
@@ -595,7 +595,7 @@ BOOST_AUTO_TEST_CASE(W) {
 }
 
 BOOST_AUTO_TEST_CASE(W_half) {
-     uint32_t a = 0x3FFFFFF;
+     uint32_t a = 0x3FFFFF;
     if(setjmp(cpu.ex_buf) == 0) {
        WriteW(a, 1);
     }
@@ -622,7 +622,7 @@ BOOST_AUTO_TEST_CASE(L) {
 }
 
 BOOST_AUTO_TEST_CASE(L_half) {
-     uint32_t a = 0x3FFFFFE;
+     uint32_t a = 0x3FFFFE;
     if(setjmp(cpu.ex_buf) == 0) {
        WriteL(a, 1);
     }
