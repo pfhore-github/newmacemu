@@ -1,41 +1,48 @@
 #define BOOST_TEST_DYN_LINK
 #include "68040.hpp"
 #include "test.hpp"
-#include "proto.hpp"
+
 #include <boost/test/data/monomorphic.hpp>
 #include <boost/test/data/test_case.hpp>
 #include <boost/test/unit_test.hpp>
 namespace bdata = boost::unit_test::data;
 BOOST_FIXTURE_TEST_SUITE(NBCD, Prepare)
+struct F {
+    F() {
+        // NBCD %D2
+        TEST::SET_W(0, 0044000 | 2);
+        TEST::SET_W(2, TEST_BREAK);
+
+        jit_compile(0, 4);
+    }
+};
+BOOST_AUTO_TEST_SUITE(R, *boost::unit_test::fixture<F>())
 BOOST_AUTO_TEST_CASE(value) {
-    cpu.D[1] = 0x34;
+    cpu.D[2] = 0x34;
     cpu.Z = true;
-    BOOST_TEST(do_nbcd(0x34, true) == 0x65);
+    cpu.X = true;
+    run_test(0);
+    BOOST_TEST(cpu.D[2] == 0x65);
     BOOST_TEST(!cpu.Z);
     BOOST_TEST(cpu.X);
     BOOST_TEST(cpu.C);
 }
 BOOST_AUTO_TEST_CASE(Z) {
     cpu.Z = true;
-    do_nbcd(0x99, true);
+    cpu.D[2] = 0x99;
+    cpu.X = true;
+    run_test(0);
     BOOST_TEST(cpu.Z);
 }
 
 BOOST_AUTO_TEST_CASE(CX) {
-    do_nbcd(0, false);
+    cpu.D[2] = 0;
+    cpu.X = false;
+    run_test(0);
     BOOST_TEST(!cpu.C);
     BOOST_TEST(!cpu.X);
 }
 
-BOOST_AUTO_TEST_CASE(operand) {
-    TEST::SET_W(0, 0044000 | 1);
-    cpu.D[1] = 0x34;
-    cpu.X = true;
-    cpu.Z = true;
-    BOOST_TEST( run_test() == 0);
-    BOOST_TEST(cpu.PC == 2);
-    BOOST_TEST(cpu.D[1] == 0x65);
-}
-
+BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE_END()
 

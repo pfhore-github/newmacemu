@@ -3,7 +3,7 @@
 #include "bus.hpp"
 #include "exception.hpp"
 #include "memory.hpp"
-#include "proto.hpp"
+#include "inline.hpp"
 #include <memory>
 #include <utility>
 void bus_reset();
@@ -11,140 +11,187 @@ void do_rte();
 uint32_t Get_TTR_t(const Cpu::TTR_t &x);
 void Set_TTR_t(Cpu::TTR_t &x, uint32_t v);
 uint32_t ea_getaddr(int type, int reg, int sz, bool rw);
+#ifdef CI
+extern volatile bool testing;
+#endif
+
+inline uint8_t GetCCR() {
+    return cpu.X << 4 | cpu.N << 3 | cpu.Z << 2 | cpu.V << 1 | cpu.C;
+}
+inline void SetCCR(uint8_t v) {
+    cpu.X = v >> 4 & 1;
+    cpu.N = v >> 3 & 1;
+    cpu.Z = v >> 2 & 1;
+    cpu.V = v >> 1 & 1;
+    cpu.C = v & 1;
+}
+inline uint16_t GetSR() {
+    return GetCCR() | cpu.I << 8 | cpu.M << 12 | cpu.S << 13 | cpu.T << 14;
+}
+inline void SaveSP() {
+    if(cpu.S)
+        if(cpu.M)
+            cpu.MSP = cpu.A[7];
+        else
+            cpu.ISP = cpu.A[7];
+    else
+        cpu.USP = cpu.A[7];
+}
+inline void LoadSP() {
+    if(cpu.S)
+        if(cpu.M)
+            cpu.A[7] = cpu.MSP;
+        else
+            cpu.A[7] = cpu.ISP;
+    else
+        cpu.A[7] = cpu.USP;
+}
+inline void SetSR(uint16_t v) {
+    SaveSP();
+    SetCCR(v);
+    cpu.I = v >> 8 & 7;
+    cpu.M = v >> 12 & 1;
+    cpu.S = v >> 13 & 1;
+    cpu.T = v >> 14 & 3;
+    LoadSP();
+}
 
 namespace OP {
-void ori_b(uint16_t, int, int type, int reg) {
+#ifdef CI
+void test_exit(uint16_t) { testing = false; }
+#endif
+void ori_b(uint16_t op) {
     uint8_t v = FETCH();
-    ea_writeB(type, reg, OR_B(ea_readB(type, reg), v), true);
+    ea_writeB(TYPE(op), REG(op), OR_B(ea_readB(TYPE(op), REG(op)), v), true);
 }
 
-void ori_w(uint16_t, int, int type, int reg) {
+void ori_w(uint16_t op) {
     uint16_t v = FETCH();
-    ea_writeW(type, reg, OR_W(ea_readW(type, reg), v), true);
+    ea_writeW(TYPE(op), REG(op), OR_W(ea_readW(TYPE(op), REG(op)), v), true);
 }
 
-void ori_l(uint16_t, int, int type, int reg) {
+void ori_l(uint16_t op) {
     uint32_t v = FETCH32();
-    ea_writeL(type, reg, OR_L(ea_readL(type, reg), v), true);
+    ea_writeL(TYPE(op), REG(op), OR_L(ea_readL(TYPE(op), REG(op)), v), true);
 }
 
-void ori_b_ccr(uint16_t, int, int, int) {
+void ori_b_ccr(uint16_t) {
     uint8_t v = FETCH();
     SetCCR(GetCCR() | v);
 }
 
-void ori_w_sr(uint16_t, int, int, int) {
+void ori_w_sr(uint16_t) {
     PRIV_CHECK();
     uint16_t v = FETCH();
     SetSR(GetSR() | v);
     TRACE_BRANCH();
 }
 
-void andi_b(uint16_t, int, int type, int reg) {
+void andi_b(uint16_t op) {
     uint8_t v = FETCH();
-    ea_writeB(type, reg, AND_B(ea_readB(type, reg), v), true);
+    ea_writeB(TYPE(op), REG(op), AND_B(ea_readB(TYPE(op), REG(op)), v), true);
 }
 
-void andi_w(uint16_t, int, int type, int reg) {
+void andi_w(uint16_t op) {
     uint16_t v = FETCH();
-    ea_writeW(type, reg, AND_W(ea_readW(type, reg), v), true);
+    ea_writeW(TYPE(op), REG(op), AND_W(ea_readW(TYPE(op), REG(op)), v), true);
 }
 
-void andi_l(uint16_t, int, int type, int reg) {
+void andi_l(uint16_t op) {
     uint32_t v = FETCH32();
-    ea_writeL(type, reg, AND_L(ea_readL(type, reg), v), true);
+    ea_writeL(TYPE(op), REG(op), AND_L(ea_readL(TYPE(op), REG(op)), v), true);
 }
 
-void andi_b_ccr(uint16_t, int, int, int) {
+void andi_b_ccr(uint16_t) {
     uint8_t v = FETCH();
     SetCCR(GetCCR() & v);
 }
 
-void andi_w_sr(uint16_t, int, int, int) {
+void andi_w_sr(uint16_t) {
     PRIV_CHECK();
     uint16_t v = FETCH();
     SetSR(GetSR() & v);
     TRACE_BRANCH();
 }
 
-void eori_b(uint16_t, int, int type, int reg) {
+void eori_b(uint16_t op) {
     uint8_t v = FETCH();
-    ea_writeB(type, reg, XOR_B(ea_readB(type, reg), v), true);
+    ea_writeB(TYPE(op), REG(op), XOR_B(ea_readB(TYPE(op), REG(op)), v), true);
 }
 
-void eori_w(uint16_t, int, int type, int reg) {
+void eori_w(uint16_t op) {
     uint16_t v = FETCH();
-    ea_writeW(type, reg, XOR_W(ea_readW(type, reg), v), true);
+    ea_writeW(TYPE(op), REG(op), XOR_W(ea_readW(TYPE(op), REG(op)), v), true);
 }
 
-void eori_l(uint16_t, int, int type, int reg) {
+void eori_l(uint16_t op) {
     uint32_t v = FETCH32();
-    ea_writeL(type, reg, XOR_L(ea_readL(type, reg), v), true);
+    ea_writeL(TYPE(op), REG(op), XOR_L(ea_readL(TYPE(op), REG(op)), v), true);
 }
 
-void eori_b_ccr(uint16_t, int, int, int) {
+void eori_b_ccr(uint16_t) {
     uint8_t v = FETCH();
     SetCCR(GetCCR() ^ v);
 }
 
-void eori_w_sr(uint16_t, int, int, int) {
+void eori_w_sr(uint16_t) {
     PRIV_CHECK();
     uint16_t v = FETCH();
     SetSR(GetSR() ^ v);
     TRACE_BRANCH();
 }
 
-void subi_b(uint16_t, int, int type, int reg) {
+void subi_b(uint16_t op) {
     uint8_t v = FETCH();
-    ea_writeB(type, reg, SUB_B(ea_readB(type, reg), v), true);
+    ea_writeB(TYPE(op), REG(op), SUB_B(ea_readB(TYPE(op), REG(op)), v), true);
 }
 
-void subi_w(uint16_t, int, int type, int reg) {
+void subi_w(uint16_t op) {
     uint16_t v = FETCH();
-    ea_writeW(type, reg, SUB_W(ea_readW(type, reg), v), true);
+    ea_writeW(TYPE(op), REG(op), SUB_W(ea_readW(TYPE(op), REG(op)), v), true);
 }
 
-void subi_l(uint16_t, int, int type, int reg) {
+void subi_l(uint16_t op) {
     uint32_t v = FETCH32();
-    ea_writeL(type, reg, SUB_L(ea_readL(type, reg), v), true);
+    ea_writeL(TYPE(op), REG(op), SUB_L(ea_readL(TYPE(op), REG(op)), v), true);
 }
 
-void addi_b(uint16_t, int, int type, int reg) {
+void addi_b(uint16_t op) {
     uint8_t v = FETCH();
-    ea_writeB(type, reg, ADD_B(ea_readB(type, reg), v), true);
+    ea_writeB(TYPE(op), REG(op), ADD_B(ea_readB(TYPE(op), REG(op)), v), true);
 }
 
-void addi_w(uint16_t, int, int type, int reg) {
+void addi_w(uint16_t op) {
     uint16_t v = FETCH();
-    ea_writeW(type, reg, ADD_W(ea_readW(type, reg), v), true);
+    ea_writeW(TYPE(op), REG(op), ADD_W(ea_readW(TYPE(op), REG(op)), v), true);
 }
 
-void addi_l(uint16_t, int, int type, int reg) {
+void addi_l(uint16_t op) {
     uint32_t v = FETCH32();
-    ea_writeL(type, reg, ADD_L(ea_readL(type, reg), v), true);
+    ea_writeL(TYPE(op), REG(op), ADD_L(ea_readL(TYPE(op), REG(op)), v), true);
 }
 
-void cmpi_b(uint16_t, int, int type, int reg) {
+void cmpi_b(uint16_t op) {
     uint8_t v = FETCH();
-    CMP_B(ea_readB(type, reg), v);
+    CMP_B(ea_readB(TYPE(op), REG(op)), v);
 }
 
-void cmpi_w(uint16_t, int, int type, int reg) {
+void cmpi_w(uint16_t op) {
     uint16_t v = FETCH();
-    CMP_W(ea_readW(type, reg), v);
+    CMP_W(ea_readW(TYPE(op), REG(op)), v);
 }
 
-void cmpi_l(uint16_t, int, int type, int reg) {
+void cmpi_l(uint16_t op) {
     uint32_t v = FETCH32();
-    CMP_L(ea_readL(type, reg), v);
+    CMP_L(ea_readL(TYPE(op), REG(op)), v);
 }
 
-void cmp2_chk2_b(uint16_t, int, int type, int reg) {
+void cmp2_chk2_b(uint16_t op) {
     uint16_t nextop = FETCH();
     bool s = nextop & 1 << 15;
     int rn = nextop >> 12 & 7;
     bool chk2 = nextop & 1 << 11;
-    cpu.EA = ea_getaddr(type, reg, 1);
+    cpu.EA = ea_getaddr(TYPE(op), REG(op), 1);
     if(s) {
         CMP2_SB(cpu.A[rn], cpu.EA);
     } else {
@@ -155,12 +202,12 @@ void cmp2_chk2_b(uint16_t, int, int type, int reg) {
     }
 }
 
-void cmp2_chk2_w(uint16_t, int, int type, int reg) {
+void cmp2_chk2_w(uint16_t op) {
     uint16_t nextop = FETCH();
     bool s = nextop & 1 << 15;
     int rn = nextop >> 12 & 7;
     bool chk2 = nextop & 1 << 11;
-    cpu.EA = ea_getaddr(type, reg, 2);
+    cpu.EA = ea_getaddr(TYPE(op), REG(op), 2);
     if(s) {
         CMP2_SW(cpu.A[rn], cpu.EA);
     } else {
@@ -171,12 +218,12 @@ void cmp2_chk2_w(uint16_t, int, int type, int reg) {
     }
 }
 
-void cmp2_chk2_l(uint16_t, int, int type, int reg) {
+void cmp2_chk2_l(uint16_t op) {
     uint16_t nextop = FETCH();
     bool s = nextop & 1 << 15;
     int rn = nextop >> 12 & 7;
     bool chk2 = nextop & 1 << 11;
-    cpu.EA = ea_getaddr(type, reg, 4);
+    cpu.EA = ea_getaddr(TYPE(op), REG(op), 4);
     if(s) {
         CMP2_SL(cpu.A[rn], cpu.EA);
     } else {
@@ -187,148 +234,148 @@ void cmp2_chk2_l(uint16_t, int, int type, int reg) {
     }
 }
 
-void btst_l_i(uint16_t, int, int, int reg) {
+void btst_l_i(uint16_t op) {
     int pos = FETCH() & 31;
-    BTST_L(cpu.D[reg], pos);
+    BTST_L(cpu.D[REG(op)], pos);
 }
 
-void btst_b_i(uint16_t, int, int type, int reg) {
+void btst_b_i(uint16_t op) {
     int pos = FETCH() & 7;
-    cpu.EA = ea_getaddr(type, reg, 1);
+    cpu.EA = ea_getaddr(TYPE(op), REG(op), 1);
     BTST_B(ReadB(cpu.EA), pos);
 }
-void btst_b_i_imm(uint16_t, int, int, int) {
+void btst_b_i_imm(uint16_t) {
     int pos = FETCH() & 7;
     uint8_t imm = FETCH();
     BTST_B(imm, pos);
 }
 
-void btst_l_r(uint16_t, int dn, int, int reg) {
-    BTST_L(cpu.D[reg], cpu.D[dn] & 31);
+void btst_l_r(uint16_t op) {
+    BTST_L(cpu.D[REG(op)], cpu.D[DN(op)] & 31);
 }
 
-void btst_b_r(uint16_t, int dn, int type, int reg) {
-    cpu.EA = ea_getaddr(type, reg, 1);
-    BTST_B(ReadB(cpu.EA), cpu.D[dn] & 7);
+void btst_b_r(uint16_t op) {
+    cpu.EA = ea_getaddr(TYPE(op), REG(op), 1);
+    BTST_B(ReadB(cpu.EA), cpu.D[DN(op)] & 7);
 }
-void btst_b_r_imm(uint16_t, int dn, int, int) {
+void btst_b_r_imm(uint16_t op) {
     uint8_t imm = FETCH();
-    BTST_B(imm, cpu.D[dn] & 7);
+    BTST_B(imm, cpu.D[DN(op)] & 7);
 }
 
-void bchg_l_i(uint16_t, int, int, int reg) {
+void bchg_l_i(uint16_t op) {
     int pos = FETCH() & 31;
-    cpu.D[reg] = BCHG_L(cpu.D[reg], pos);
+    cpu.D[REG(op)] = BCHG_L(cpu.D[REG(op)], pos);
 }
 
-void bchg_b_i(uint16_t, int, int type, int reg) {
+void bchg_b_i(uint16_t op) {
     int pos = FETCH() & 7;
-    cpu.EA = ea_getaddr(type, reg, 1);
+    cpu.EA = ea_getaddr(TYPE(op), REG(op), 1);
     WriteB(cpu.EA, BCHG_B(ReadB(cpu.EA), pos));
 }
 
-void bchg_l_r(uint16_t, int dn, int, int reg) {
-    cpu.D[reg] = BCHG_L(cpu.D[reg], cpu.D[dn] & 31);
+void bchg_l_r(uint16_t op) {
+    cpu.D[REG(op)] = BCHG_L(cpu.D[REG(op)], cpu.D[DN(op)] & 31);
 }
 
-void bchg_b_r(uint16_t, int dn, int type, int reg) {
-    cpu.EA = ea_getaddr(type, reg, 1);
-    WriteB(cpu.EA, BCHG_B(ReadB(cpu.EA), cpu.D[dn] & 7));
+void bchg_b_r(uint16_t op) {
+    cpu.EA = ea_getaddr(TYPE(op), REG(op), 1);
+    WriteB(cpu.EA, BCHG_B(ReadB(cpu.EA), cpu.D[DN(op)] & 7));
 }
 
-void bclr_l_i(uint16_t, int, int, int reg) {
+void bclr_l_i(uint16_t op) {
     int pos = FETCH() & 31;
-    cpu.D[reg] = BCLR_L(cpu.D[reg], pos);
+    cpu.D[REG(op)] = BCLR_L(cpu.D[REG(op)], pos);
 }
 
-void bclr_b_i(uint16_t, int, int type, int reg) {
+void bclr_b_i(uint16_t op) {
     int pos = FETCH() & 7;
-    cpu.EA = ea_getaddr(type, reg, 1);
+    cpu.EA = ea_getaddr(TYPE(op), REG(op), 1);
     WriteB(cpu.EA, BCLR_B(ReadB(cpu.EA), pos));
 }
 
-void bclr_l_r(uint16_t, int dn, int, int reg) {
-    cpu.D[reg] = BCLR_L(cpu.D[reg], cpu.D[dn] & 31);
+void bclr_l_r(uint16_t op) {
+    cpu.D[REG(op)] = BCLR_L(cpu.D[REG(op)], cpu.D[DN(op)] & 31);
 }
 
-void bclr_b_r(uint16_t, int dn, int type, int reg) {
-    cpu.EA = ea_getaddr(type, reg, 1);
-    WriteB(cpu.EA, BCLR_B(ReadB(cpu.EA), cpu.D[dn] & 7));
+void bclr_b_r(uint16_t op) {
+    cpu.EA = ea_getaddr(TYPE(op), REG(op), 1);
+    WriteB(cpu.EA, BCLR_B(ReadB(cpu.EA), cpu.D[DN(op)] & 7));
 }
 
-void bset_l_i(uint16_t, int, int, int reg) {
+void bset_l_i(uint16_t op) {
     int pos = FETCH() & 31;
-    cpu.D[reg] = BSET_L(cpu.D[reg], pos);
+    cpu.D[REG(op)] = BSET_L(cpu.D[REG(op)], pos);
 }
 
-void bset_b_i(uint16_t, int, int type, int reg) {
+void bset_b_i(uint16_t op) {
     int pos = FETCH() & 7;
-    cpu.EA = ea_getaddr(type, reg, 1);
+    cpu.EA = ea_getaddr(TYPE(op), REG(op), 1);
     WriteB(cpu.EA, BSET_B(ReadB(cpu.EA), pos));
 }
 
-void bset_l_r(uint16_t, int dn, int, int reg) {
-    cpu.D[reg] = BSET_L(cpu.D[reg], cpu.D[dn] & 31);
+void bset_l_r(uint16_t op) {
+    cpu.D[REG(op)] = BSET_L(cpu.D[REG(op)], cpu.D[DN(op)] & 31);
 }
 
-void bset_b_r(uint16_t, int dn, int type, int reg) {
-    cpu.EA = ea_getaddr(type, reg, 1);
-    WriteB(cpu.EA, BSET_B(ReadB(cpu.EA), cpu.D[dn] & 7));
+void bset_b_r(uint16_t op) {
+    cpu.EA = ea_getaddr(TYPE(op), REG(op), 1);
+    WriteB(cpu.EA, BSET_B(ReadB(cpu.EA), cpu.D[DN(op)] & 7));
 }
-void movep_w_load(uint16_t, int dn, int, int reg) {
+void movep_w_load(uint16_t op) {
     int16_t disp = FETCH();
-    uint32_t base = cpu.A[reg] + disp;
-    STORE_W(cpu.D[dn], ReadB(base) << 8 | ReadB(base + 2));
+    uint32_t base = cpu.A[REG(op)] + disp;
+    STORE_W(cpu.D[DN(op)], ReadB(base) << 8 | ReadB(base + 2));
 }
 
-void movep_l_load(uint16_t, int dn, int, int reg) {
+void movep_l_load(uint16_t op) {
     int16_t disp = FETCH();
-    uint32_t base = cpu.A[reg] + disp;
-    cpu.D[dn] = ReadB(base) << 24 | ReadB(base + 2) << 16 |
+    uint32_t base = cpu.A[REG(op)] + disp;
+    cpu.D[DN(op)] = ReadB(base) << 24 | ReadB(base + 2) << 16 |
                 ReadB(base + 4) << 8 | ReadB(base + 6);
 }
 
-void movep_w_store(uint16_t, int dn, int, int reg) {
+void movep_w_store(uint16_t op) {
     int16_t disp = FETCH();
-    uint32_t base = cpu.A[reg] + disp;
-    WriteB(base, cpu.D[dn] >> 8);
-    WriteB(base + 2, cpu.D[dn]);
+    uint32_t base = cpu.A[REG(op)] + disp;
+    WriteB(base, cpu.D[DN(op)] >> 8);
+    WriteB(base + 2, cpu.D[DN(op)]);
 }
 
-void movep_l_store(uint16_t, int dn, int, int reg) {
+void movep_l_store(uint16_t op) {
     int16_t disp = FETCH();
-    uint32_t base = cpu.A[reg] + disp;
-    WriteB(base, cpu.D[dn] >> 24);
-    WriteB(base + 2, cpu.D[dn] >> 16);
-    WriteB(base + 4, cpu.D[dn] >> 8);
-    WriteB(base + 6, cpu.D[dn]);
+    uint32_t base = cpu.A[REG(op)] + disp;
+    WriteB(base, cpu.D[DN(op)] >> 24);
+    WriteB(base + 2, cpu.D[DN(op)] >> 16);
+    WriteB(base + 4, cpu.D[DN(op)] >> 8);
+    WriteB(base + 6, cpu.D[DN(op)]);
 }
 
-void cas_b(uint16_t, int, int type, int reg) {
+void cas_b(uint16_t op) {
     uint16_t extw = FETCH();
     int du = extw >> 6 & 7;
     int dc = extw & 7;
-    cpu.EA = ea_getaddr(type, reg, 1);
+    cpu.EA = ea_getaddr(TYPE(op), REG(op), 1);
     CAS_B(cpu.EA, dc, cpu.D[du]);
 }
 
-void cas_w(uint16_t, int, int type, int reg) {
+void cas_w(uint16_t op) {
     uint16_t extw = FETCH();
     int du = extw >> 6 & 7;
     int dc = extw & 7;
-    cpu.EA = ea_getaddr(type, reg, 2);
+    cpu.EA = ea_getaddr(TYPE(op), REG(op), 2);
     CAS_W(cpu.EA, dc, cpu.D[du]);
 }
 
-void cas_l(uint16_t, int, int type, int reg) {
+void cas_l(uint16_t op) {
     uint16_t extw = FETCH();
     int du = extw >> 6 & 7;
     int dc = extw & 7;
-    cpu.EA = ea_getaddr(type, reg, 4);
+    cpu.EA = ea_getaddr(TYPE(op), REG(op), 4);
     CAS_L(cpu.EA, dc, cpu.D[du]);
 }
 
-void cas2_w(uint16_t, int, int, int) {
+void cas2_w(uint16_t) {
     uint16_t extw1 = FETCH();
     uint16_t extw2 = FETCH();
     int rn1 = extw1 >> 12 & 15;
@@ -340,7 +387,7 @@ void cas2_w(uint16_t, int, int, int) {
     CAS2_W(cpu.R(rn1), dc1, cpu.D[du1], cpu.R(rn2), dc2, cpu.D[du2]);
 }
 
-void cas2_l(uint16_t, int, int, int) {
+void cas2_l(uint16_t) {
     uint16_t extw1 = FETCH();
     uint16_t extw2 = FETCH();
     int rn1 = extw1 >> 12 & 15;
@@ -352,12 +399,12 @@ void cas2_l(uint16_t, int, int, int) {
     CAS2_L(cpu.R(rn1), dc1, cpu.D[du1], cpu.R(rn2), dc2, cpu.D[du2]);
 }
 
-void moves_b(uint16_t, int, int type, int reg) {
+void moves_b(uint16_t op) {
     PRIV_CHECK();
     uint16_t extw = FETCH();
     int rn = extw >> 12 & 15;
-    cpu.EA = ea_getaddr(type, reg, 1);
-    cpu.af_value.tt = TT::ALT;
+    cpu.EA = ea_getaddr(TYPE(op), REG(op), 1);
+    cpu.faultParam->tt = TT::ALT;
     if(extw & 1 << 11) {
         WriteB(cpu.EA, cpu.R(rn));
     } else {
@@ -366,12 +413,12 @@ void moves_b(uint16_t, int, int type, int reg) {
     TRACE_BRANCH();
 }
 
-void moves_w(uint16_t, int, int type, int reg) {
+void moves_w(uint16_t op) {
     PRIV_CHECK();
     uint16_t extw = FETCH();
     int rn = extw >> 12 & 15;
-    cpu.EA = ea_getaddr(type, reg, 2);
-    cpu.af_value.tt = TT::ALT;
+    cpu.EA = ea_getaddr(TYPE(op), REG(op), 2);
+    cpu.faultParam->tt = TT::ALT;
     if(extw & 1 << 11) {
         WriteW(cpu.EA, cpu.R(rn));
     } else {
@@ -380,12 +427,12 @@ void moves_w(uint16_t, int, int type, int reg) {
     TRACE_BRANCH();
 }
 
-void moves_l(uint16_t, int, int type, int reg) {
+void moves_l(uint16_t op) {
     PRIV_CHECK();
     uint16_t extw = FETCH();
     int rn = extw >> 12 & 15;
-    cpu.EA = ea_getaddr(type, reg, 4);
-    cpu.af_value.tt = TT::ALT;
+    cpu.EA = ea_getaddr(TYPE(op), REG(op), 4);
+    cpu.faultParam->tt = TT::ALT;
     if(extw & 1 << 11) {
         WriteL(cpu.EA, cpu.R(rn));
     } else {
@@ -394,192 +441,198 @@ void moves_l(uint16_t, int, int type, int reg) {
     TRACE_BRANCH();
 }
 
-void move_b(uint16_t op, int dn, int type, int reg) {
+void move_b(uint16_t op) {
     int dst_type = op >> 6 & 7;
-    uint8_t v = ea_readB(type, reg);
+    uint8_t v = ea_readB(TYPE(op), REG(op));
     TEST_B(v);
     cpu.V = cpu.C = false;
-    ea_writeB(dst_type, dn, v, false);
+    ea_writeB(dst_type, DN(op), v, false);
 }
 
-void move_w(uint16_t op, int dn, int type, int reg) {
+void move_w(uint16_t op) {
     int dst_type = op >> 6 & 7;
-    uint16_t v = ea_readW(type, reg);
-    TEST_B(v);
+    uint16_t v = ea_readW(TYPE(op), REG(op));
+    TEST_W(v);
     cpu.V = cpu.C = false;
-    ea_writeW(dst_type, dn, v, false);
+    ea_writeW(dst_type, DN(op), v, false);
 }
 
-void move_l(uint16_t op, int dn, int type, int reg) {
+void move_l(uint16_t op) {
     int dst_type = op >> 6 & 7;
-    uint32_t v = ea_readL(type, reg);
-    TEST_B(v);
+    uint32_t v = ea_readL(TYPE(op), REG(op));
+    TEST_L(v);
     cpu.V = cpu.C = false;
-    ea_writeL(dst_type, dn, v, false);
+    ea_writeL(dst_type, DN(op), v, false);
 }
 
-void movea_w(uint16_t, int dn, int type, int reg) {
-    uint16_t v = ea_readW(type, reg);
-    cpu.A[dn] = static_cast<int16_t>(v);
+void movea_w(uint16_t op) {
+    uint16_t v = ea_readW(TYPE(op), REG(op));
+    cpu.A[DN(op)] = static_cast<int16_t>(v);
 }
 
-void movea_l(uint16_t, int dn, int type, int reg) {
-    uint32_t v = ea_readL(type, reg);
-    cpu.A[dn] = v;
+void movea_l(uint16_t op) {
+    uint32_t v = ea_readL(TYPE(op), REG(op));
+    cpu.A[DN(op)] = v;
 }
 
-void move_from_sr(uint16_t, int, int type, int reg) {
+void move_from_sr(uint16_t op) {
     PRIV_CHECK();
-    ea_writeW(type, reg, GetSR(), false);
+    ea_writeW(TYPE(op), REG(op), GetSR(), false);
 }
 
-void move_from_ccr(uint16_t, int, int type, int reg) {
-    ea_writeW(type, reg, GetCCR(), false);
+void move_from_ccr(uint16_t op) {
+    ea_writeW(TYPE(op), REG(op), GetCCR(), false);
 }
 
-void move_to_ccr(uint16_t, int, int type, int reg) {
-    SetCCR(ea_readW(type, reg));
+void move_to_ccr(uint16_t op) {
+    SetCCR(ea_readW(TYPE(op), REG(op)));
 }
 
-void move_to_sr(uint16_t, int, int type, int reg) {
+void move_to_sr(uint16_t op) {
     PRIV_CHECK();
-    SetSR(ea_readW(type, reg));
+    SetSR(ea_readW(TYPE(op), REG(op)));
     TRACE_BRANCH();
 }
 
-void negx_b(uint16_t, int, int type, int reg) {
-    uint8_t v = ea_readB(type, reg);
-    ea_writeB(type, reg, NEGX_B(v, cpu.X), true);
+void negx_b(uint16_t op) {
+    uint8_t v = ea_readB(TYPE(op), REG(op));
+    ea_writeB(TYPE(op), REG(op), NEGX_B(v, cpu.X), true);
 }
 
-void negx_w(uint16_t, int, int type, int reg) {
-    uint16_t v = ea_readW(type, reg);
-    ea_writeW(type, reg, NEGX_W(v, cpu.X), true);
+void negx_w(uint16_t op) {
+    uint16_t v = ea_readW(TYPE(op), REG(op));
+    ea_writeW(TYPE(op), REG(op), NEGX_W(v, cpu.X), true);
 }
 
-void negx_l(uint16_t, int, int type, int reg) {
-    uint32_t v = ea_readL(type, reg);
-    ea_writeL(type, reg, NEGX_L(v, cpu.X), true);
+void negx_l(uint16_t op) {
+    uint32_t v = ea_readL(TYPE(op), REG(op));
+    ea_writeL(TYPE(op), REG(op), NEGX_L(v, cpu.X), true);
 }
 
-void clr_b(uint16_t, int, int type, int reg) {
-    cpu.N = cpu.Z = cpu.V = cpu.C = false;
-    ea_writeB(type, reg, 0, false);
+void clr_b(uint16_t op) {
+    cpu.N = cpu.V = cpu.C = false;
+    cpu.Z = true;
+    ea_writeB(TYPE(op), REG(op), 0, false);
 }
 
-void clr_w(uint16_t, int, int type, int reg) {
-    cpu.N = cpu.Z = cpu.V = cpu.C = false;
-    ea_writeW(type, reg, 0, false);
+void clr_w(uint16_t op) {
+    cpu.N = cpu.V = cpu.C = false;
+    cpu.Z = true;
+    ea_writeW(TYPE(op), REG(op), 0, false);
 }
 
-void clr_l(uint16_t, int, int type, int reg) {
-    cpu.N = cpu.Z = cpu.V = cpu.C = false;
-    ea_writeL(type, reg, 0, false);
+void clr_l(uint16_t op) {
+    cpu.N = cpu.V = cpu.C = false;
+    cpu.Z = true;
+    ea_writeL(TYPE(op), REG(op), 0, false);
 }
 
-void neg_b(uint16_t, int, int type, int reg) {
-    uint8_t v = ea_readB(type, reg);
-    ea_writeB(type, reg, NEG_B(v), true);
+void neg_b(uint16_t op) {
+    uint8_t v = ea_readB(TYPE(op), REG(op));
+    ea_writeB(TYPE(op), REG(op), NEG_B(v), true);
 }
 
-void neg_w(uint16_t, int, int type, int reg) {
-    uint16_t v = ea_readW(type, reg);
-    ea_writeW(type, reg, NEG_W(v), true);
+void neg_w(uint16_t op) {
+    uint16_t v = ea_readW(TYPE(op), REG(op));
+    ea_writeW(TYPE(op), REG(op), NEG_W(v), true);
 }
 
-void neg_l(uint16_t, int, int type, int reg) {
-    uint32_t v = ea_readL(type, reg);
-    ea_writeL(type, reg, NEG_L(v), true);
+void neg_l(uint16_t op) {
+    uint32_t v = ea_readL(TYPE(op), REG(op));
+    ea_writeL(TYPE(op), REG(op), NEG_L(v), true);
 }
 
-void not_b(uint16_t, int, int type, int reg) {
-    uint8_t v = ea_readB(type, reg);
-    ea_writeB(type, reg, NOT_B(v), true);
+void not_b(uint16_t op) {
+    uint8_t v = ea_readB(TYPE(op), REG(op));
+    ea_writeB(TYPE(op), REG(op), NOT_B(v), true);
 }
 
-void not_w(uint16_t, int, int type, int reg) {
-    uint16_t v = ea_readW(type, reg);
-    ea_writeW(type, reg, NOT_W(v), true);
+void not_w(uint16_t op) {
+    uint16_t v = ea_readW(TYPE(op), REG(op));
+    ea_writeW(TYPE(op), REG(op), NOT_W(v), true);
 }
 
-void not_l(uint16_t, int, int type, int reg) {
-    uint32_t v = ea_readL(type, reg);
-    ea_writeL(type, reg, NOT_L(v), true);
+void not_l(uint16_t op) {
+    uint32_t v = ea_readL(TYPE(op), REG(op));
+    ea_writeL(TYPE(op), REG(op), NOT_L(v), true);
 }
 
-void nbcd(uint16_t, int, int type, int reg) {
-    uint8_t b = ea_readB(type, reg);
-    ea_writeB(type, reg, do_nbcd(b, cpu.X), true);
+void nbcd(uint16_t op) {
+    uint8_t b = ea_readB(TYPE(op), REG(op));
+    ea_writeB(TYPE(op), REG(op), do_nbcd(b, cpu.X), true);
 }
 
-void link_l(uint16_t, int, int, int reg) {
+void link_l(uint16_t op) {
     int32_t disp = FETCH32();
-    PUSH32(cpu.A[reg]);
-    cpu.A[reg] = cpu.A[7];
+    PUSH32(cpu.A[REG(op)]);
+    cpu.A[REG(op)] = cpu.A[7];
     cpu.A[7] += disp;
 }
 
-void swap(uint16_t, int, int, int reg) {
-    uint32_t v = cpu.D[reg] >> 16 | cpu.D[reg] << 16;
+void swap(uint16_t op) {
+    uint32_t v = cpu.D[REG(op)] >> 16 | cpu.D[REG(op)] << 16;
     cpu.V = cpu.C = false;
     TEST_L(v);
-    cpu.D[reg] = v;
+    cpu.D[REG(op)] = v;
 }
 
-void bkpt(uint16_t, int, int, int) { ILLEGAL_OP(); }
+void bkpt(uint16_t) { ILLEGAL_OP(); }
 
-void pea(uint16_t, int, int type, int reg) { PUSH32(ea_getaddr(type, reg, 0)); }
+void pea(uint16_t op) { PUSH32(ea_getaddr(TYPE(op), REG(op), 0)); }
 
-void ext_w(uint16_t, int, int, int reg) {
-    int16_t v = static_cast<int8_t>(cpu.D[reg] & 0xff);
+void ext_w(uint16_t op) {
+    int16_t v = static_cast<int8_t>(cpu.D[REG(op)] & 0xff);
     cpu.V = cpu.C = false;
     TEST_W(v);
-    STORE_W(cpu.D[reg], v);
+    STORE_W(cpu.D[REG(op)], v);
 }
 
-void ext_l(uint16_t, int, int, int reg) {
-    int32_t v = static_cast<int16_t>(cpu.D[reg] & 0xffff);
+void ext_l(uint16_t op) {
+    int32_t v = static_cast<int16_t>(cpu.D[REG(op)] & 0xffff);
     cpu.V = cpu.C = false;
     TEST_L(v);
-    STORE_L(cpu.D[reg], v);
+    STORE_L(cpu.D[REG(op)], v);
 }
 
-void movem_w_store_decr(uint16_t, int, int, int reg);
-void movem_w_store_base(uint16_t, int, int, int reg);
-void movem_l_store_decr(uint16_t, int, int, int reg);
-void movem_l_store_base(uint16_t, int, int, int reg);
+void movem_w_store_decr(uint16_t op);
+void movem_w_store_base(uint16_t op);
+void movem_l_store_decr(uint16_t op);
+void movem_l_store_base(uint16_t op);
 
-void movem_w_load_incr(uint16_t, int, int, int reg);
-void movem_w_load_base(uint16_t, int, int, int reg);
-void movem_l_load_incr(uint16_t, int, int, int reg);
-void movem_l_load_base(uint16_t, int, int, int reg);
+void movem_w_load_incr(uint16_t op);
+void movem_w_load_base(uint16_t op);
+void movem_l_load_incr(uint16_t op);
+void movem_l_load_base(uint16_t op);
 
-void tst_b(uint16_t, int, int type, int reg) {
-    uint8_t b = ea_readB(type, reg);
+void tst_b(uint16_t op) {
+    uint8_t b = ea_readB(TYPE(op), REG(op));
+    cpu.V = cpu.C = false;
     TEST_B(b);
 }
 
-void tst_w(uint16_t, int, int type, int reg) {
-    uint16_t b = ea_readW(type, reg);
+void tst_w(uint16_t op) {
+    uint16_t b = ea_readW(TYPE(op), REG(op));
+    cpu.V = cpu.C = false;
     TEST_W(b);
 }
 
-void tst_l(uint16_t, int, int type, int reg) {
-    uint32_t b = ea_readL(type, reg);
+void tst_l(uint16_t op) {
+    uint32_t b = ea_readL(TYPE(op), REG(op));
+    cpu.V = cpu.C = false;
     TEST_L(b);
 }
 
-void tas(uint16_t, int, int type, int reg) {
-    uint8_t v = ea_readB(type, reg);
+void tas(uint16_t op) {
+    uint8_t v = ea_readB(TYPE(op), REG(op));
     TEST_B(v);
-    ea_writeB(type, reg, v | 0x80, true);
+    ea_writeB(TYPE(op), REG(op), v | 0x80, true);
 }
 
-void illegal(uint16_t, int, int, int) { ILLEGAL_OP(); }
+void illegal(uint16_t) { ILLEGAL_OP(); }
 
-void mul_l(uint16_t, int, int type, int reg) {
+void mul_l(uint16_t op) {
     uint16_t ext = FETCH();
-    uint32_t v = ea_readL(type, reg);
+    uint32_t v = ea_readL(TYPE(op), REG(op));
     int low = ext >> 12 & 7;
     bool sig = ext & 1 << 11;
     bool dbl = ext & 1 << 10;
@@ -605,9 +658,9 @@ void mul_l(uint16_t, int, int type, int reg) {
     }
 }
 
-void div_l(uint16_t, int, int type, int reg) {
+void div_l(uint16_t op) {
     uint16_t ext = FETCH();
-    uint32_t v = ea_readL(type, reg);
+    uint32_t v = ea_readL(TYPE(op), REG(op));
     int q = ext >> 12 & 7;
     bool sig = ext & 1 << 11;
     bool dbl = ext & 1 << 10;
@@ -638,7 +691,7 @@ void div_l(uint16_t, int, int type, int reg) {
             }
         } else {
             int64_t x = static_cast<int64_t>(cpu.D[r]) << 32 | cpu.D[q];
-            auto [quot, rem] = ::DIVS_LL(x, v);
+            auto [quot, rem] = ::DIVS_LL(x, static_cast<int32_t>(v));
             cpu.D[q] = quot;
             if(q != r) {
                 cpu.D[r] = rem;
@@ -647,148 +700,151 @@ void div_l(uint16_t, int, int type, int reg) {
     }
 }
 
-void trap(uint16_t, int, int type, int reg) { TRAP_ERROR(type << 3 | reg); }
+void trap(uint16_t op) { TRAP_ERROR(TYPE(op) << 3 | REG(op)); }
 
-void link_w(uint16_t, int, int, int reg) {
+void link_w(uint16_t op) {
     int16_t disp = FETCH();
-    PUSH32(cpu.A[reg]);
-    cpu.A[reg] = cpu.A[7];
+    PUSH32(cpu.A[REG(op)]);
+    cpu.A[REG(op)] = cpu.A[7];
     cpu.A[7] += disp;
 }
 
-void unlk(uint16_t, int, int, int reg) {
-    cpu.A[7] = cpu.A[reg];
-    cpu.A[reg] = POP32();
+void unlk(uint16_t op) {
+    cpu.A[7] = cpu.A[REG(op)];
+    cpu.A[REG(op)] = POP32();
 }
 
-void move_to_usp(uint16_t, int, int, int reg) {
+void move_to_usp(uint16_t op) {
     PRIV_CHECK();
-    cpu.USP = cpu.A[reg];
+    cpu.USP = cpu.A[REG(op)];
     TRACE_BRANCH();
 }
 
-void move_from_usp(uint16_t, int, int, int reg) {
+void move_from_usp(uint16_t op) {
     PRIV_CHECK();
-    cpu.A[reg] = cpu.USP;
+    cpu.A[REG(op)] = cpu.USP;
     TRACE_BRANCH();
 }
 
-void reset(uint16_t, int, int, int) {
+void reset(uint16_t) {
     PRIV_CHECK();
     bus_reset();
 }
 
-void nop(uint16_t, int, int, int) { TRACE_BRANCH(); }
+void nop(uint16_t) { TRACE_BRANCH(); }
 
-void stop(uint16_t, int, int, int) {
+void stop_impl(uint16_t nw) {
     PRIV_CHECK();
-    uint16_t nw = FETCH();
     SetSR(nw);
-    {
-         std::unique_lock<std::mutex> lk(cpu.mtx_);
-        cpu.sleeping = true;
-        cpu.cond_.wait(lk, []() { return ! cpu.sleeping; });
+    cpu.sleeping.store(true);
+    while(cpu.sleeping.load()) {
+        cpu.sleeping.wait(true);
     }
     TRACE_BRANCH();
 }
+void stop(uint16_t) {
+    uint16_t nw = FETCH();
+    stop_impl(nw);
+}
 
-void rte(uint16_t, int, int, int) {
+void rte(uint16_t) {
     PRIV_CHECK();
     do_rte();
     TRACE_BRANCH();
 }
 
-void rtd(uint16_t, int, int, int) {
+void rtd(uint16_t) {
     int16_t disp = FETCH();
     do_rtd(disp);
     TRACE_BRANCH();
 }
 
-void rts(uint16_t, int, int, int) {
+void rts(uint16_t) {
     do_rts();
     TRACE_BRANCH();
 }
 
-void trapv(uint16_t, int, int, int) {
+void trapv(uint16_t) {
     if(cpu.V) {
         TRAPX_ERROR();
     }
 }
-void rtr(uint16_t, int, int, int) {
+
+void rtr(uint16_t) {
     do_rtr();
     TRACE_BRANCH();
 }
 
-void movec_from_cr(uint16_t, int, int, int);
-void movec_to_cr(uint16_t, int, int, int);
+void movec_from_cr(uint16_t);
+void movec_to_cr(uint16_t);
 
-void jsr(uint16_t, int, int type, int reg) {
-    uint32_t addr = ea_getaddr(type, reg, 0);
+void jsr(uint16_t op) {
+    uint32_t addr = ea_getaddr(TYPE(op), REG(op), 0);
     PUSH32(cpu.PC);
     JUMP(addr);
     TRACE_BRANCH();
 }
 
-void jmp(uint16_t, int, int type, int reg) {
-    uint32_t addr = ea_getaddr(type, reg, 0);
+void jmp(uint16_t op) {
+    uint32_t addr = ea_getaddr(TYPE(op), REG(op), 0);
     JUMP(addr);
     TRACE_BRANCH();
 }
 
-void chk_l(uint16_t, int dn, int type, int reg) {
-    uint32_t v = ea_readL(type, reg);
-    CHK_L(cpu.D[dn], v);
+void chk_l(uint16_t op) {
+    uint32_t v = ea_readL(TYPE(op), REG(op));
+    CHK_L(cpu.D[DN(op)], v);
 }
 
-void chk_w(uint16_t, int dn, int type, int reg) {
-    uint16_t v = ea_readW(type, reg);
-    CHK_W(cpu.D[dn], v);
+void chk_w(uint16_t op) {
+    uint16_t v = ea_readW(TYPE(op), REG(op));
+    CHK_W(cpu.D[DN(op)], v);
 }
 
-void extb_l(uint16_t, int, int, int reg) {
-    int32_t v = static_cast<int8_t>(cpu.D[reg] & 0xff);
+void extb_l(uint16_t op) {
+    int32_t v = static_cast<int8_t>(cpu.D[REG(op)] & 0xff);
     cpu.V = cpu.C = false;
     TEST_L(v);
-    cpu.D[reg] = v;
+    cpu.D[REG(op)] = v;
 }
 
-void lea(uint16_t, int dn, int type, int reg) {
-    cpu.A[dn] = ea_getaddr(type, reg, 0);
+void lea(uint16_t op) {
+    cpu.A[DN(op)] = ea_getaddr(TYPE(op), REG(op), 0);
 }
 
-void addq_b(uint16_t, int dn, int type, int reg) {
-    uint8_t v = ea_readB(type, reg);
-    ea_writeB(type, reg, ADD_B(v, dn ? dn : 8), true);
+void addq_b(uint16_t op) {
+    uint8_t v = ea_readB(TYPE(op), REG(op));
+    ea_writeB(TYPE(op), REG(op), ADD_B(v, DN(op) ? DN(op) : 8), true);
 }
 
-void addq_w(uint16_t, int dn, int type, int reg) {
-    uint16_t v = ea_readW(type, reg);
-    ea_writeW(type, reg, ADD_W(v, dn ? dn : 8), true);
+void addq_w(uint16_t op) {
+    uint16_t v = ea_readW(TYPE(op), REG(op));
+    ea_writeW(TYPE(op), REG(op), ADD_W(v, DN(op) ? DN(op) : 8), true);
 }
 
-void addq_l(uint16_t, int dn, int type, int reg) {
-    uint32_t v = ea_readL(type, reg);
-    ea_writeL(type, reg, ADD_L(v, dn ? dn : 8), true);
+void addq_l(uint16_t op) {
+    uint32_t v = ea_readL(TYPE(op), REG(op));
+    ea_writeL(TYPE(op), REG(op), ADD_L(v, DN(op) ? DN(op) : 8), true);
 }
 
-void subq_b(uint16_t, int dn, int type, int reg) {
-    uint8_t v = ea_readB(type, reg);
-    ea_writeB(type, reg, SUB_B(v, dn ? dn : 8), true);
+void subq_b(uint16_t op) {
+    uint8_t v = ea_readB(TYPE(op), REG(op));
+    ea_writeB(TYPE(op), REG(op), SUB_B(v, DN(op) ? DN(op) : 8), true);
 }
 
-void subq_w(uint16_t, int dn, int type, int reg) {
-    uint16_t v = ea_readW(type, reg);
-    ea_writeW(type, reg, SUB_W(v, dn ? dn : 8), true);
+void subq_w(uint16_t op) {
+    uint16_t v = ea_readW(TYPE(op), REG(op));
+    ea_writeW(TYPE(op), REG(op), SUB_W(v, DN(op) ? DN(op) : 8), true);
 }
 
-void subq_l(uint16_t, int dn, int type, int reg) {
-    uint32_t v = ea_readL(type, reg);
-    ea_writeL(type, reg, SUB_L(v, dn ? dn : 8), true);
+void subq_l(uint16_t op) {
+    uint32_t v = ea_readL(TYPE(op), REG(op));
+    ea_writeL(TYPE(op), REG(op), SUB_L(v, DN(op) ? DN(op) : 8), true);
 }
 
-void addq_an(uint16_t, int dn, int, int reg) { cpu.A[reg] += dn ? dn : 8; }
+void addq_an(uint16_t op) { cpu.A[REG(op)] += DN(op) ? DN(op) : 8; }
 
-void subq_an(uint16_t, int dn, int, int reg) { cpu.A[reg] -= dn ? dn : 8; }
+void subq_an(uint16_t op) { cpu.A[REG(op)] -= DN(op) ? DN(op) : 8; }
 
 bool testCC(int cc) {
     switch(cc) {
@@ -829,26 +885,21 @@ bool testCC(int cc) {
     }
 }
 
-void scc_dn(uint16_t op, int, int, int reg) {
+
+void scc_ea(uint16_t op) {
     int cc = op >> 8 & 0xf;
-    STORE_B(cpu.D[reg], testCC(cc) ? 0xff : 0);
+    ea_writeB(TYPE(op), REG(op), testCC(cc) ? 0xff : 0, false);
 }
 
-void scc_ea(uint16_t op, int, int type, int reg) {
-    int cc = op >> 8 & 0xf;
-    cpu.EA = ea_getaddr(type, reg, 1);
-    WriteB(cpu.EA, testCC(cc) ? 0xff : 0);
-}
-
-void dbcc(uint16_t op, int, int, int reg) {
+void dbcc(uint16_t op) {
     int cc = op >> 8 & 0xf;
     int16_t disp = FETCH();
-    do_dbcc(testCC(cc), reg, disp);
+    do_dbcc(testCC(cc), REG(op), disp);
 }
 
-void trapcc(uint16_t op, int, int, int reg) {
+void trapcc(uint16_t op) {
     int cc = op >> 8 & 0xf;
-    switch(reg) {
+    switch(REG(op)) {
     case 2:
         cpu.PC += 2;
         break;
@@ -865,7 +916,7 @@ void trapcc(uint16_t op, int, int, int reg) {
     }
 }
 
-void bxx(uint16_t op, int, int, int) {
+void bxx(uint16_t op) {
     int cc = op >> 8 & 0xf;
     int8_t imm8 = op & 0xff;
     int32_t imm;
@@ -885,455 +936,456 @@ void bxx(uint16_t op, int, int, int) {
     }
 }
 
-void moveq(uint16_t op, int dn, int, int) {
+void moveq(uint16_t op) {
     int8_t data = op & 0xff;
-    cpu.D[dn] = data;
+    cpu.D[DN(op)] = data;
     TEST_B(data);
     cpu.V = false;
     cpu.C = false;
 }
 
-void or_b_to_dn(uint16_t, int dn, int type, int reg) {
-    STORE_B(cpu.D[dn], OR_B(ea_readB(type, reg), cpu.D[dn]));
+void or_b_to_dn(uint16_t op) {
+    STORE_B(cpu.D[DN(op)], OR_B(ea_readB(TYPE(op), REG(op)), cpu.D[DN(op)]));
 }
 
-void or_w_to_dn(uint16_t, int dn, int type, int reg) {
-    STORE_W(cpu.D[dn], OR_W(ea_readW(type, reg), cpu.D[dn]));
+void or_w_to_dn(uint16_t op) {
+    STORE_W(cpu.D[DN(op)], OR_W(ea_readW(TYPE(op), REG(op)), cpu.D[DN(op)]));
 }
 
-void or_l_to_dn(uint16_t, int dn, int type, int reg) {
-    STORE_L(cpu.D[dn], OR_L(ea_readL(type, reg), cpu.D[dn]));
+void or_l_to_dn(uint16_t op) {
+    STORE_L(cpu.D[DN(op)], OR_L(ea_readL(TYPE(op), REG(op)), cpu.D[DN(op)]));
 }
 
-void divu_w(uint16_t, int dn, int type, int reg) {
-    auto [div_q, div_r] = ::DIVU_W(cpu.D[dn], ea_readW(type, reg));
-    cpu.D[dn] = (div_r << 16 | div_q);
+void divu_w(uint16_t op) {
+    auto [div_q, div_r] = ::DIVU_W(cpu.D[DN(op)], ea_readW(TYPE(op), REG(op)));
+    cpu.D[DN(op)] = (div_r << 16 | div_q);
 }
 
-void sbcd_d(uint16_t, int dn, int, int reg) {
-    STORE_B(cpu.D[reg], do_sbcd(cpu.D[reg], cpu.D[dn], cpu.X));
+void sbcd_d(uint16_t op) {
+    STORE_B(cpu.D[REG(op)], do_sbcd(cpu.D[REG(op)], cpu.D[DN(op)], cpu.X));
 }
 
-void sbcd_m(uint16_t, int dn, int, int reg) {
-    auto v1 = ReadB(--cpu.A[reg]);
-    auto v2 = ReadB(--cpu.A[dn]);
-    WriteB(cpu.A[reg], do_sbcd(v1, v2, cpu.X));
+void sbcd_m(uint16_t op) {
+    auto v1 = ReadB(--cpu.A[REG(op)]);
+    auto v2 = ReadB(--cpu.A[DN(op)]);
+    WriteB(cpu.A[REG(op)], do_sbcd(v1, v2, cpu.X));
 }
 
-void or_b_to_ea(uint16_t, int dn, int type, int reg) {
-    uint8_t v = ea_readB(type, reg);
-    ea_writeB(type, reg, OR_B(cpu.D[dn], v), true);
+void or_b_to_ea(uint16_t op) {
+    uint8_t v = ea_readB(TYPE(op), REG(op));
+    ea_writeB(TYPE(op), REG(op), OR_B(cpu.D[DN(op)], v), true);
 }
 
-void pack_d(uint16_t, int dn, int, int reg) {
+void pack_d(uint16_t op) {
     uint16_t adj = FETCH();
-    STORE_B(cpu.D[dn], do_pack(cpu.D[reg], adj));
+    STORE_B(cpu.D[DN(op)], do_pack(cpu.D[REG(op)], adj));
 }
 
-void pack_m(uint16_t, int dn, int, int reg) {
+void pack_m(uint16_t op) {
     uint16_t adj = FETCH();
-    uint16_t d = ReadB(--cpu.A[reg]);
-    d |= ReadB(--cpu.A[reg]) << 8;
-    WriteB(--cpu.A[dn], do_pack(d, adj));
+    uint16_t d = ReadB(--cpu.A[REG(op)]);
+    d |= ReadB(--cpu.A[REG(op)]) << 8;
+    WriteB(--cpu.A[DN(op)], do_pack(d, adj));
 }
 
-void or_w_to_ea(uint16_t, int dn, int type, int reg) {
-    uint16_t v = ea_readW(type, reg);
-    ea_writeW(type, reg, OR_W(cpu.D[dn], v), true);
+void or_w_to_ea(uint16_t op) {
+    uint16_t v = ea_readW(TYPE(op), REG(op));
+    ea_writeW(TYPE(op), REG(op), OR_W(cpu.D[DN(op)], v), true);
 }
 
-void unpk_d(uint16_t, int dn, int, int reg) {
+void unpk_d(uint16_t op) {
     uint16_t adj = FETCH();
-    STORE_W(cpu.D[dn], do_unpk(cpu.D[reg], adj));
+    STORE_W(cpu.D[DN(op)], do_unpk(cpu.D[REG(op)], adj));
 }
 
-void unpk_m(uint16_t, int dn, int, int reg) {
+void unpk_m(uint16_t op) {
     uint16_t adj = FETCH();
-    uint16_t d = do_unpk(ReadB(--cpu.A[reg]), adj);
-    WriteW(cpu.A[dn] -= 2, d);
+    uint16_t d = do_unpk(ReadB(--cpu.A[REG(op)]), adj);
+    WriteB(--cpu.A[DN(op)] , d);
+    WriteB(--cpu.A[DN(op)] , d >> 8);
 }
 
-void or_l_to_ea(uint16_t, int dn, int type, int reg) {
-    uint32_t v = ea_readL(type, reg);
-    ea_writeL(type, reg, OR_L(cpu.D[dn], v), true);
+void or_l_to_ea(uint16_t op) {
+    uint32_t v = ea_readL(TYPE(op), REG(op));
+    ea_writeL(TYPE(op), REG(op), OR_L(cpu.D[DN(op)], v), true);
 }
 
-void divs_w(uint16_t, int dn, int type, int reg) {
-    auto [div_q, div_r] = ::DIVS_W(cpu.D[dn], ea_readB(type, reg));
-    cpu.D[dn] =
+void divs_w(uint16_t op) {
+    auto [div_q, div_r] = ::DIVS_W(cpu.D[DN(op)], ea_readW(TYPE(op), REG(op)));
+    cpu.D[DN(op)] =
         static_cast<uint16_t>(div_r) << 16 | static_cast<uint16_t>(div_q);
 }
 
-void sub_b_to_dn(uint16_t, int dn, int type, int reg) {
-    STORE_B(cpu.D[dn], SUB_B(cpu.D[dn], ea_readB(type, reg)));
+void sub_b_to_dn(uint16_t op) {
+    STORE_B(cpu.D[DN(op)], SUB_B(cpu.D[DN(op)], ea_readB(TYPE(op), REG(op))));
 }
 
-void sub_w_to_dn(uint16_t, int dn, int type, int reg) {
-    STORE_W(cpu.D[dn], SUB_W(cpu.D[dn], ea_readW(type, reg)));
+void sub_w_to_dn(uint16_t op) {
+    STORE_W(cpu.D[DN(op)], SUB_W(cpu.D[DN(op)], ea_readW(TYPE(op), REG(op))));
 }
 
-void sub_l_to_dn(uint16_t, int dn, int type, int reg) {
-    STORE_L(cpu.D[dn], SUB_L(cpu.D[dn], ea_readL(type, reg)));
+void sub_l_to_dn(uint16_t op) {
+    STORE_L(cpu.D[DN(op)], SUB_L(cpu.D[DN(op)], ea_readL(TYPE(op), REG(op))));
 }
 
-void suba_w(uint16_t, int dn, int type, int reg) {
-    cpu.A[dn] -= static_cast<int16_t>(ea_readW(type, reg));
+void suba_w(uint16_t op) {
+    cpu.A[DN(op)] -= static_cast<int16_t>(ea_readW(TYPE(op), REG(op)));
 }
 
-void suba_l(uint16_t, int dn, int type, int reg) {
-    cpu.A[dn] -= ea_readL(type, reg);
+void suba_l(uint16_t op) {
+    cpu.A[DN(op)] -= ea_readL(TYPE(op), REG(op));
 }
 
-void subx_b_d(uint16_t, int dn, int, int reg) {
-    STORE_B(cpu.D[reg], SUBX_B(cpu.D[reg], cpu.D[dn], cpu.X));
+void subx_b_d(uint16_t op) {
+    STORE_B(cpu.D[REG(op)], SUBX_B(cpu.D[REG(op)], cpu.D[DN(op)], cpu.X));
 }
 
-void subx_b_m(uint16_t, int dn, int, int reg) {
-    uint32_t dst_adr = --cpu.A[reg];
-    uint32_t src_adr = --cpu.A[dn];
+void subx_b_m(uint16_t op) {
+    uint32_t dst_adr = --cpu.A[REG(op)];
+    uint32_t src_adr = --cpu.A[DN(op)];
     auto v1 = ReadB(dst_adr);
     auto v2 = ReadB(src_adr);
     WriteB(dst_adr, SUBX_B(v1, v2, cpu.X));
 }
 
-void subx_w_d(uint16_t, int dn, int, int reg) {
-    STORE_W(cpu.D[reg], SUBX_W(cpu.D[reg], cpu.D[dn], cpu.X));
+void subx_w_d(uint16_t op) {
+    STORE_W(cpu.D[REG(op)], SUBX_W(cpu.D[REG(op)], cpu.D[DN(op)], cpu.X));
 }
 
-void subx_w_m(uint16_t, int dn, int, int reg) {
-    uint32_t dst_adr = cpu.A[reg] -= 2;
-    uint32_t src_adr = cpu.A[dn] -= 2;
+void subx_w_m(uint16_t op) {
+    uint32_t dst_adr = cpu.A[REG(op)] -= 2;
+    uint32_t src_adr = cpu.A[DN(op)] -= 2;
     auto v1 = ReadW(dst_adr);
     auto v2 = ReadW(src_adr);
     WriteW(dst_adr, SUBX_W(v1, v2, cpu.X));
 }
-void subx_l_d(uint16_t, int dn, int, int reg) {
-    STORE_L(cpu.D[reg], SUBX_L(cpu.D[reg], cpu.D[dn], cpu.X));
+void subx_l_d(uint16_t op) {
+    STORE_L(cpu.D[REG(op)], SUBX_L(cpu.D[REG(op)], cpu.D[DN(op)], cpu.X));
 }
 
-void subx_l_m(uint16_t, int dn, int, int reg) {
-    uint32_t dst_adr = cpu.A[reg] -= 4;
-    uint32_t src_adr = cpu.A[dn] -= 4;
+void subx_l_m(uint16_t op) {
+    uint32_t dst_adr = cpu.A[REG(op)] -= 4;
+    uint32_t src_adr = cpu.A[DN(op)] -= 4;
     auto v1 = ReadL(dst_adr);
     auto v2 = ReadL(src_adr);
     WriteL(dst_adr, SUBX_L(v1, v2, cpu.X));
 }
 
-void sub_b_to_ea(uint16_t, int dn, int type, int reg) {
-    uint8_t v = ea_readB(type, reg);
-    ea_writeB(type, reg, SUB_B(v, cpu.D[dn]), true);
+void sub_b_to_ea(uint16_t op) {
+    uint8_t v = ea_readB(TYPE(op), REG(op));
+    ea_writeB(TYPE(op), REG(op), SUB_B(v, cpu.D[DN(op)]), true);
 }
 
-void sub_w_to_ea(uint16_t, int dn, int type, int reg) {
-    uint16_t v = ea_readW(type, reg);
-    ea_writeW(type, reg, SUB_W(v, cpu.D[dn]), true);
+void sub_w_to_ea(uint16_t op) {
+    uint16_t v = ea_readW(TYPE(op), REG(op));
+    ea_writeW(TYPE(op), REG(op), SUB_W(v, cpu.D[DN(op)]), true);
 }
 
-void sub_l_to_ea(uint16_t, int dn, int type, int reg) {
-    uint32_t v = ea_readL(type, reg);
-    ea_writeL(type, reg, SUB_L(v, cpu.D[dn]), true);
+void sub_l_to_ea(uint16_t op) {
+    uint32_t v = ea_readL(TYPE(op), REG(op));
+    ea_writeL(TYPE(op), REG(op), SUB_L(v, cpu.D[DN(op)]), true);
 }
 
-void aline_ex(uint16_t /* op */, int, int, int) {
+void aline_ex(uint16_t /* op */) {
     // some optimize for specific op?
     ALINE();
 }
 
-void cmp_b(uint16_t, int dn, int type, int reg) {
-    CMP_B(cpu.D[dn], ea_readB(type, reg));
+void cmp_b(uint16_t op) {
+    CMP_B(cpu.D[DN(op)], ea_readB(TYPE(op), REG(op)));
 }
 
-void cmp_w(uint16_t, int dn, int type, int reg) {
-    CMP_W(cpu.D[dn], ea_readW(type, reg));
+void cmp_w(uint16_t op) {
+    CMP_W(cpu.D[DN(op)], ea_readW(TYPE(op), REG(op)));
 }
 
-void cmp_l(uint16_t, int dn, int type, int reg) {
-    CMP_L(cpu.D[dn], ea_readL(type, reg));
+void cmp_l(uint16_t op) {
+    CMP_L(cpu.D[DN(op)], ea_readL(TYPE(op), REG(op)));
 }
 
-void cmpa_w(uint16_t, int dn, int type, int reg) {
-    CMP_L(static_cast<int16_t>(cpu.A[dn] & 0xffff),
-          static_cast<int16_t>(ea_readW(type, reg)));
+void cmpa_w(uint16_t op) {
+    CMP_L(static_cast<int16_t>(cpu.A[DN(op)] & 0xffff),
+          static_cast<int16_t>(ea_readW(TYPE(op), REG(op))));
 }
 
-void cmpa_l(uint16_t, int dn, int type, int reg) {
-    CMP_L(cpu.A[dn], ea_readL(type, reg));
+void cmpa_l(uint16_t op) {
+    CMP_L(cpu.A[DN(op)], ea_readL(TYPE(op), REG(op)));
 }
 
-void eor_b(uint16_t, int dn, int type, int reg) {
-    uint8_t v = ea_readB(type, reg);
-    ea_writeB(type, reg, XOR_B(cpu.D[dn], v), true);
+void eor_b(uint16_t op) {
+    uint8_t v = ea_readB(TYPE(op), REG(op));
+    ea_writeB(TYPE(op), REG(op), XOR_B(cpu.D[DN(op)], v), true);
 }
 
-void eor_w(uint16_t, int dn, int type, int reg) {
-    uint16_t v = ea_readW(type, reg);
-    ea_writeW(type, reg, XOR_W(cpu.D[dn], v), true);
+void eor_w(uint16_t op) {
+    uint16_t v = ea_readW(TYPE(op), REG(op));
+    ea_writeW(TYPE(op), REG(op), XOR_W(cpu.D[DN(op)], v), true);
 }
 
-void eor_l(uint16_t, int dn, int type, int reg) {
-    uint32_t v = ea_readL(type, reg);
-    ea_writeL(type, reg, XOR_L(cpu.D[dn], v), true);
+void eor_l(uint16_t op) {
+    uint32_t v = ea_readL(TYPE(op), REG(op));
+    ea_writeL(TYPE(op), REG(op), XOR_L(cpu.D[DN(op)], v), true);
 }
 
-void cmpm_b(uint16_t, int dn, int, int reg) {
-    uint32_t src_adr = std::exchange(cpu.A[reg], cpu.A[reg] + 1);
-    uint32_t dst_adr = std::exchange(cpu.A[dn], cpu.A[dn] + 1);
+void cmpm_b(uint16_t op) {
+    uint32_t src_adr = std::exchange(cpu.A[REG(op)], cpu.A[REG(op)] + 1);
+    uint32_t dst_adr = std::exchange(cpu.A[DN(op)], cpu.A[DN(op)] + 1);
     CMP_B(ReadB(dst_adr), ReadB(src_adr));
 }
 
-void cmpm_w(uint16_t, int dn, int, int reg) {
-    uint32_t src_adr = std::exchange(cpu.A[reg], cpu.A[reg] + 2);
-    uint32_t dst_adr = std::exchange(cpu.A[dn], cpu.A[dn] + 2);
+void cmpm_w(uint16_t op) {
+    uint32_t src_adr = std::exchange(cpu.A[REG(op)], cpu.A[REG(op)] + 2);
+    uint32_t dst_adr = std::exchange(cpu.A[DN(op)], cpu.A[DN(op)] + 2);
     CMP_W(ReadW(dst_adr), ReadW(src_adr));
 }
 
-void cmpm_l(uint16_t, int dn, int, int reg) {
-    uint32_t src_adr = std::exchange(cpu.A[reg], cpu.A[reg] + 4);
-    uint32_t dst_adr = std::exchange(cpu.A[dn], cpu.A[dn] + 4);
+void cmpm_l(uint16_t op) {
+    uint32_t src_adr = std::exchange(cpu.A[REG(op)], cpu.A[REG(op)] + 4);
+    uint32_t dst_adr = std::exchange(cpu.A[DN(op)], cpu.A[DN(op)] + 4);
     CMP_L(ReadL(dst_adr), ReadL(src_adr));
 }
 
-void and_b_to_dn(uint16_t, int dn, int type, int reg) {
-    STORE_B(cpu.D[dn], AND_B(ea_readB(type, reg), cpu.D[dn]));
+void and_b_to_dn(uint16_t op) {
+    STORE_B(cpu.D[DN(op)], AND_B(ea_readB(TYPE(op), REG(op)), cpu.D[DN(op)]));
 }
 
-void and_w_to_dn(uint16_t, int dn, int type, int reg) {
-    STORE_W(cpu.D[dn], AND_W(ea_readW(type, reg), cpu.D[dn]));
+void and_w_to_dn(uint16_t op) {
+    STORE_W(cpu.D[DN(op)], AND_W(ea_readW(TYPE(op), REG(op)), cpu.D[DN(op)]));
 }
 
-void and_l_to_dn(uint16_t, int dn, int type, int reg) {
-    STORE_L(cpu.D[dn], AND_L(ea_readL(type, reg), cpu.D[dn]));
+void and_l_to_dn(uint16_t op) {
+    STORE_L(cpu.D[DN(op)], AND_L(ea_readL(TYPE(op), REG(op)), cpu.D[DN(op)]));
 }
 
-void mulu_w(uint16_t, int dn, int type, int reg) {
-    cpu.D[dn] = ::MULU_W(cpu.D[dn], ea_readW(type, reg));
+void mulu_w(uint16_t op) {
+    cpu.D[DN(op)] = ::MULU_W(cpu.D[DN(op)], ea_readW(TYPE(op), REG(op)));
 }
 
-void abcd_d(uint16_t, int dn, int, int reg) {
-    STORE_B(cpu.D[dn], do_abcd(cpu.D[reg], cpu.D[dn], cpu.X));
+void abcd_d(uint16_t op) {
+    STORE_B(cpu.D[DN(op)], do_abcd(cpu.D[REG(op)], cpu.D[DN(op)], cpu.X));
 }
 
-void abcd_m(uint16_t, int dn, int, int reg) {
-    auto v1 = ReadB(--cpu.A[reg]);
-    auto v2 = ReadB(--cpu.A[dn]);
-    WriteB(cpu.A[dn], do_abcd(v1, v2, cpu.X));
+void abcd_m(uint16_t op) {
+    auto v1 = ReadB(--cpu.A[REG(op)]);
+    auto v2 = ReadB(--cpu.A[DN(op)]);
+    WriteB(cpu.A[DN(op)], do_abcd(v1, v2, cpu.X));
 }
 
-void and_b_to_ea(uint16_t, int dn, int type, int reg) {
-    uint8_t v = ea_readB(type, reg);
-    ea_writeB(type, reg, AND_B(cpu.D[dn], v), true);
+void and_b_to_ea(uint16_t op) {
+    uint8_t v = ea_readB(TYPE(op), REG(op));
+    ea_writeB(TYPE(op), REG(op), AND_B(cpu.D[DN(op)], v), true);
 }
 
-void and_w_to_ea(uint16_t, int dn, int type, int reg) {
-    uint16_t v = ea_readW(type, reg);
-    ea_writeW(type, reg, AND_W(cpu.D[dn], v), true);
+void and_w_to_ea(uint16_t op) {
+    uint16_t v = ea_readW(TYPE(op), REG(op));
+    ea_writeW(TYPE(op), REG(op), AND_W(cpu.D[DN(op)], v), true);
 }
 
-void and_l_to_ea(uint16_t, int dn, int type, int reg) {
-    uint32_t v = ea_readL(type, reg);
-    ea_writeL(type, reg, AND_L(cpu.D[dn], v), true);
+void and_l_to_ea(uint16_t op) {
+    uint32_t v = ea_readL(TYPE(op), REG(op));
+    ea_writeL(TYPE(op), REG(op), AND_L(cpu.D[DN(op)], v), true);
 }
 
-void muls_w(uint16_t, int dn, int type, int reg) {
-    cpu.D[dn] = ::MULS_W(cpu.D[dn], ea_readW(type, reg));
+void muls_w(uint16_t op) {
+    cpu.D[DN(op)] = ::MULS_W(cpu.D[DN(op)], ea_readW(TYPE(op), REG(op)));
 }
 
-void exg_dn(uint16_t, int dn, int, int reg) {
-    std::swap(cpu.D[dn], cpu.D[reg]);
+void exg_dn(uint16_t op) {
+    std::swap(cpu.D[DN(op)], cpu.D[REG(op)]);
 }
 
-void exg_an(uint16_t, int dn, int, int reg) {
-    std::swap(cpu.A[dn], cpu.A[reg]);
+void exg_an(uint16_t op) {
+    std::swap(cpu.A[DN(op)], cpu.A[REG(op)]);
 }
 
-void exg_da(uint16_t, int dn, int, int reg) {
-    std::swap(cpu.D[dn], cpu.A[reg]);
+void exg_da(uint16_t op) {
+    std::swap(cpu.D[DN(op)], cpu.A[REG(op)]);
 }
 
-void add_b_to_dn(uint16_t, int dn, int type, int reg) {
-    STORE_B(cpu.D[dn], ADD_B(cpu.D[dn], ea_readB(type, reg)));
+void add_b_to_dn(uint16_t op) {
+    STORE_B(cpu.D[DN(op)], ADD_B(cpu.D[DN(op)], ea_readB(TYPE(op), REG(op))));
 }
 
-void add_w_to_dn(uint16_t, int dn, int type, int reg) {
-    STORE_W(cpu.D[dn], ADD_W(cpu.D[dn], ea_readW(type, reg)));
+void add_w_to_dn(uint16_t op) {
+    STORE_W(cpu.D[DN(op)], ADD_W(cpu.D[DN(op)], ea_readW(TYPE(op), REG(op))));
 }
 
-void add_l_to_dn(uint16_t, int dn, int type, int reg) {
-    STORE_L(cpu.D[dn], ADD_L(cpu.D[dn], ea_readL(type, reg)));
+void add_l_to_dn(uint16_t op) {
+    STORE_L(cpu.D[DN(op)], ADD_L(cpu.D[DN(op)], ea_readL(TYPE(op), REG(op))));
 }
 
-void adda_w(uint16_t, int dn, int type, int reg) {
-    cpu.A[dn] += static_cast<int16_t>(ea_readW(type, reg));
+void adda_w(uint16_t op) {
+    cpu.A[DN(op)] += static_cast<int16_t>(ea_readW(TYPE(op), REG(op)));
 }
 
-void adda_l(uint16_t, int dn, int type, int reg) {
-    cpu.A[dn] += ea_readL(type, reg);
+void adda_l(uint16_t op) {
+    cpu.A[DN(op)] += ea_readL(TYPE(op), REG(op));
 }
 
-void addx_b_d(uint16_t, int dn, int, int reg) {
-    STORE_B(cpu.D[dn], ADDX_B(cpu.D[dn], cpu.D[reg], cpu.X));
+void addx_b_d(uint16_t op) {
+    STORE_B(cpu.D[DN(op)], ADDX_B(cpu.D[DN(op)], cpu.D[REG(op)], cpu.X));
 }
 
-void addx_b_m(uint16_t, int dn, int, int reg) {
-    uint32_t dst_adr = --cpu.A[dn];
-    uint32_t src_adr = --cpu.A[reg];
+void addx_b_m(uint16_t op) {
+    uint32_t dst_adr = --cpu.A[DN(op)];
+    uint32_t src_adr = --cpu.A[REG(op)];
     auto v1 = ReadB(dst_adr);
     auto v2 = ReadB(src_adr);
     WriteB(dst_adr, ADDX_B(v1, v2, cpu.X));
 }
 
-void addx_w_d(uint16_t, int dn, int, int reg) {
-    STORE_W(cpu.D[dn], ADDX_W(cpu.D[dn], cpu.D[reg], cpu.X));
+void addx_w_d(uint16_t op) {
+    STORE_W(cpu.D[DN(op)], ADDX_W(cpu.D[DN(op)], cpu.D[REG(op)], cpu.X));
 }
 
-void addx_w_m(uint16_t, int dn, int, int reg) {
-    uint32_t dst_adr = cpu.A[dn] -= 2;
-    uint32_t src_adr = cpu.A[reg] -= 2;
+void addx_w_m(uint16_t op) {
+    uint32_t dst_adr = cpu.A[DN(op)] -= 2;
+    uint32_t src_adr = cpu.A[REG(op)] -= 2;
     auto v1 = ReadW(dst_adr);
     auto v2 = ReadW(src_adr);
     WriteW(dst_adr, ADDX_W(v1, v2, cpu.X));
 }
-void addx_l_d(uint16_t, int dn, int, int reg) {
-    STORE_L(cpu.D[dn], ADDX_L(cpu.D[dn], cpu.D[reg], cpu.X));
+void addx_l_d(uint16_t op) {
+    STORE_L(cpu.D[DN(op)], ADDX_L(cpu.D[DN(op)], cpu.D[REG(op)], cpu.X));
 }
 
-void addx_l_m(uint16_t, int dn, int, int reg) {
-    uint32_t dst_adr = cpu.A[dn] -= 4;
-    uint32_t src_adr = cpu.A[reg] -= 4;
+void addx_l_m(uint16_t op) {
+    uint32_t dst_adr = cpu.A[DN(op)] -= 4;
+    uint32_t src_adr = cpu.A[REG(op)] -= 4;
     auto v1 = ReadL(dst_adr);
     auto v2 = ReadL(src_adr);
     WriteL(dst_adr, ADDX_L(v1, v2, cpu.X));
 }
 
-void add_b_to_ea(uint16_t, int dn, int type, int reg) {
-    uint8_t v = ea_readB(type, reg);
-    ea_writeB(type, reg, ADD_B(v, cpu.D[dn]), true);
+void add_b_to_ea(uint16_t op) {
+    uint8_t v = ea_readB(TYPE(op), REG(op));
+    ea_writeB(TYPE(op), REG(op), ADD_B(v, cpu.D[DN(op)]), true);
 }
 
-void add_w_to_ea(uint16_t, int dn, int type, int reg) {
-    uint16_t v = ea_readW(type, reg);
-    ea_writeW(type, reg, ADD_W(v, cpu.D[dn]), true);
+void add_w_to_ea(uint16_t op) {
+    uint16_t v = ea_readW(TYPE(op), REG(op));
+    ea_writeW(TYPE(op), REG(op), ADD_W(v, cpu.D[DN(op)]), true);
 }
 
-void add_l_to_ea(uint16_t, int dn, int type, int reg) {
-    uint32_t v = ea_readL(type, reg);
-    ea_writeL(type, reg, ADD_L(v, cpu.D[dn]), true);
+void add_l_to_ea(uint16_t op) {
+    uint32_t v = ea_readL(TYPE(op), REG(op));
+    ea_writeL(TYPE(op), REG(op), ADD_L(v, cpu.D[DN(op)]), true);
 }
 
-void asr_b_i(uint16_t, int dn, int, int reg) {
-    STORE_B(cpu.D[reg], ASR_B(cpu.D[reg], dn ? dn : 8));
+void asr_b_i(uint16_t op) {
+    STORE_B(cpu.D[REG(op)], ASR_B(cpu.D[REG(op)], DN(op) ? DN(op) : 8));
 }
 
-void lsr_b_i(uint16_t, int dn, int, int reg) {
-    STORE_B(cpu.D[reg], LSR_B(cpu.D[reg], dn ? dn : 8));
+void lsr_b_i(uint16_t op) {
+    STORE_B(cpu.D[REG(op)], LSR_B(cpu.D[REG(op)], DN(op) ? DN(op) : 8));
 }
 
-void roxr_b_i(uint16_t, int dn, int, int reg) {
-    STORE_B(cpu.D[reg], ROXR_B(cpu.D[reg], dn ? dn : 8, cpu.X));
+void roxr_b_i(uint16_t op) {
+    STORE_B(cpu.D[REG(op)], ROXR_B(cpu.D[REG(op)], DN(op) ? DN(op) : 8, cpu.X));
 }
 
-void ror_b_i(uint16_t, int dn, int, int reg) {
-    STORE_B(cpu.D[reg], ROR_B(cpu.D[reg], dn ? dn : 8));
+void ror_b_i(uint16_t op) {
+    STORE_B(cpu.D[REG(op)], ROR_B(cpu.D[REG(op)], DN(op) ? DN(op) : 8));
 }
 
-void asr_b_r(uint16_t, int dn, int, int reg) {
-    STORE_B(cpu.D[reg], ASR_B(cpu.D[reg], cpu.D[dn] & 63));
+void asr_b_r(uint16_t op) {
+    STORE_B(cpu.D[REG(op)], ASR_B(cpu.D[REG(op)], cpu.D[DN(op)] & 63));
 }
 
-void lsr_b_r(uint16_t, int dn, int, int reg) {
-    STORE_B(cpu.D[reg], LSR_B(cpu.D[reg], cpu.D[dn] & 63));
+void lsr_b_r(uint16_t op) {
+    STORE_B(cpu.D[REG(op)], LSR_B(cpu.D[REG(op)], cpu.D[DN(op)] & 63));
 }
 
-void roxr_b_r(uint16_t, int dn, int, int reg) {
-    STORE_B(cpu.D[reg], ROXR_B(cpu.D[reg], cpu.D[dn] & 63, cpu.X));
+void roxr_b_r(uint16_t op) {
+    STORE_B(cpu.D[REG(op)], ROXR_B(cpu.D[REG(op)], cpu.D[DN(op)] & 63, cpu.X));
 }
 
-void ror_b_r(uint16_t, int dn, int, int reg) {
-    STORE_B(cpu.D[reg], ROR_B(cpu.D[reg], cpu.D[dn] & 63));
+void ror_b_r(uint16_t op) {
+    STORE_B(cpu.D[REG(op)], ROR_B(cpu.D[REG(op)], cpu.D[DN(op)] & 63));
 }
 
-void asr_w_i(uint16_t, int dn, int, int reg) {
-    STORE_W(cpu.D[reg], ASR_W(cpu.D[reg], dn ? dn : 8));
+void asr_w_i(uint16_t op) {
+    STORE_W(cpu.D[REG(op)], ASR_W(cpu.D[REG(op)], DN(op) ? DN(op) : 8));
 }
 
-void lsr_w_i(uint16_t, int dn, int, int reg) {
-    STORE_W(cpu.D[reg], LSR_W(cpu.D[reg], dn ? dn : 8));
+void lsr_w_i(uint16_t op) {
+    STORE_W(cpu.D[REG(op)], LSR_W(cpu.D[REG(op)], DN(op) ? DN(op) : 8));
 }
 
-void roxr_w_i(uint16_t, int dn, int, int reg) {
-    STORE_W(cpu.D[reg], ROXR_W(cpu.D[reg], dn ? dn : 8, cpu.X));
+void roxr_w_i(uint16_t op) {
+    STORE_W(cpu.D[REG(op)], ROXR_W(cpu.D[REG(op)], DN(op) ? DN(op) : 8, cpu.X));
 }
 
-void ror_w_i(uint16_t, int dn, int, int reg) {
-    STORE_W(cpu.D[reg], ROR_W(cpu.D[reg], dn ? dn : 8));
+void ror_w_i(uint16_t op) {
+    STORE_W(cpu.D[REG(op)], ROR_W(cpu.D[REG(op)], DN(op) ? DN(op) : 8));
 }
 
-void asr_w_r(uint16_t, int dn, int, int reg) {
-    STORE_W(cpu.D[reg], ASR_W(cpu.D[reg], cpu.D[dn] & 63));
+void asr_w_r(uint16_t op) {
+    STORE_W(cpu.D[REG(op)], ASR_W(cpu.D[REG(op)], cpu.D[DN(op)] & 63));
 }
 
-void lsr_w_r(uint16_t, int dn, int, int reg) {
-    STORE_W(cpu.D[reg], LSR_W(cpu.D[reg], cpu.D[dn] & 63));
+void lsr_w_r(uint16_t op) {
+    STORE_W(cpu.D[REG(op)], LSR_W(cpu.D[REG(op)], cpu.D[DN(op)] & 63));
 }
 
-void roxr_w_r(uint16_t, int dn, int, int reg) {
-    STORE_W(cpu.D[reg], ROXR_W(cpu.D[reg], cpu.D[dn] & 63, cpu.X));
+void roxr_w_r(uint16_t op) {
+    STORE_W(cpu.D[REG(op)], ROXR_W(cpu.D[REG(op)], cpu.D[DN(op)] & 63, cpu.X));
 }
 
-void ror_w_r(uint16_t, int dn, int, int reg) {
-    STORE_W(cpu.D[reg], ROR_W(cpu.D[reg], cpu.D[dn] & 63));
+void ror_w_r(uint16_t op) {
+    STORE_W(cpu.D[REG(op)], ROR_W(cpu.D[REG(op)], cpu.D[DN(op)] & 63));
 }
 
-void asr_l_i(uint16_t, int dn, int, int reg) {
-    STORE_L(cpu.D[reg], ASR_L(cpu.D[reg], dn ? dn : 8));
+void asr_l_i(uint16_t op) {
+    STORE_L(cpu.D[REG(op)], ASR_L(cpu.D[REG(op)], DN(op) ? DN(op) : 8));
 }
 
-void lsr_l_i(uint16_t, int dn, int, int reg) {
-    STORE_L(cpu.D[reg], LSR_L(cpu.D[reg], dn ? dn : 8));
+void lsr_l_i(uint16_t op) {
+    STORE_L(cpu.D[REG(op)], LSR_L(cpu.D[REG(op)], DN(op) ? DN(op) : 8));
 }
 
-void roxr_l_i(uint16_t, int dn, int, int reg) {
-    STORE_L(cpu.D[reg], ROXR_L(cpu.D[reg], dn ? dn : 8, cpu.X));
+void roxr_l_i(uint16_t op) {
+    STORE_L(cpu.D[REG(op)], ROXR_L(cpu.D[REG(op)], DN(op) ? DN(op) : 8, cpu.X));
 }
 
-void ror_l_i(uint16_t, int dn, int, int reg) {
-    STORE_L(cpu.D[reg], ROR_L(cpu.D[reg], dn ? dn : 8));
+void ror_l_i(uint16_t op) {
+    STORE_L(cpu.D[REG(op)], ROR_L(cpu.D[REG(op)], DN(op) ? DN(op) : 8));
 }
 
-void asr_l_r(uint16_t, int dn, int, int reg) {
-    STORE_L(cpu.D[reg], ASR_L(cpu.D[reg], cpu.D[dn] & 63));
+void asr_l_r(uint16_t op) {
+    STORE_L(cpu.D[REG(op)], ASR_L(cpu.D[REG(op)], cpu.D[DN(op)] & 63));
 }
 
-void lsr_l_r(uint16_t, int dn, int, int reg) {
-    STORE_L(cpu.D[reg], LSR_L(cpu.D[reg], cpu.D[dn] & 63));
+void lsr_l_r(uint16_t op) {
+    STORE_L(cpu.D[REG(op)], LSR_L(cpu.D[REG(op)], cpu.D[DN(op)] & 63));
 }
 
-void roxr_l_r(uint16_t, int dn, int, int reg) {
-    STORE_L(cpu.D[reg], ROXR_L(cpu.D[reg], cpu.D[dn] & 63, cpu.X));
+void roxr_l_r(uint16_t op) {
+    STORE_L(cpu.D[REG(op)], ROXR_L(cpu.D[REG(op)], cpu.D[DN(op)] & 63, cpu.X));
 }
 
-void ror_l_r(uint16_t, int dn, int, int reg) {
-    STORE_L(cpu.D[reg], ROR_L(cpu.D[reg], cpu.D[dn] & 63));
+void ror_l_r(uint16_t op) {
+    STORE_L(cpu.D[REG(op)], ROR_L(cpu.D[REG(op)], cpu.D[DN(op)] & 63));
 }
 
-void asr_ea(uint16_t, int, int type, int reg) {
-    uint16_t v = ea_readW(type, reg);
-    ea_writeW(type, reg, ASR_W(v, 1), true);
+void asr_ea(uint16_t op) {
+    uint16_t v = ea_readW(TYPE(op), REG(op));
+    ea_writeW(TYPE(op), REG(op), ASR_W(v, 1), true);
 }
 
-void lsr_ea(uint16_t, int, int type, int reg) {
-    uint16_t v = ea_readW(type, reg);
-    ea_writeW(type, reg, LSR_W(v, 1), true);
+void lsr_ea(uint16_t op) {
+    uint16_t v = ea_readW(TYPE(op), REG(op));
+    ea_writeW(TYPE(op), REG(op), LSR_W(v, 1), true);
 }
 
-void roxr_ea(uint16_t, int, int type, int reg) {
-    uint16_t v = ea_readW(type, reg);
-    ea_writeW(type, reg, ROXR_W(v, 1, cpu.X), true);
+void roxr_ea(uint16_t op) {
+    uint16_t v = ea_readW(TYPE(op), REG(op));
+    ea_writeW(TYPE(op), REG(op), ROXR_W(v, 1, cpu.X), true);
 }
 
-void ror_ea(uint16_t, int, int type, int reg) {
-    uint16_t v = ea_readW(type, reg);
-    ea_writeW(type, reg, ROR_W(v, 1), true);
+void ror_ea(uint16_t op) {
+    uint16_t v = ea_readW(TYPE(op), REG(op));
+    ea_writeW(TYPE(op), REG(op), ROR_W(v, 1), true);
 }
 
 std::pair<int, int> get_bf_offset_width(uint16_t extw) {
@@ -1347,256 +1399,256 @@ std::pair<int, int> get_bf_offset_width(uint16_t extw) {
     return std::make_pair(offset_v, width_v);
 }
 
-void asl_b_i(uint16_t, int dn, int, int reg) {
-    STORE_B(cpu.D[reg], ASL_B(cpu.D[reg], dn ? dn : 8));
+void asl_b_i(uint16_t op) {
+    STORE_B(cpu.D[REG(op)], ASL_B(cpu.D[REG(op)], DN(op) ? DN(op) : 8));
 }
 
-void lsl_b_i(uint16_t, int dn, int, int reg) {
-    STORE_B(cpu.D[reg], LSL_B(cpu.D[reg], dn ? dn : 8));
+void lsl_b_i(uint16_t op) {
+    STORE_B(cpu.D[REG(op)], LSL_B(cpu.D[REG(op)], DN(op) ? DN(op) : 8));
 }
 
-void roxl_b_i(uint16_t, int dn, int, int reg) {
-    STORE_B(cpu.D[reg], ROXL_B(cpu.D[reg], dn ? dn : 8, cpu.X));
+void roxl_b_i(uint16_t op) {
+    STORE_B(cpu.D[REG(op)], ROXL_B(cpu.D[REG(op)], DN(op) ? DN(op) : 8, cpu.X));
 }
 
-void rol_b_i(uint16_t, int dn, int, int reg) {
-    STORE_B(cpu.D[reg], ROL_B(cpu.D[reg], dn ? dn : 8));
+void rol_b_i(uint16_t op) {
+    STORE_B(cpu.D[REG(op)], ROL_B(cpu.D[REG(op)], DN(op) ? DN(op) : 8));
 }
 
-void asl_b_r(uint16_t, int dn, int, int reg) {
-    STORE_B(cpu.D[reg], ASL_B(cpu.D[reg], cpu.D[dn] & 63));
+void asl_b_r(uint16_t op) {
+    STORE_B(cpu.D[REG(op)], ASL_B(cpu.D[REG(op)], cpu.D[DN(op)] & 63));
 }
 
-void lsl_b_r(uint16_t, int dn, int, int reg) {
-    STORE_B(cpu.D[reg], LSL_B(cpu.D[reg], cpu.D[dn] & 63));
+void lsl_b_r(uint16_t op) {
+    STORE_B(cpu.D[REG(op)], LSL_B(cpu.D[REG(op)], cpu.D[DN(op)] & 63));
 }
 
-void roxl_b_r(uint16_t, int dn, int, int reg) {
-    STORE_B(cpu.D[reg], ROXL_B(cpu.D[reg], cpu.D[dn] & 63, cpu.X));
+void roxl_b_r(uint16_t op) {
+    STORE_B(cpu.D[REG(op)], ROXL_B(cpu.D[REG(op)], cpu.D[DN(op)] & 63, cpu.X));
 }
 
-void rol_b_r(uint16_t, int dn, int, int reg) {
-    STORE_B(cpu.D[reg], ROL_B(cpu.D[reg], cpu.D[dn] & 63));
+void rol_b_r(uint16_t op) {
+    STORE_B(cpu.D[REG(op)], ROL_B(cpu.D[REG(op)], cpu.D[DN(op)] & 63));
 }
 
-void asl_w_i(uint16_t, int dn, int, int reg) {
-    STORE_W(cpu.D[reg], ASL_W(cpu.D[reg], dn ? dn : 8));
+void asl_w_i(uint16_t op) {
+    STORE_W(cpu.D[REG(op)], ASL_W(cpu.D[REG(op)], DN(op) ? DN(op) : 8));
 }
 
-void lsl_w_i(uint16_t, int dn, int, int reg) {
-    STORE_W(cpu.D[reg], LSL_W(cpu.D[reg], dn ? dn : 8));
+void lsl_w_i(uint16_t op) {
+    STORE_W(cpu.D[REG(op)], LSL_W(cpu.D[REG(op)], DN(op) ? DN(op) : 8));
 }
 
-void roxl_w_i(uint16_t, int dn, int, int reg) {
-    STORE_W(cpu.D[reg], ROXL_W(cpu.D[reg], dn ? dn : 8, cpu.X));
+void roxl_w_i(uint16_t op) {
+    STORE_W(cpu.D[REG(op)], ROXL_W(cpu.D[REG(op)], DN(op) ? DN(op) : 8, cpu.X));
 }
 
-void rol_w_i(uint16_t, int dn, int, int reg) {
-    STORE_W(cpu.D[reg], ROL_W(cpu.D[reg], dn ? dn : 8));
+void rol_w_i(uint16_t op) {
+    STORE_W(cpu.D[REG(op)], ROL_W(cpu.D[REG(op)], DN(op) ? DN(op) : 8));
 }
 
-void asl_w_r(uint16_t, int dn, int, int reg) {
-    STORE_W(cpu.D[reg], ASL_W(cpu.D[reg], cpu.D[dn] & 63));
+void asl_w_r(uint16_t op) {
+    STORE_W(cpu.D[REG(op)], ASL_W(cpu.D[REG(op)], cpu.D[DN(op)] & 63));
 }
 
-void lsl_w_r(uint16_t, int dn, int, int reg) {
-    STORE_W(cpu.D[reg], LSL_W(cpu.D[reg], cpu.D[dn] & 63));
+void lsl_w_r(uint16_t op) {
+    STORE_W(cpu.D[REG(op)], LSL_W(cpu.D[REG(op)], cpu.D[DN(op)] & 63));
 }
 
-void roxl_w_r(uint16_t, int dn, int, int reg) {
-    STORE_W(cpu.D[reg], ROXL_W(cpu.D[reg], cpu.D[dn] & 63, cpu.X));
+void roxl_w_r(uint16_t op) {
+    STORE_W(cpu.D[REG(op)], ROXL_W(cpu.D[REG(op)], cpu.D[DN(op)] & 63, cpu.X));
 }
 
-void rol_w_r(uint16_t, int dn, int, int reg) {
-    STORE_W(cpu.D[reg], ROL_W(cpu.D[reg], cpu.D[dn] & 63));
+void rol_w_r(uint16_t op) {
+    STORE_W(cpu.D[REG(op)], ROL_W(cpu.D[REG(op)], cpu.D[DN(op)] & 63));
 }
 
-void asl_l_i(uint16_t, int dn, int, int reg) {
-    STORE_L(cpu.D[reg], ASL_L(cpu.D[reg], dn ? dn : 8));
+void asl_l_i(uint16_t op) {
+    STORE_L(cpu.D[REG(op)], ASL_L(cpu.D[REG(op)], DN(op) ? DN(op) : 8));
 }
 
-void lsl_l_i(uint16_t, int dn, int, int reg) {
-    STORE_L(cpu.D[reg], LSL_L(cpu.D[reg], dn ? dn : 8));
+void lsl_l_i(uint16_t op) {
+    STORE_L(cpu.D[REG(op)], LSL_L(cpu.D[REG(op)], DN(op) ? DN(op) : 8));
 }
 
-void roxl_l_i(uint16_t, int dn, int, int reg) {
-    STORE_L(cpu.D[reg], ROXL_L(cpu.D[reg], dn ? dn : 8, cpu.X));
+void roxl_l_i(uint16_t op) {
+    STORE_L(cpu.D[REG(op)], ROXL_L(cpu.D[REG(op)], DN(op) ? DN(op) : 8, cpu.X));
 }
 
-void rol_l_i(uint16_t, int dn, int, int reg) {
-    STORE_L(cpu.D[reg], ROL_L(cpu.D[reg], dn ? dn : 8));
+void rol_l_i(uint16_t op) {
+    STORE_L(cpu.D[REG(op)], ROL_L(cpu.D[REG(op)], DN(op) ? DN(op) : 8));
 }
 
-void asl_l_r(uint16_t, int dn, int, int reg) {
-    STORE_L(cpu.D[reg], ASL_L(cpu.D[reg], cpu.D[dn] & 63));
+void asl_l_r(uint16_t op) {
+    STORE_L(cpu.D[REG(op)], ASL_L(cpu.D[REG(op)], cpu.D[DN(op)] & 63));
 }
 
-void lsl_l_r(uint16_t, int dn, int, int reg) {
-    STORE_L(cpu.D[reg], LSL_L(cpu.D[reg], cpu.D[dn] & 63));
+void lsl_l_r(uint16_t op) {
+    STORE_L(cpu.D[REG(op)], LSL_L(cpu.D[REG(op)], cpu.D[DN(op)] & 63));
 }
 
-void roxl_l_r(uint16_t, int dn, int, int reg) {
-    STORE_L(cpu.D[reg], ROXL_L(cpu.D[reg], cpu.D[dn] & 63, cpu.X));
+void roxl_l_r(uint16_t op) {
+    STORE_L(cpu.D[REG(op)], ROXL_L(cpu.D[REG(op)], cpu.D[DN(op)] & 63, cpu.X));
 }
 
-void rol_l_r(uint16_t, int dn, int, int reg) {
-    STORE_L(cpu.D[reg], ROL_L(cpu.D[reg], cpu.D[dn] & 63));
+void rol_l_r(uint16_t op) {
+    STORE_L(cpu.D[REG(op)], ROL_L(cpu.D[REG(op)], cpu.D[DN(op)] & 63));
 }
 
-void asl_ea(uint16_t, int, int type, int reg) {
-    uint16_t v = ea_readW(type, reg);
-    ea_writeW(type, reg, ASL_W(v, 1), true);
+void asl_ea(uint16_t op) {
+    uint16_t v = ea_readW(TYPE(op), REG(op));
+    ea_writeW(TYPE(op), REG(op), ASL_W(v, 1), true);
 }
 
-void lsl_ea(uint16_t, int, int type, int reg) {
-    uint16_t v = ea_readW(type, reg);
-    ea_writeW(type, reg, LSL_W(v, 1), true);
+void lsl_ea(uint16_t op) {
+    uint16_t v = ea_readW(TYPE(op), REG(op));
+    ea_writeW(TYPE(op), REG(op), LSL_W(v, 1), true);
 }
 
-void roxl_ea(uint16_t, int, int type, int reg) {
-    uint16_t v = ea_readW(type, reg);
-    ea_writeW(type, reg, ROXL_W(v, 1, cpu.X), true);
+void roxl_ea(uint16_t op) {
+    uint16_t v = ea_readW(TYPE(op), REG(op));
+    ea_writeW(TYPE(op), REG(op), ROXL_W(v, 1, cpu.X), true);
 }
 
-void rol_ea(uint16_t, int, int type, int reg) {
-    uint16_t v = ea_readW(type, reg);
-    ea_writeW(type, reg, ROL_W(v, 1), true);
+void rol_ea(uint16_t op) {
+    uint16_t v = ea_readW(TYPE(op), REG(op));
+    ea_writeW(TYPE(op), REG(op), ROL_W(v, 1), true);
 }
 
-void bftst_dn(uint16_t, int, int, int reg) {
+void bftst_dn(uint16_t op) {
     uint16_t extw = FETCH();
     auto [offset_v, width_v] = get_bf_offset_width(extw);
-    BFTST_D(cpu.D[reg], offset_v, width_v);
+    BFTST_D(cpu.D[REG(op)], offset_v, width_v);
 }
 
-void bftst_mem(uint16_t, int, int type, int reg) {
+void bftst_mem(uint16_t op) {
     uint16_t extw = FETCH();
     auto [offset_v, width_v] = get_bf_offset_width(extw);
-    ::BFTST_M(ea_getaddr(type, reg, 0), offset_v, width_v);
+    ::BFTST_M(ea_getaddr(TYPE(op), REG(op), 0), offset_v, width_v);
 }
 
-void bfchg_dn(uint16_t, int, int, int reg) {
+void bfchg_dn(uint16_t op) {
     uint16_t extw = FETCH();
     auto [offset_v, width_v] = get_bf_offset_width(extw);
-    cpu.D[reg] = BFCHG_D(cpu.D[reg], offset_v, width_v);
+    cpu.D[REG(op)] = BFCHG_D(cpu.D[REG(op)], offset_v, width_v);
 }
 
-void bfchg_mem(uint16_t, int, int type, int reg) {
+void bfchg_mem(uint16_t op) {
     uint16_t extw = FETCH();
     auto [offset_v, width_v] = get_bf_offset_width(extw);
-    ::BFCHG_M(ea_getaddr(type, reg, 0), offset_v, width_v);
+    ::BFCHG_M(ea_getaddr(TYPE(op), REG(op), 0), offset_v, width_v);
 }
 
-void bfclr_dn(uint16_t, int, int, int reg) {
+void bfclr_dn(uint16_t op) {
     uint16_t extw = FETCH();
     auto [offset_v, width_v] = get_bf_offset_width(extw);
-    cpu.D[reg] = BFCLR_D(cpu.D[reg], offset_v, width_v);
+    cpu.D[REG(op)] = BFCLR_D(cpu.D[REG(op)], offset_v, width_v);
 }
 
-void bfclr_mem(uint16_t, int, int type, int reg) {
+void bfclr_mem(uint16_t op) {
     uint16_t extw = FETCH();
     auto [offset_v, width_v] = get_bf_offset_width(extw);
-    ::BFCLR_M(ea_getaddr(type, reg, 0), offset_v, width_v);
+    ::BFCLR_M(ea_getaddr(TYPE(op), REG(op), 0), offset_v, width_v);
 }
 
-void bfset_dn(uint16_t, int, int, int reg) {
+void bfset_dn(uint16_t op) {
     uint16_t extw = FETCH();
     auto [offset_v, width_v] = get_bf_offset_width(extw);
-    cpu.D[reg] = BFSET_D(cpu.D[reg], offset_v, width_v);
+    cpu.D[REG(op)] = BFSET_D(cpu.D[REG(op)], offset_v, width_v);
 }
 
-void bfset_mem(uint16_t, int, int type, int reg) {
+void bfset_mem(uint16_t op) {
     uint16_t extw = FETCH();
     auto [offset_v, width_v] = get_bf_offset_width(extw);
-    ::BFSET_M(ea_getaddr(type, reg, 0), offset_v, width_v);
+    ::BFSET_M(ea_getaddr(TYPE(op), REG(op), 0), offset_v, width_v);
 }
 
-void bfextu_dn(uint16_t, int, int, int reg) {
-    uint16_t extw = FETCH();
-    auto [offset_v, width_v] = get_bf_offset_width(extw);
-    int dn = extw >> 12 & 7;
-    cpu.D[dn] = BFEXTU_D(cpu.D[reg], offset_v, width_v);
-}
-
-void bfextu_mem(uint16_t, int, int type, int reg) {
+void bfextu_dn(uint16_t op) {
     uint16_t extw = FETCH();
     auto [offset_v, width_v] = get_bf_offset_width(extw);
     int dn = extw >> 12 & 7;
-    cpu.D[dn] = BFEXTU_M(ea_getaddr(type, reg, 0), offset_v, width_v);
+    cpu.D[dn] = BFEXTU_D(cpu.D[REG(op)], offset_v, width_v);
 }
 
-void bfexts_dn(uint16_t, int, int, int reg) {
+void bfextu_mem(uint16_t op) {
     uint16_t extw = FETCH();
     auto [offset_v, width_v] = get_bf_offset_width(extw);
     int dn = extw >> 12 & 7;
-    cpu.D[dn] = BFEXTS_D(cpu.D[reg], offset_v, width_v);
+    cpu.D[dn] = BFEXTU_M(ea_getaddr(TYPE(op), REG(op), 0), offset_v, width_v);
 }
 
-void bfexts_mem(uint16_t, int, int type, int reg) {
+void bfexts_dn(uint16_t op) {
     uint16_t extw = FETCH();
     auto [offset_v, width_v] = get_bf_offset_width(extw);
     int dn = extw >> 12 & 7;
-    cpu.D[dn] = BFEXTS_M(ea_getaddr(type, reg, 0), offset_v, width_v);
+    cpu.D[dn] = BFEXTS_D(cpu.D[REG(op)], offset_v, width_v);
 }
 
-void bfffo_dn(uint16_t, int, int, int reg) {
+void bfexts_mem(uint16_t op) {
     uint16_t extw = FETCH();
     auto [offset_v, width_v] = get_bf_offset_width(extw);
     int dn = extw >> 12 & 7;
-    cpu.D[dn] = BFFFO_D(cpu.D[reg], offset_v, width_v);
+    cpu.D[dn] = BFEXTS_M(ea_getaddr(TYPE(op), REG(op), 0), offset_v, width_v);
 }
 
-void bfffo_mem(uint16_t, int, int type, int reg) {
+void bfffo_dn(uint16_t op) {
     uint16_t extw = FETCH();
     auto [offset_v, width_v] = get_bf_offset_width(extw);
     int dn = extw >> 12 & 7;
-    cpu.D[dn] = BFFFO_M(ea_getaddr(type, reg, 0), offset_v, width_v);
+    cpu.D[dn] = BFFFO_D(cpu.D[REG(op)], offset_v, width_v);
 }
 
-void bfins_dn(uint16_t, int, int, int reg) {
+void bfffo_mem(uint16_t op) {
     uint16_t extw = FETCH();
     auto [offset_v, width_v] = get_bf_offset_width(extw);
     int dn = extw >> 12 & 7;
-    cpu.D[reg] = BFINS_D(cpu.D[reg], offset_v, width_v, cpu.D[dn]);
+    cpu.D[dn] = BFFFO_M(ea_getaddr(TYPE(op), REG(op), 0), offset_v, width_v);
 }
 
-void bfins_mem(uint16_t, int, int type, int reg) {
+void bfins_dn(uint16_t op) {
     uint16_t extw = FETCH();
     auto [offset_v, width_v] = get_bf_offset_width(extw);
     int dn = extw >> 12 & 7;
-    BFINS_M(ea_getaddr(type, reg, 0), offset_v, width_v, cpu.D[dn]);
+    cpu.D[dn] = BFINS_D(cpu.D[REG(op)], offset_v, width_v, cpu.D[dn]);
 }
 
-void fline_default(uint16_t, int, int, int) { FLINE(); }
+void bfins_mem(uint16_t op) {
+    uint16_t extw = FETCH();
+    auto [offset_v, width_v] = get_bf_offset_width(extw);
+    int dn = extw >> 12 & 7;
+    BFINS_M(ea_getaddr(TYPE(op), REG(op), 0), offset_v, width_v, cpu.D[dn]);
+}
 
-void move16_inc_imm(uint16_t, int, int, int reg) {
+void fline_default(uint16_t) { FLINE(); }
+
+void move16_inc_imm(uint16_t op) {
     uint32_t imm = FETCH32();
-    MMU_Transfer16(cpu.A[reg], imm);
-    cpu.A[reg] += 16;
+    MMU_Transfer16(cpu.A[REG(op)], imm);
+    cpu.A[REG(op)] += 16;
 }
 
-void move16_imm_inc(uint16_t, int, int, int reg) {
+void move16_imm_inc(uint16_t op) {
     uint32_t imm = FETCH32();
-    MMU_Transfer16(imm, cpu.A[reg]);
-    cpu.A[reg] += 16;
+    MMU_Transfer16(imm, cpu.A[REG(op)]);
+    cpu.A[REG(op)] += 16;
 }
 
-void move16_base_imm(uint16_t, int, int, int reg) {
+void move16_base_imm(uint16_t op) {
     uint32_t imm = FETCH32();
-    MMU_Transfer16(cpu.A[reg], imm);
+    MMU_Transfer16(cpu.A[REG(op)], imm);
 }
 
-void move16_imm_base(uint16_t, int, int, int reg) {
+void move16_imm_base(uint16_t op) {
     uint32_t imm = FETCH32();
-    MMU_Transfer16(imm, cpu.A[reg]);
+    MMU_Transfer16(imm, cpu.A[REG(op)]);
 }
 
-void move16_inc_inc(uint16_t, int, int, int reg) {
+void move16_inc_inc(uint16_t op) {
     uint16_t extw = FETCH();
     int ay = extw >> 12 & 7;
-    MMU_Transfer16(cpu.A[reg], cpu.A[ay]);
+    MMU_Transfer16(cpu.A[REG(op)], cpu.A[ay]);
     cpu.A[ay] += 16;
-    cpu.A[reg] += 16;
+    cpu.A[REG(op)] += 16;
 }
 
 } // namespace OP
@@ -1604,8 +1656,9 @@ run_t run_table[0x10000];
 
 void init_run_table_fpu();
 void init_run_table_mmu();
-
 void init_run_table() {
+    cpu.faultParam = std::make_unique<FaultParam>();
+
     for(int i = 0; i < 0x10000; ++i) {
         run_table[i] = nullptr;
     }
@@ -1660,7 +1713,7 @@ void init_run_table() {
         run_table[0046100 | ea] = OP::div_l;
 
         for(int d = 0; d < 8; ++d) {
-            run_table[0020000 | d << 9 | ea] = OP::move_b;
+            run_table[0010000 | d << 9 | ea] = OP::move_b;
             run_table[0020000 | d << 9 | ea] = OP::move_l;
             run_table[0030000 | d << 9 | ea] = OP::move_w;
             run_table[0020100 | d << 9 | ea] = OP::movea_l;
@@ -1706,9 +1759,6 @@ void init_run_table() {
             run_table[0150200 | d << 9 | ea] = OP::add_l_to_dn;
             run_table[0150300 | d << 9 | ea] = OP::adda_w;
             run_table[0150700 | d << 9 | ea] = OP::adda_l;
-            run_table[0010000 | d << 9 | ea] = OP::move_b;
-            run_table[0020000 | d << 9 | ea] = OP::move_l;
-            run_table[0030000 | d << 9 | ea] = OP::move_w;
             for(int k = 2; k < 8; ++k) {
                 run_table[0010000 | d << 9 | k << 6 | ea] = OP::move_b;
                 run_table[0020000 | d << 9 | k << 6 | ea] = OP::move_l;
@@ -1724,11 +1774,11 @@ void init_run_table() {
         run_table[0004300 | i] = OP::bset_l_i;
 
         run_table[0044100 | i] = OP::swap;
-
         run_table[0044200 | i] = OP::ext_w;
         run_table[0044300 | i] = OP::ext_l;
-        run_table[0047100 | i] = OP::trap;
         run_table[0044700 | i] = OP::extb_l;
+
+        run_table[0047100 | i] = OP::trap;
 
         run_table[0164300 | i] = OP::bftst_dn;
         run_table[0165300 | i] = OP::bfchg_dn;
@@ -1760,7 +1810,7 @@ void init_run_table() {
             run_table[0150600 | d << 9 | i] = OP::addx_l_d;
         }
         for(int c = 0; c < 16; ++c) {
-            run_table[0050300 | c << 8 | i] = OP::scc_dn;
+            run_table[0050300 | c << 8 | i] = OP::scc_ea;
         }
     }
 
@@ -1850,7 +1900,6 @@ void init_run_table() {
         run_table[0007100 | ea] = OP::moves_w;
         run_table[0007200 | ea] = OP::moves_l;
         run_table[0007300 | ea] = OP::cas_l;
-
         run_table[0160300 | ea] = OP::asr_ea;
         run_table[0161300 | ea] = OP::lsr_ea;
         run_table[0162300 | ea] = OP::roxr_ea;
@@ -1893,13 +1942,17 @@ void init_run_table() {
     run_table[0000174] = OP::ori_w_sr;
     run_table[0001074] = OP::andi_b_ccr;
     run_table[0001174] = OP::andi_w_sr;
+    run_table[0004074] = OP::btst_b_i_imm;
     run_table[0005074] = OP::eori_b_ccr;
     run_table[0005174] = OP::eori_w_sr;
     run_table[0006374] = OP::cas2_w;
     run_table[0007374] = OP::cas2_l;
+    run_table[0042374] = OP::move_to_ccr;
+    run_table[0043374] = OP::move_to_sr;
     run_table[0045374] = OP::illegal;
 
     for(int d = 0; d < 8; ++d) {
+        run_table[0000474 | d << 9] = OP::btst_b_r_imm;
         run_table[0020074 | d << 9] = OP::move_b;
         run_table[0020074 | d << 9] = OP::move_l;
         run_table[0030074 | d << 9] = OP::move_w;
@@ -1912,7 +1965,6 @@ void init_run_table() {
         }
     }
     for(int d = 0; d < 8; ++d) {
-        run_table[000474 | d << 9] = OP::btst_b_r_imm;
         run_table[0047120 | d] = OP::link_w;
         run_table[0047130 | d] = OP::unlk;
         run_table[0047140 | d] = OP::move_to_usp;
@@ -2013,4 +2065,7 @@ void init_run_table() {
 
     init_run_table_fpu();
     init_run_table_mmu();
+#ifdef CI
+    run_table[0044117] = OP::test_exit;
+#endif
 }

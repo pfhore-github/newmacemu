@@ -27,7 +27,7 @@ uint8_t GLUE::Read8(uint32_t addr) {
         if(pds) {
             return pds[addr & 0x7ffffff];
         } else {
-            throw AccessFault{};
+            throw BusError{};
         }
     }
     switch((addr >> 13) & 0xf) {
@@ -48,7 +48,7 @@ uint8_t GLUE::Read8(uint32_t addr) {
     case 11:
         return swim.read(addr >> 9 & 0xf);
     }
-    throw AccessFault{};
+    throw BusError{};
 }
 
 void GLUE::Write8(uint32_t addr, uint8_t value) {
@@ -56,7 +56,7 @@ void GLUE::Write8(uint32_t addr, uint8_t value) {
         if(pds) {
             pds[addr & 0x7ffffff] = value;
         } else {
-            throw AccessFault{};
+            throw BusError{};
         }
     }
     switch((addr >> 13) & 0xf) {
@@ -85,7 +85,7 @@ void GLUE::Write8(uint32_t addr, uint8_t value) {
         swim.write(addr >> 9 & 0xf, value);
         return;
     }
-    throw AccessFault{};
+    throw BusError{};
 }
 
 uint8_t MDU::Read8(uint32_t addr) {
@@ -93,7 +93,7 @@ uint8_t MDU::Read8(uint32_t addr) {
         if(pds) {
             return pds[addr & 0x7ffffff];
         } else {
-            throw AccessFault{};
+            throw BusError{};
         }
     }
     switch((addr >> 13) & 0x1f) {
@@ -116,7 +116,7 @@ uint8_t MDU::Read8(uint32_t addr) {
     case 19:
         return rbv.read(addr & 0xff);
     }
-    throw AccessFault{};
+    throw BusError{};
 }
 
 void MDU::Write8(uint32_t addr, uint8_t value) {
@@ -124,7 +124,7 @@ void MDU::Write8(uint32_t addr, uint8_t value) {
         if(pds) {
             pds[addr & 0x7ffffff] = value;
         } else {
-            throw AccessFault{};
+            throw BusError{};
         }
     }
     switch((addr >> 13) & 0x1f) {
@@ -156,7 +156,7 @@ void MDU::Write8(uint32_t addr, uint8_t value) {
         rbv.write(addr & 0xff, value);
         return;
     }
-    throw AccessFault{};
+    throw BusError{};
 }
 
 uint8_t OSS::Read8(uint32_t addr) {
@@ -164,7 +164,7 @@ uint8_t OSS::Read8(uint32_t addr) {
         if(pds) {
             return pds[addr & 0x7ffffff];
         } else {
-            throw AccessFault{};
+            throw BusError{};
         }
     }
     switch((addr >> 13) & 0x1f) {
@@ -183,14 +183,14 @@ uint8_t OSS::Read8(uint32_t addr) {
     case 15:
         return exp1.read(addr & 0x1fff);
     }
-    throw AccessFault{};
+    throw BusError{};
 }
 void OSS::Write8(uint32_t addr, uint8_t value) {
     if(addr & 0x8000000) {
         if(pds) {
             pds[addr & 0x7ffffff] = value;
         } else {
-            throw AccessFault{};
+            throw BusError{};
         }
     }
     switch((addr >> 13) & 0x1f) {
@@ -216,7 +216,7 @@ void OSS::Write8(uint32_t addr, uint8_t value) {
         exp1.write(addr & 0x1fff, value);
         return;
     }
-    throw AccessFault{};
+    throw BusError{};
 }
 
 uint32_t OSS::Read32(uint32_t addr) {
@@ -244,11 +244,11 @@ uint8_t V8::Read8(uint32_t addr) {
         if(pds) {
             return pds[addr & 0x7ffff];
         } else {
-            throw AccessFault{};
+            throw BusError{};
         }
     }
     if(!(addr & 0xf00000)) {
-        throw AccessFault{};
+        throw BusError{};
     }
     switch((addr >> 13) & 0x1f) {
     case 0:
@@ -270,7 +270,7 @@ uint8_t V8::Read8(uint32_t addr) {
     case 19:
         return rbv.read(addr & 0xff);
     }
-    throw AccessFault{};
+    throw BusError{};
 }
 
 void V8::Write8(uint32_t addr, uint8_t value) {
@@ -278,11 +278,11 @@ void V8::Write8(uint32_t addr, uint8_t value) {
         if(pds) {
             pds[addr & 0x7ffff] = value;
         } else {
-            throw AccessFault{};
+            throw BusError{};
         }
     }
     if(!(addr & 0xf00000)) {
-        throw AccessFault{};
+        throw BusError{};
     }
     switch((addr >> 13) & 0x1f) {
     case 0:
@@ -313,7 +313,7 @@ void V8::Write8(uint32_t addr, uint8_t value) {
         rbv.write(addr & 0xff, value);
         return;
     }
-    throw AccessFault{};
+    throw BusError{};
 }
 
 uint8_t MCU_Q900::Read8(uint32_t addr) {
@@ -321,7 +321,7 @@ uint8_t MCU_Q900::Read8(uint32_t addr) {
         if(pds) {
             return pds[addr & 0x7ffffff];
         } else {
-            throw AccessFault{};
+            throw BusError{};
         }
     }
     switch((addr >> 13) & 0x1f) {
@@ -338,14 +338,14 @@ uint8_t MCU_Q900::Read8(uint32_t addr) {
     case 15:
         return iop_swim.read(addr >> 1 & 0x1f);
     }
-    throw AccessFault{};
+    throw BusError{};
 }
 void MCU_Q900::Write8(uint32_t addr, uint8_t value) {
     if(addr & 0x8000000) {
         if(pds) {
             pds[addr & 0x7ffffff] = value;
         } else {
-            throw AccessFault{};
+            throw BusError{};
         }
     }
     switch((addr >> 13) & 0x1f) {
@@ -368,7 +368,7 @@ void MCU_Q900::Write8(uint32_t addr, uint8_t value) {
         iop_swim.write(addr >> 1 & 0x1f, value);
         return;
     }
-    throw AccessFault{};
+    throw BusError{};
 }
 
 uint32_t MCU_Q900::Read32(uint32_t addr) {
@@ -393,7 +393,7 @@ uint8_t MCU_Q700::Read8(uint32_t addr) {
         if(pds) {
             return pds[addr & 0x7ffffff];
         } else {
-            throw AccessFault{};
+            throw BusError{};
         }
     }
     switch((addr >> 13) & 0x1f) {
@@ -410,14 +410,14 @@ uint8_t MCU_Q700::Read8(uint32_t addr) {
     case 15:
         return swim.read(addr >> 1 & 0x1f);
     }
-    throw AccessFault{};
+    throw BusError{};
 }
 void MCU_Q700::Write8(uint32_t addr, uint8_t value) {
     if(addr & 0x8000000) {
         if(pds) {
             pds[addr & 0x7ffffff] = value;
         } else {
-            throw AccessFault{};
+            throw BusError{};
         }
     }
     switch((addr >> 13) & 0x1f) {
@@ -440,7 +440,7 @@ void MCU_Q700::Write8(uint32_t addr, uint8_t value) {
         swim.write(addr >> 1 & 0x1f, value);
         return;
     }
-    throw AccessFault{};
+    throw BusError{};
 }
 
 uint32_t MCU_Q700::Read32(uint32_t addr) {
@@ -465,7 +465,7 @@ uint8_t JAWS::Read8(uint32_t addr) {
         if(pds) {
             return pds[addr & 0x7ffffff];
         } else {
-            throw AccessFault{};
+            throw BusError{};
         }
     }
     switch((addr >> 13) & 0x7f) {
@@ -491,7 +491,7 @@ uint8_t JAWS::Read8(uint32_t addr) {
         }
         break;
     }
-    throw AccessFault{};
+    throw BusError{};
 }
 
 void JAWS::Write8(uint32_t addr, uint8_t value) {
@@ -499,7 +499,7 @@ void JAWS::Write8(uint32_t addr, uint8_t value) {
         if(pds) {
             pds[addr & 0x7ffffff] = value;
         } else {
-            throw AccessFault{};
+            throw BusError{};
         }
     }
     switch((addr >> 13) & 0x7f) {
@@ -533,7 +533,7 @@ void JAWS::Write8(uint32_t addr, uint8_t value) {
         }
         break;
     }
-    throw AccessFault{};
+    throw BusError{};
 }
 // TODO
 void rtc_reset();
@@ -546,10 +546,13 @@ void initBus() {
     via2 = std::make_shared<VIA2>();
     io = std::make_unique<MCU_Q900>();
 }
+// for test
+bool is_reset = false;
 void bus_reset() {
     rtc_reset();
     adb_reset();
     asc_reset();
+    is_reset = true;
 }
 
 std::unique_ptr<IO_BUS> io;

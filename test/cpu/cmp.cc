@@ -1,6 +1,6 @@
 #define BOOST_TEST_DYN_LINK
 #include "68040.hpp"
-#include "proto.hpp"
+#include "inline.hpp"
 #include "test.hpp"
 #include <boost/test/data/monomorphic.hpp>
 #include <boost/test/data/test_case.hpp>
@@ -35,7 +35,7 @@ BOOST_AUTO_TEST_CASE(Z) {
 }
 BOOST_AUTO_TEST_CASE(execute) {
     TEST::SET_W(0, 0130000 | 3 << 9 | 2);
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(cpu.PC == 2);
 }
 
@@ -68,7 +68,7 @@ BOOST_AUTO_TEST_CASE(Z) {
 
 BOOST_AUTO_TEST_CASE(execute) {
     TEST::SET_W(0, 0130100 | 3 << 9 | 2);
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(cpu.PC == 2);
 }
 BOOST_AUTO_TEST_SUITE_END()
@@ -102,7 +102,7 @@ BOOST_AUTO_TEST_CASE(Z) {
 
 BOOST_AUTO_TEST_CASE(execute) {
     TEST::SET_W(0, 0130200 | 3 << 9 | 2);
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(cpu.PC == 2);
 }
 BOOST_AUTO_TEST_SUITE_END()

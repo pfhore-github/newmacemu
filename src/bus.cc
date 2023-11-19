@@ -1,212 +1,102 @@
 #include <memory>
 
 #include "68040.hpp"
-#include "SDL_endian.h"
 #include "bus.hpp"
 #include "exception.hpp"
 #include "io.hpp"
 #include "memory.hpp"
+struct IOMap {};
+template <class T> struct bus_trait {};
+template <> struct bus_trait<const uint8_t> {
+    static uint8_t memDo(const uint8_t *p, uint8_t) { return *p; }
+    static uint8_t ioDo(const uint32_t addr, uint8_t) {
+        return io->Read8(addr & 0x0FFFFFFF);
+    }
+};
+template <> struct bus_trait<uint8_t> {
+    static void memDo(uint8_t *p, uint8_t v) { *p = v; }
+    static void ioDo(const uint32_t addr, uint8_t v) {
+        io->Write8(addr & 0x0FFFFFFF, v);
+    }
+};
 
-extern std::vector<uint8_t> RAM;
-extern const uint8_t *ROM;
-// bool rom_is_overlay = true;
-extern size_t ROMSize;
+template <> struct bus_trait<const uint16_t> {
+    static uint16_t memDo(const uint8_t *p, uint16_t) { return readBE16(p); }
+    static uint16_t ioDo(const uint32_t addr, uint16_t) {
+        return io->Read16(addr & 0x0FFFFFFF);
+    }
+};
+template <> struct bus_trait<uint16_t> {
+    static void memDo(uint8_t *p, uint16_t v) { writeBE16(p, v); }
+    static void ioDo(const uint32_t addr, uint16_t v) {
+        io->Write16(addr & 0x0FFFFFFF, v);
+    }
+};
 
-inline static uint16_t readBE16(const uint8_t *base, uint32_t offset) {
-    return SDL_SwapBE16(*reinterpret_cast<const uint16_t *>(base + offset));
-}
+template <> struct bus_trait<const uint32_t> {
+    static uint32_t memDo(const uint8_t *p, uint32_t) { return readBE32(p); }
+    static uint32_t ioDo(const uint32_t addr, uint32_t) {
+        return io->Read32(addr & 0x0FFFFFFF);
+    }
+};
+template <> struct bus_trait<uint32_t> {
+    static void memDo(uint8_t *p, uint32_t v) { writeBE32(p, v); }
+    static void ioDo(const uint32_t addr, uint32_t v) {
+        io->Write32(addr & 0x0FFFFFFF, v);
+    }
+};
 
-inline static uint32_t readBE32(const uint8_t *base, uint32_t offset) {
-    return SDL_SwapBE32(*reinterpret_cast<const uint32_t *>(base + offset));
-}
-
-inline static void writeBE16(uint8_t *base, uint32_t offset, uint16_t v) {
-    *reinterpret_cast<uint16_t *>(base + offset) = SDL_SwapBE16(v);
-}
-
-inline static void writeBE32(uint8_t *base, uint32_t offset, uint32_t v) {
-    *reinterpret_cast<uint32_t *>(base + offset) = SDL_SwapBE32(v);
-}
-
-uint8_t BusReadB(uint32_t addr) {
-    uint32_t offset = addr & 0x0FFFFFFF;
+template <class T> auto doBus(uint32_t addr, T v) {
     switch(addr >> 28) {
     case 0:
     case 1:
     case 2:
     case 3:
         // RAM
-        if(addr >= RAM.size()) {
-            throw AccessFault{};
+        if(addr >= RAMSize) {
+            throw BusError{};
         }
-        return RAM[addr];
+        return bus_trait<T>::memDo(RAM + addr, v);
     case 4:
-        return ROM[offset & (ROMSize - 1)];
+        // ROM
+        return bus_trait<T>::memDo(ROM + (addr & ROMMask), v);
     case 5:
-        return io->Read8(offset);
+        return bus_trait<T>::ioDo(addr, v);
     default:
-        throw AccessFault{};
-    }
-}
-void BusWriteB(uint32_t addr, uint8_t v) {
-    uint32_t offset = addr & 0x0FFFFFFF;
-    switch(addr >> 28) {
-    case 0:
-    case 1:
-    case 2:
-    case 3:
-        // RAM
-        if(addr >= RAM.size()) {
-            throw AccessFault{};
-        }
-        RAM[addr] = v;
-        break;
-    case 5:      
-        io->Write8(offset, v);
-        break;
-    default:
-        throw AccessFault{};
+        throw BusError{};
     }
 }
 
-uint16_t BusReadW(uint32_t addr) {
-    uint32_t offset = addr & 0x0FFFFFFF;
+uint8_t *doBus16(uint32_t addr) {
     switch(addr >> 28) {
     case 0:
     case 1:
     case 2:
     case 3:
         // RAM
-        if(addr >= RAM.size()) {
-            throw AccessFault{};
+        if(addr >= RAMSize) {
+            throw BusError{};
         }
-        return readBE16(RAM.data(), addr);
+        return RAM + addr;
     case 4:
-        return readBE16(ROM, offset & (ROMSize - 1));
-    case 5:
-        return io->Read16(offset);
+        // ROM
+        return ROM + (addr & ROMMask);
     default:
-        throw AccessFault{};
+        throw BusError{};
     }
 }
+uint8_t BusReadB(uint32_t addr) { return doBus<const uint8_t>(addr, 0); }
+void BusWriteB(uint32_t addr, uint8_t v) { doBus<uint8_t>(addr, v); }
 
-void BusWriteW(uint32_t addr, uint16_t v) {
-    uint32_t offset = addr & 0x0FFFFFFF;
-    switch(addr >> 28) {
-    case 0:
-    case 1:
-    case 2:
-    case 3:
-        // RAM
-        if(addr >= RAM.size()) {
-            throw AccessFault{};
-        }
-        writeBE16(RAM.data(), addr, v);
-        break;
-    case 5:
-        io->Write16(offset, v);
-        break;
-    default:
-        throw AccessFault{};
-    }
-}
-uint32_t BusReadL(uint32_t addr) {
-    uint32_t offset = addr & 0x0FFFFFFF;
-    switch(addr >> 28) {
-    case 0:
-    case 1:
-    case 2:
-    case 3:
-        // RAM
-        if(addr >= RAM.size()) {
-            throw AccessFault{};
-        }
-        return readBE32(RAM.data(), addr);
-    case 4:
-        return readBE32(ROM, offset & (ROMSize - 1));
-    case 5:
-        return io->Read32(offset);
-    default:
-        throw AccessFault{};
-    }
-}
-void BusWriteL(uint32_t addr, uint32_t v) {
-    uint32_t offset = addr & 0x0FFFFFFF;
-    switch(addr >> 28) {
-    case 0:
-    case 1:
-    case 2:
-    case 3:
-        // RAM
-        if(addr >= RAM.size()) {
-            throw AccessFault{};
-        }
-        writeBE32(RAM.data(), addr, v);
-        break;
-    case 5:
-        io->Write32(offset, v);
-        break;
-    default:
-        throw AccessFault{};
-    }
-}
+uint16_t BusReadW(uint32_t addr) { return doBus<const uint16_t>(addr, 0); }
+void BusWriteW(uint32_t addr, uint16_t v) { doBus<uint16_t>(addr, v); }
 
-uint32_t ptest_and_raise(uint32_t addr, bool sys, bool code, bool W);
-void Read16(uint32_t addr, uint8_t *to) {
-    try {
-        auto paddr = ptest_and_raise(addr, cpu.S, false, false);
-        uint32_t offset = paddr & 0x0FFFFFFF;
-        switch(paddr >> 28) {
-        case 0:
-        case 1:
-        case 2:
-        case 3:
-            // RAM
-            if(offset >= RAM.size()) {
-                throw AccessFault{};
-            }
-            memcpy(to, RAM.data() + offset, 16);
-            break;
-        case 4:
-            memcpy(to, ROM + offset, 16);
-            break;
-        default:
-            throw AccessFault{};
-        }
-    } catch(AccessFault &) {
-        cpu.af_value.addr = addr;
-        cpu.af_value.RW = true;
-        cpu.af_value.size = SIZ::LN;
-        cpu.af_value.tt = TT::MOVE16;
-        cpu.af_value.tm = TM::USER_DATA;
-        ACCESS_FAULT();
-    }
-}
+uint32_t BusReadL(uint32_t addr) { return doBus<const uint32_t>(addr, 0); }
+void BusWriteL(uint32_t addr, uint32_t v) { doBus<uint32_t>(addr, v); }
 
-void Write16(uint32_t addr, const uint8_t *to) {
-    try {
-        auto paddr = ptest_and_raise(addr, cpu.S, false, true);
-        uint32_t offset = paddr & 0x0FFFFFFF;
-        switch(addr >> 28) {
-        case 0:
-        case 1:
-        case 2:
-        case 3:
-            // RAM
-            memcpy(RAM.data() + offset, to, 16);
-            break;
-        default:
-            throw AccessFault{};
-        }
-    } catch(AccessFault &) {
-        cpu.af_value.addr = addr;
-        cpu.af_value.RW = false;
-        cpu.af_value.size = SIZ::LN;
-        cpu.af_value.tt = TT::MOVE16;
-        cpu.af_value.tm = TM::USER_DATA;
-        ACCESS_FAULT();
-    }
-}
+void Read16(uint32_t addr, uint8_t *to);
+void Write16(uint32_t addr, const uint8_t *from) ;
+
 void MMU_Transfer16(uint32_t from, uint32_t to) {
     uint8_t buf[16];
     Read16(from & ~0xf, buf);

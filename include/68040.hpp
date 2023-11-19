@@ -2,51 +2,21 @@
 #define CPU_68040_ 1
 #include "exception.hpp"
 #include "mpfr.h"
-#include <condition_variable>
-#include <mutex>
 #include <atomic>
 #include <functional>
 #include <memory>
-#include <setjmp.h>
 #include <stdint.h>
 #include <unordered_map>
-enum class TT { NORMAL = 0, MOVE16, ALT, ACK };
-enum class TM {
-    ALT_0 = 0,
-    USER_DATA,
-    USER_CODE,
-    MMU_DATA,
-    MMU_CODE,
-    SYS_DATA,
-    SYS_CODE,
-    ALT_7
-};
-enum class SIZ { L = 0, B, W, LN, NONE };
-struct MemBus {
-    uint32_t A;
-    uint32_t D = 0;
-    TT tt = TT::NORMAL;
-    TM tm = TM::USER_DATA;
-    SIZ sz;
-    uint8_t UPM = 0;
-    bool RW;
-};
+#include <setjmp.h>
 
-struct AccessFault_t {
-    uint32_t addr;
-    bool CP = false, CU = false, CT = false, CM = false, MA = false,
-         ATC = false, LK = false, RW;
-    SIZ size;
-    TT tt = TT::NORMAL;
-    TM tm = TM::USER_DATA;
-};
+
 enum class FPU_PREC {
     X,
     S,
     D,
     AUTO,
 };
-
+struct FaultParam;
 struct Cpu {
     uint32_t D[8];
     uint32_t A[8];
@@ -105,26 +75,21 @@ struct Cpu {
     };
 
     std::unordered_map<uint32_t, atc_entry> l_atc[2], g_atc[2];
-
     // internal
-    jmp_buf ex_buf;
+	jmp_buf ex;
+	std::unique_ptr<FaultParam> faultParam;
+    uint32_t EA;
     uint32_t oldpc;
-
-    AccessFault_t af_value;
-
+	uint32_t ex_addr;
+	volatile uint8_t ex_n;
+	
     bool in_exception;
     bool must_trace;
-    // JIT cache
-    //    std::unordered_map<uint32_t, int> icache;
-    uint32_t EA;
-    int n;
-    std::mutex mtx_;
-    std::condition_variable cond_;
+
     bool movem_run;
-    bool sleeping;
+    std::atomic<bool> sleeping;
 
     std::atomic<int> inturrupt;
-    std::atomic<bool> run;
 };
 
 struct mmu_result {
@@ -144,7 +109,6 @@ struct mmu_result {
     }
 };
 
-struct DecodeError {};
 // Mac 68K has no multi CPU, so doesn't support multi CPU!
 extern Cpu cpu;
 uint32_t ea_getaddr(int type, int reg, int sz);
@@ -154,7 +118,7 @@ uint32_t ea_readL(int type, int reg);
 void ea_writeB(int type, int reg, uint8_t v, bool update);
 void ea_writeW(int type, int reg, uint16_t v, bool update);
 void ea_writeL(int type, int reg, uint32_t v, bool update);
-using run_t = void (*)(uint16_t op, int dn, int type, int reg);
+using run_t = void (*)(uint16_t op);
 
 inline void PRIV_CHECK() {
     if(!cpu.S) {

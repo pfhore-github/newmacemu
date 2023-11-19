@@ -3,22 +3,42 @@
 #include "SDL_events.h"
 #include "SDL_log.h"
 #include "memory.hpp"
-#include "proto.hpp"
+#include "inline.hpp"
 #include <fmt/core.h>
-[[noreturn]] void double_fault() {
+void double_fault() {
 #ifdef CI
-        fmt::print("double buf fault:{:x}", cpu.PC);
-        exit(1);
+    fmt::print("double buf fault:{:x}", cpu.PC);
 #else
-        // Double Bus Fault
-        SDL_LogError(SDL_LOG_CATEGORY_ERROR, "double bus fault:%08x", cpu.PC);
-        SDL_Event ev;
-        ev.type = SDL_QUIT;
-        SDL_PushEvent(&ev);
-        longjmp(cpu.ex_buf, 1);
+    // Double Bus Fault
+    SDL_LogError(SDL_LOG_CATEGORY_ERROR, "double bus fault:%08x", cpu.PC);
 #endif
+    exit(1);
 }
-static uint16_t exception_entry() {
+
+void EXCEPTION0(int n, uint32_t nextpc, uint16_t sr) {
+    PUSH16(n << 2);
+    PUSH32(nextpc);
+    PUSH16(sr);
+    JUMP(ReadL(cpu.VBR + (n << 2)));
+}
+
+void EXCEPTION2(int n, uint32_t addr, uint32_t nextpc, uint16_t sr) {
+    PUSH32(addr);
+    PUSH16(0x2 << 12 | n << 2);
+    PUSH32(nextpc);
+    PUSH16(sr);
+    JUMP(ReadL(cpu.VBR + (n << 2)));
+}
+
+void EXCEPTION3(int n, uint16_t sr) {
+    PUSH32(cpu.EA);
+    PUSH16(0x3 << 12 | n << 2);
+    PUSH32(cpu.PC);
+    PUSH16(sr);
+    JUMP(ReadL(cpu.VBR + (n << 2)));
+}
+
+void handle_exception(int n) {
     if(cpu.in_exception) {
         double_fault();
     }
@@ -27,120 +47,148 @@ static uint16_t exception_entry() {
     cpu.S = true;
     LoadSP();
     cpu.T = 0;
-    return sr;
-}
+    switch(n) {
+    case 0:
+    case 1:
+        break;
+    case 2:
+        // ACCESS FAULT
+        cpu.A[7] -= 4 * 9;
+        PUSH32(cpu.ex_addr);
+        cpu.A[7] -= 2 * 3;
+        if(cpu.must_trace) {
+            cpu.faultParam->CT = true;
+        }
+        // SSW
+        PUSH16(cpu.faultParam->CP << 15 | cpu.faultParam->CU << 14 |
+               cpu.faultParam->CT << 13 | cpu.faultParam->CM << 12 |
+               cpu.faultParam->MA << 11 | cpu.faultParam->ATC << 10 |
+               cpu.faultParam->LK << 9 | cpu.faultParam->RW << 8 |
+               int(cpu.faultParam->size) << 5 | int(cpu.faultParam->tt) << 3 |
+               int(cpu.faultParam->tm));
+        if(cpu.faultParam->CP || cpu.faultParam->CU || cpu.faultParam->CT ||
+           cpu.faultParam->CM) {
+            PUSH32(cpu.EA);
+        } else {
+            PUSH32(0);
+        }
+        PUSH16(0x7 << 12 | 2 << 2);
+        PUSH32(cpu.oldpc);
+        PUSH16(sr);
+        JUMP(ReadL(cpu.VBR + (2 << 2)));
 
-[[noreturn]] static void exception0(int n, uint32_t contpc) {
-    uint16_t sr = exception_entry();
-    PUSH16(n << 2);
-    PUSH32(contpc);
-    PUSH16(sr);
-    JUMP(ReadL(cpu.VBR + (n << 2)));
-    longjmp(cpu.ex_buf, 1);
-}
+        // reset mid flag
+		cpu.faultParam.reset();
 
-[[noreturn]] static void exception2(int n, uint32_t contpc, uint32_t addr) {
-    uint16_t sr = exception_entry();
-    PUSH32(addr);
-    PUSH16(0x2 << 12 | n << 2);
-    PUSH32(contpc);
-    PUSH16(sr);
-    JUMP(ReadL(cpu.VBR + (n << 2)));
-    longjmp(cpu.ex_buf, 1);
-}
-
-[[noreturn]] static void exception3(int n) {
-    uint16_t sr = exception_entry();
-    PUSH32(cpu.EA);
-    PUSH16(0x3 << 12 | n << 2);
-    PUSH32(cpu.PC);
-    PUSH16(sr);
-    JUMP(ReadL(cpu.VBR + (n << 2)));
-    longjmp(cpu.ex_buf, 1);
-}
-
-[[noreturn]] void ACCESS_FAULT() {
-    uint16_t sr = exception_entry();
-    cpu.A[7] -= 4 * 9;
-    PUSH32(cpu.af_value.addr);
-    cpu.A[7] -= 2 * 3;
-    if(cpu.must_trace) {
-        cpu.af_value.CT = true;
-    }
-    // SSW
-    PUSH16(cpu.af_value.CP << 15 | cpu.af_value.CU << 14 |
-           cpu.af_value.CT << 13 | cpu.af_value.CM << 12 |
-           cpu.af_value.MA << 11 | cpu.af_value.ATC << 10 |
-           cpu.af_value.LK << 9 | cpu.af_value.RW << 8 |
-           int(cpu.af_value.size) << 5 | int(cpu.af_value.tt) << 3 |
-           int(cpu.af_value.tm));
-    if(cpu.af_value.CP || cpu.af_value.CU || cpu.af_value.CT ||
-       cpu.af_value.CM) {
-        PUSH32(cpu.EA);
-    } else {
-        PUSH32(0);
-    }
-    PUSH16(0x7 << 12 | 2 << 2);
-    PUSH32(cpu.oldpc);
-    PUSH16(sr);
-    JUMP(ReadL(cpu.VBR + (2 << 2)));
-    longjmp(cpu.ex_buf, 1);
-}
-
-[[noreturn]] void ADDRESS_ERROR(uint32_t next) { exception2(3, cpu.oldpc, next & ~1); }
-[[noreturn]] void ILLEGAL_OP() { exception0(4, cpu.oldpc); }
-
-[[noreturn]] void DIV0_ERROR() { exception2(5, cpu.PC, cpu.oldpc); }
-[[noreturn]] void CHK_ERROR() { exception2(6, cpu.PC, cpu.oldpc); }
-
-[[noreturn]] void TRAPX_ERROR() { exception2(7, cpu.PC, cpu.oldpc); }
-
-[[noreturn]] void PRIV_ERROR() { exception0(8, cpu.oldpc); }
-
-[[noreturn]] void TRACE() { exception2(9, cpu.PC, cpu.oldpc); }
-
-[[noreturn]] void ALINE() { exception0(10, cpu.oldpc); }
-
-[[noreturn]] void FLINE() { exception0(11, cpu.oldpc); }
-
-[[noreturn]] void FORMAT_ERROR() { exception0(14, cpu.oldpc); }
-
-[[noreturn]] void TRAP_ERROR(int n) { exception0(32 + n, cpu.PC); }
-
-[[noreturn]] void FP_EX_BSUN() { exception3(48); }
-
-[[noreturn]] void FP_EX_INEX() { exception3(49); }
-
-[[noreturn]] void FP_EX_DIV0() { exception3(50); }
-
-[[noreturn]] void FP_EX_UNFL() { exception3(51); }
-[[noreturn]] void FP_EX_OPERR() { exception3(52); }
-[[noreturn]] void FP_EX_OVFL() { exception3(53); }
-[[noreturn]] void FP_EX_SNAN() { exception3(54); }
-
-void IRQ(int n) {
-    cpu.I = n;
-    n += 24;
-    if(cpu.in_exception) {
-        // Double Bus Fault
-        double_fault();
-    }
-    cpu.in_exception = true;
-    uint16_t sr = GetSR();
-    cpu.S = true;
-    LoadSP();
-    PUSH16(n << 2);
-    PUSH32(cpu.PC);
-    PUSH16(sr);
-    if(cpu.M) {
-        cpu.M = false;
-        LoadSP();
-        PUSH32(0x01 << 12 | (n << 2));
+        break;
+    case 3:
+        // ADDRESS ERROR
+        EXCEPTION2(3, cpu.oldpc, cpu.ex_addr, sr);
+        break;
+    case 4:  // ILLEGAL OP
+    case 8:  // PRIV ERROR
+    case 10: // ALINE
+    case 11: // FLINE
+    case 14: // FORMAT_ERROR
+        EXCEPTION0(n, cpu.oldpc, sr);
+        break;
+    case 32: // TRAP#x
+    case 33:
+    case 34:
+    case 35:
+    case 36:
+    case 37:
+    case 38:
+    case 39:
+    case 40:
+    case 41:
+    case 42:
+    case 43:
+    case 44:
+    case 45:
+    case 46:
+    case 47:
+        EXCEPTION0(n, cpu.PC, sr);
+        break;
+    case 5: // DIV0
+    case 6: // CHK
+    case 7: // TRAPX
+    case 9: // TRACE
+        EXCEPTION2(n, cpu.PC, cpu.oldpc, sr);
+        break;
+    case 48: // FP_BSUN
+    case 49: // FP_EX_INEX
+    case 50: // FP_DIV0
+    case 51: // FP_UNFL
+    case 52: // FP_OPERR
+    case 53: // FP_OVFL
+    case 54: // FP_SNAN
+    case 55: // FP_EX_UNIMPL_TYPE
+        EXCEPTION3(n, cpu.oldpc);
+        break;
+    case 24: // IRQ 0
+    case 25: // IRQ 1
+    case 26: // IRQ 2
+    case 27: // IRQ 3
+    case 28: // IRQ 4
+    case 29: // IRQ 5
+    case 30: // IRQ 6
+    case 31: // IRQ 7
+        cpu.I = n - 24;
+        PUSH16(n << 2);
         PUSH32(cpu.PC);
         PUSH16(sr);
+        if(cpu.M) {
+            cpu.M = false;
+            LoadSP();
+            PUSH32(0x01 << 12 | (n << 2));
+            PUSH32(cpu.PC);
+            PUSH16(sr);
+        }
+        JUMP(ReadL(cpu.VBR + (n << 2)));
+        break;
     }
-    JUMP(ReadL(cpu.VBR + (n << 2)));
 }
+[[noreturn]] static inline void RAISE(int n) {
+    cpu.ex_n = n;
+    longjmp(cpu.ex, 1);
+}
+void ACCESS_FAULT(uint32_t a, SIZ sz, bool rw,  TM m) {
+    cpu.ex_addr = a;
+    cpu.faultParam->CM = cpu.movem_run;
+    cpu.faultParam->RW = rw;
+    cpu.faultParam->size = sz;
+    cpu.faultParam->tm = m;
+    RAISE(2);
+}
+void ADDRESS_ERROR(uint32_t addr) {
+    cpu.ex_addr = addr & ~1;
+    RAISE(3);
+}
+
+void ILLEGAL_OP() { RAISE(4); }
+
+void DIV0_ERROR() { RAISE(5); }
+void CHK_ERROR() { RAISE(6); }
+
+void TRAPX_ERROR() { RAISE(7); }
+
+void PRIV_ERROR() { RAISE(8); }
+void TRACE() { RAISE(9); }
+
+void ALINE() { RAISE(10); }
+void FLINE() { RAISE(11); }
+void FORMAT_ERROR() { RAISE(14); }
+void TRAP_ERROR(int n) { RAISE(32 + n); }
+void FP_EX_BSUN() { RAISE(48); }
+void FP_EX_INEX() { RAISE(49); }
+void FP_EX_DIV0() { RAISE(50); }
+void FP_EX_UNFL() { RAISE(51); }
+void FP_EX_OPERR() { RAISE(52); }
+void FP_EX_OVFL() { RAISE(53); }
+void FP_EX_SNAN() { RAISE(54); }
+void FP_EX_UNIMPL_TYPE() { RAISE(55); }
+void IRQ(int n) { RAISE(24 + n); }
 
 void do_rte() {
     uint16_t sr = POP16();

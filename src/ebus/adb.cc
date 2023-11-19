@@ -1,3 +1,4 @@
+#include "ebus/adb.hpp"
 #include "SDL.h"
 #include "SDL_scancode.h"
 #include "chip/via.hpp"
@@ -9,26 +10,23 @@
 #include <unordered_map>
 #include <vector>
 std::deque<uint8_t> buf;
-uint32_t adb_wait(uint32_t, void *) {
-    via1->recieve_sr();
-    return 0;
-}
+SDL_TimerID adbTimer;
+void do_adb_irq() { via1->recieve_sr(); }
 uint8_t adb_in() {
+    static uint8_t v = 0;
     if(buf.empty()) {
         // empty
-        return 0;
+        do_adb_irq();
+        return v;
     } else {
-        auto v = buf[0];
+        v = buf[0];
         buf.pop_front();
-        if(!buf.empty()) {
-            SDL_AddTimer(10, adb_wait, nullptr);
-        }
+        do_adb_irq();
         return v;
     }
 }
 
 std::list<uint8_t> keys;
-bool adb_irq = false;
 std::unordered_map<SDL_Scancode, uint8_t> mac_keys = {
     {SDL_SCANCODE_ESCAPE, 0x35},
     {SDL_SCANCODE_F1, 0x7A},
@@ -142,18 +140,8 @@ std::unordered_map<SDL_Scancode, uint8_t> mac_keys = {
 
 };
 
-void adb_reset() { SDL_ResetKeyboard(); }
-class ADBDev {
-  public:
-    uint8_t reg3[2];
-    virtual void flush() = 0;
-    virtual void listen(int reg, const uint8_t *v) = 0;
-    virtual std::deque<uint8_t> talk(int reg) = 0;
-};
-
 class ADBMouse : public ADBDev {
 
-    friend void adb_run(const std::vector<uint8_t> &b);
     int old_mx;
     int old_my;
 
@@ -217,7 +205,6 @@ class ADBKeyboard : public ADBDev {
         reg3[0] = 0x62;
         reg3[1] = 0x05;
     }
-    friend void adb_run(const std::vector<uint8_t> &b);
     void flush() override {
         // key  queue clear
         SDL_ResetKeyboard();
@@ -294,18 +281,21 @@ class ADBKeyboard : public ADBDev {
     }
 };
 
-ADBMouse mouse;
-ADBKeyboard kbd;
 uint8_t xpram_read(uint8_t reg);
 void xpram_write(uint8_t reg, uint8_t v);
 bool adb_xprammode = false;
-
-void do_adb_irq() {
-    adb_irq = true;
-    via1->recieve_sr();
+std::shared_ptr<ADBDev> adbDevs[4];
+void adb_reset() {
+    adbDevs[0] = std::make_shared<ADBMouse>();
+    adbDevs[1] = std::make_shared<ADBKeyboard>();
+    SDL_ResetKeyboard();
 }
-
-void adb_run(const std::vector<uint8_t> &b) {
+void adb_attention() {
+    buf = {1};
+    do_adb_irq();
+    return;
+}
+void adb_run(const std::vector<uint8_t>& b) {
     if(b.empty()) {
         // do nothing
         return;
@@ -334,49 +324,33 @@ void adb_run(const std::vector<uint8_t> &b) {
     } else if(v == 12) {
         // RTC read
         buf = {1, 0, 0, 7, xpram_read(b[2]), 0};
-        via1->recieve_sr();
+        do_adb_irq();
         return;
     }
-    if(adr == (mouse.reg3[0] & 0x0f)) {
-        // Mouse
-        if(cmd == 0 && reg == 1) {
-            // flush
-            mouse.flush();
-        } else if(cmd == 2) {
-            // Listen
-            mouse.listen(reg, &b[1]);
-            return;
-        } else if(cmd == 3) {
-            // Talk
-            buf = mouse.talk(reg);
-            // terminate byte
-            buf.push_back(0);
-            via1->recieve_sr();
-        }
-
-    } else if(adr == (kbd.reg3[0] & 0x0f)) {
-        // Keyboard
-        if(cmd == 0 && reg == 1) {
-            // flush
-            kbd.flush();
-        } else if(cmd == 2) {
-            kbd.listen(reg, &b[1]);
-        } else if(cmd == 3) {
-            // Talk
-            buf = kbd.talk(reg);
-            // terminate byte
-            buf.push_back(0);
-            if(!buf.empty()) {
-                via1->recieve_sr();
+    for(auto &d : adbDevs) {
+        if(d) {
+            if(adr == (d->reg3[0] & 0x0f)) {
+                if(cmd == 0 && reg == 1) {
+                    // flush
+                    d->flush();
+                } else if(cmd == 2) {
+                    // Listen
+                    d->listen(reg, &b[1]);
+                    return;
+                } else if(cmd == 3) {
+                    // Talk
+                    buf = d->talk(reg);
+                    // terminate byte
+                    buf.push_back(0);
+                }
+                // stop bit
+                buf.push_back(1);
+                do_adb_irq();
             }
         }
-
-    } else // Unknown address
-        if(cmd == 3)
-            buf.clear(); // Talk: 0 bytes of data
+    }
 }
- std::vector<uint8_t> adb_buf;
- bool adb_attentioned = false;
+std::vector<uint8_t> adb_buf;
 uint8_t recieveAdb(uint8_t adbState) {
     switch(adbState) {
     case 0:
@@ -391,48 +365,38 @@ uint8_t recieveAdb(uint8_t adbState) {
         __builtin_unreachable();
     }
 }
-void transmitAdb(uint8_t adbState, uint8_t v) {
-    switch(adbState) {
-    case 0:
-        adb_run(adb_buf);
-        adb_buf.clear();
-        adb_attentioned = false;
 
-        // response
-        adb_irq = true;
-        via1->sr = 1;
-        via1->recieve_sr();
-        break;
-    case 1:
-    case 2:
-        if(!adb_attentioned) {
-            if(v == 1) {
-                // first bit is attention data
-                adb_attentioned = true;
-            }
+void transmitAdb(uint8_t adbState, uint8_t v) {
+    do_adb_irq();
+    if(adbState == 0) {
+         if(!adb_buf.empty()) {
+            adb_run(adb_buf);
+            adb_buf.clear();
+        } 
+        adb_buf.clear();
+    }
+    if(v == 1) {
+        if(!adb_buf.empty()) {
+            adb_run(adb_buf);
+            adb_buf.clear();
         } else {
-            adb_buf.push_back(v);
+            adb_attention();
         }
-        // response
-        adb_irq = true;
-        via1->sr = 1;
-        via1->recieve_sr();
-        break;
-    case 3:
-        break;
+        return;
+    }
+    if(v) {
+        adb_buf.push_back(v);
     }
 }
 void keydown(const SDL_KeyboardEvent *e) {
-    adb_irq = true;
     if(mac_keys.contains(e->keysym.scancode)) {
         keys.push_back(mac_keys[e->keysym.scancode]);
     }
 
-    via1->recieve_sr();
+    do_adb_irq();
 }
 
 void keyup(const SDL_KeyboardEvent *e) {
-    adb_irq = true;
     if(mac_keys.contains(e->keysym.scancode)) {
         auto ret =
             std::find(keys.begin(), keys.end(), mac_keys[e->keysym.scancode]);
@@ -440,4 +404,5 @@ void keyup(const SDL_KeyboardEvent *e) {
             keys.erase(ret);
         }
     }
+    do_adb_irq();
 }

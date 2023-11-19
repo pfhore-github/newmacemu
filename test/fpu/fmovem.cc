@@ -36,7 +36,8 @@ BOOST_AUTO_TEST_CASE(trace_postincr) {
     cpu.A[3] = 0x1000;
     cpu.T = 1;
     STORE_MEMX(0x1000, 1.1);
-    BOOST_TEST(run_test() == 9);
+    un_test(0);
+	BOOST_TEST(cpu.ex_n == 9 );
 }
 BOOST_AUTO_TEST_CASE(static_postincr) {
     TEST::SET_W(0, 0171030 | 3);
@@ -46,7 +47,7 @@ BOOST_AUTO_TEST_CASE(static_postincr) {
     STORE_MEMX(0x100C, 1.2);
     STORE_MEMX(0x1018, 1.3);
     STORE_MEMX(0x1024, 1.4);
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(cpu.PC == 4);
     BOOST_TEST(TEST::GET_FP(1) == 1.1);
     BOOST_TEST(TEST::GET_FP(3) == 1.2);
@@ -61,7 +62,8 @@ BOOST_AUTO_TEST_CASE(trace_addr) {
     cpu.A[3] = 0x1000;
     cpu.T = 1;
     STORE_MEMX(0x1000, 1.1);
-    BOOST_TEST(run_test() == 9);
+    un_test(0);
+	BOOST_TEST(cpu.ex_n == 9 );
 }
 BOOST_AUTO_TEST_CASE(static_addr) {
     TEST::SET_W(0, 0171020 | 3);
@@ -71,7 +73,7 @@ BOOST_AUTO_TEST_CASE(static_addr) {
     STORE_MEMX(0x100C, 1.2);
     STORE_MEMX(0x1018, 1.3);
     STORE_MEMX(0x1024, 1.4);
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(cpu.PC == 4);
     BOOST_TEST(TEST::GET_FP(1) == 1.1);
     BOOST_TEST(TEST::GET_FP(3) == 1.2);
@@ -89,7 +91,7 @@ BOOST_AUTO_TEST_CASE(dynamic_postincr) {
     STORE_MEMX(0x100C, 1.2);
     STORE_MEMX(0x1018, 1.3);
     STORE_MEMX(0x1024, 1.4);
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(cpu.PC == 4);
     BOOST_TEST(TEST::GET_FP(1) == 1.1);
     BOOST_TEST(TEST::GET_FP(3) == 1.2);
@@ -107,7 +109,7 @@ BOOST_AUTO_TEST_CASE(dynamic_addr) {
     STORE_MEMX(0x100C, 1.2);
     STORE_MEMX(0x1018, 1.3);
     STORE_MEMX(0x1024, 1.4);
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(cpu.PC == 4);
     BOOST_TEST(TEST::GET_FP(1) == 1.1);
     BOOST_TEST(TEST::GET_FP(3) == 1.2);
@@ -123,7 +125,8 @@ BOOST_AUTO_TEST_CASE(trace_predecr) {
     cpu.A[3] = 0x1000;
     cpu.T = 1;
     TEST::SET_FP(0, 1.1);
-    BOOST_TEST(run_test() == 9);
+    un_test(0);
+	BOOST_TEST(cpu.ex_n == 9 );
 }
 BOOST_AUTO_TEST_CASE(static_predecr) {
     TEST::SET_W(0, 0171040 | 3);
@@ -133,7 +136,7 @@ BOOST_AUTO_TEST_CASE(static_predecr) {
     TEST::SET_FP(2, 1.2);
     TEST::SET_FP(4, 1.3);
     TEST::SET_FP(6, 1.4);
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(cpu.PC == 4);
     BOOST_TEST(LOAD_MEMX(0x1024) == 1.4);
     BOOST_TEST(LOAD_MEMX(0x1018) == 1.3);
@@ -147,7 +150,8 @@ BOOST_AUTO_TEST_CASE(trace_addr) {
     cpu.A[3] = 0x1000;
     cpu.T = 1;
     TEST::SET_FP(0, 1.1);
-    BOOST_TEST(run_test() == 9);
+    un_test(0);
+	BOOST_TEST(cpu.ex_n == 9 );
 }
 BOOST_AUTO_TEST_CASE(static_addr) {
     TEST::SET_W(0, 0171020 | 3);
@@ -157,7 +161,7 @@ BOOST_AUTO_TEST_CASE(static_addr) {
     TEST::SET_FP(3, 1.2);
     TEST::SET_FP(5, 1.3);
     TEST::SET_FP(7, 1.4);
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(cpu.PC == 4);
     BOOST_TEST(LOAD_MEMX(0x1024) == 1.4);
     BOOST_TEST(LOAD_MEMX(0x1018) == 1.3);
@@ -175,7 +179,7 @@ BOOST_AUTO_TEST_CASE(dynamic_predecr) {
     TEST::SET_FP(2, 1.2);
     TEST::SET_FP(4, 1.3);
     TEST::SET_FP(6, 1.4);
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(cpu.PC == 4);
     BOOST_TEST(LOAD_MEMX(0x1024) == 1.4);
     BOOST_TEST(LOAD_MEMX(0x1018) == 1.3);
@@ -193,7 +197,7 @@ BOOST_AUTO_TEST_CASE(dynamic_addr) {
     TEST::SET_FP(3, 1.2);
     TEST::SET_FP(5, 1.3);
     TEST::SET_FP(7, 1.4);
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(cpu.PC == 4);
     BOOST_TEST(LOAD_MEMX(0x1024) == 1.4);
     BOOST_TEST(LOAD_MEMX(0x1018) == 1.3);
@@ -222,7 +226,7 @@ BOOST_AUTO_TEST_CASE(All) {
 
     cpu.PC = 0x2000;
 
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(cpu.PC == 0x2004);
     BOOST_TEST(TEST::GET_L(0x1000) == 0x2450);
     BOOST_TEST(TEST::GET_L(0x1004) == (0x4801080 | 22 << 16));
@@ -245,7 +249,7 @@ BOOST_AUTO_TEST_CASE(CR_SR) {
     cpu.FPSR.OVFL = true;
     cpu.FPSR.EXC_IOP = true;
 
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(TEST::GET_L(0x1000) == 0x2450);
     BOOST_TEST(TEST::GET_L(0x1004) == (0x4801080 | 22 << 16));
     BOOST_TEST(cpu.A[3] == 0x1000);
@@ -267,7 +271,7 @@ BOOST_AUTO_TEST_CASE(CR_IAR) {
     cpu.FPSR.EXC_IOP = true;
 
     cpu.PC = 0x2000;
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(TEST::GET_L(0x1000) == 0x2450);
     BOOST_TEST(TEST::GET_L(0x1004) == 0x2000);
     BOOST_TEST(cpu.A[3] == 0x1000);
@@ -290,7 +294,7 @@ BOOST_AUTO_TEST_CASE(SR_IAR) {
 
     cpu.PC = 0x2000;
 
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(TEST::GET_L(0x1000) == (0x4801080 | 22 << 16));
     BOOST_TEST(TEST::GET_L(0x1004) == 0x2000);
     BOOST_TEST(cpu.A[3] == 0x1000);
@@ -309,7 +313,7 @@ BOOST_AUTO_TEST_CASE(All) {
 
     cpu.A[3] = 0x1000;
 
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(cpu.PC == 4);
     BOOST_TEST(cpu.FPCR.OPERR);
     BOOST_TEST(cpu.FPCR.DZ);
@@ -336,7 +340,7 @@ BOOST_AUTO_TEST_CASE(CR_SR) {
 
     cpu.A[3] = 0x1000;
 
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(cpu.FPCR.OPERR);
     BOOST_TEST(cpu.FPCR.DZ);
     BOOST_TEST(cpu.FPCR.PREC == FPU_PREC::S);
@@ -360,7 +364,7 @@ BOOST_AUTO_TEST_CASE(CR_IAR) {
 
     cpu.A[3] = 0x1000;
 
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(cpu.FPCR.OPERR);
     BOOST_TEST(cpu.FPCR.DZ);
     BOOST_TEST(cpu.FPCR.PREC == FPU_PREC::S);
@@ -380,7 +384,7 @@ BOOST_AUTO_TEST_CASE(SR_IAR) {
 
     cpu.A[3] = 0x1000;
 
-    BOOST_TEST(run_test() == 0);
+    run_test();
 
     BOOST_TEST(cpu.FPSR.CC_Z);
     BOOST_TEST(cpu.FPSR.QuatSign);

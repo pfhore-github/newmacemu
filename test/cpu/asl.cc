@@ -1,6 +1,6 @@
 #define BOOST_TEST_DYN_LINK
 #include "68040.hpp"
-#include "proto.hpp"
+#include "inline.hpp"
 #include "test.hpp"
 #include <boost/test/data/monomorphic.hpp>
 #include <boost/test/data/test_case.hpp>
@@ -42,7 +42,7 @@ BOOST_AUTO_TEST_CASE(byReg) {
     cpu.D[2] = 3;
     cpu.D[3] = 2;
     TEST::SET_W(0, 0160440 | 3 << 9 | 2);
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(cpu.PC == 2);
     BOOST_TEST(cpu.D[2] == 12);
 }
@@ -51,14 +51,14 @@ BOOST_AUTO_TEST_CASE(byRegMod) {
     cpu.D[2] = 3;
     cpu.D[3] = 66;
     TEST::SET_W(0, 0160440 | 3 << 9 | 2);
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(cpu.D[2] == 12);
 }
 
 BOOST_AUTO_TEST_CASE(byImm) {
     cpu.D[2] = 3;
     TEST::SET_W(0, 0160400 | 2 << 9 | 2);
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(cpu.PC == 2);
     BOOST_TEST(cpu.D[2] == 12);
 }
@@ -66,7 +66,7 @@ BOOST_AUTO_TEST_CASE(byImm) {
 BOOST_AUTO_TEST_CASE(byImm0) {
     cpu.D[2] = 3;
     TEST::SET_W(0, 0160400 | 0 << 9 | 2);
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(cpu.D[2] == 0);
 }
 
@@ -107,7 +107,7 @@ BOOST_AUTO_TEST_CASE(mem) {
     TEST::SET_W(0x1000, 300);
     TEST::SET_W(0, 0160720 | 2);
     cpu.A[2] = 0x1000;
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(cpu.PC == 2);
     BOOST_TEST(TEST::GET_W(0x1000) == 600);
 }
@@ -116,7 +116,7 @@ BOOST_AUTO_TEST_CASE(byReg) {
     cpu.D[2] = 300;
     cpu.D[3] = 2;
     TEST::SET_W(0, 0160540 | 3 << 9 | 2);
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(cpu.PC == 2);
     BOOST_TEST(cpu.D[2] == 1200);
 }
@@ -125,14 +125,14 @@ BOOST_AUTO_TEST_CASE(byRegMod) {
     cpu.D[2] = 300;
     cpu.D[3] = 66;
     TEST::SET_W(0, 0160540 | 3 << 9 | 2);
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(cpu.D[2] == 1200);
 }
 
 BOOST_AUTO_TEST_CASE(byImm) {
     cpu.D[2] = 300;
     TEST::SET_W(0, 0160500 | 2 << 9 | 2);
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(cpu.PC == 2);
     BOOST_TEST(cpu.D[2] == 1200);
 }
@@ -140,7 +140,7 @@ BOOST_AUTO_TEST_CASE(byImm) {
 BOOST_AUTO_TEST_CASE(byImm0) {
     cpu.D[2] = 3;
     TEST::SET_W(0, 0160500 | 0 << 9 | 2);
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(cpu.D[2] == 0x300);
 }
 
@@ -181,7 +181,7 @@ BOOST_AUTO_TEST_CASE(byReg) {
     cpu.D[2] = 30000;
     cpu.D[3] = 2;
     TEST::SET_W(0, 0160640 | 3 << 9 | 2);
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(cpu.PC == 2);
     BOOST_TEST(cpu.D[2] == 120000);
 }
@@ -190,14 +190,14 @@ BOOST_AUTO_TEST_CASE(byRegMod) {
     cpu.D[2] = 30000;
     cpu.D[3] = 66;
     TEST::SET_W(0, 0160640 | 3 << 9 | 2);
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(cpu.D[2] == 120000);
 }
 
 BOOST_AUTO_TEST_CASE(byImm) {
     cpu.D[2] = 30000;
     TEST::SET_W(0, 0160600 | 2 << 9 | 2);
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(cpu.PC == 2);
     BOOST_TEST(cpu.D[2] == 120000);
 }
@@ -205,7 +205,7 @@ BOOST_AUTO_TEST_CASE(byImm) {
 BOOST_AUTO_TEST_CASE(byImm0) {
     cpu.D[2] = 0x1000;
     TEST::SET_W(0, 0160600 | 0 << 9 | 2);
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(cpu.D[2] == 0x100000);
 }
 

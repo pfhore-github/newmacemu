@@ -7,7 +7,7 @@ struct SCSI_DMA  {
         if( addr == 0x80) {
             return 0;
         } else {
-            throw AccessFault{};
+            throw BusError{};
         }
     }
     void write(uint32_t , uint32_t )  {}

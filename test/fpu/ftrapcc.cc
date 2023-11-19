@@ -11,14 +11,14 @@ BOOST_FIXTURE_TEST_SUITE(FTRAPcc, Prepare)
 BOOST_AUTO_TEST_CASE(ImmNone) {
     TEST::SET_W(0, 0171170 | 4);
     TEST::SET_W(2, 0);
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(cpu.PC == 4);
 }
 BOOST_AUTO_TEST_CASE(Imm16) {
     TEST::SET_W(0, 0171170 | 2);
     TEST::SET_W(2, 0);
     TEST::SET_W(4, 0x100);
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(cpu.PC == 6);
 }
 
@@ -26,7 +26,7 @@ BOOST_AUTO_TEST_CASE(Imm32) {
     TEST::SET_W(0, 0171170 | 3);
     TEST::SET_W(2, 0);
     TEST::SET_L(4, 0x100);
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(cpu.PC == 8);
 }
 BOOST_AUTO_TEST_SUITE(EQ)

@@ -1,7 +1,7 @@
 #include "68040.hpp"
 #include "exception.hpp"
 #include "memory.hpp"
-#include "proto.hpp"
+#include "inline.hpp"
 #include <errno.h>
 #include <fmt/format.h>
 #include <memory>
@@ -65,8 +65,14 @@ uint32_t ea_getaddr(int type, int reg, int sz) {
     case 2:
         return cpu.A[reg];
     case 3:
+        if(reg == 7 && sz == 1) {
+            sz = 2;
+        }
         return std::exchange(cpu.A[reg], cpu.A[reg] + sz);
     case 4:
+        if(reg == 7 && sz == 1) {
+            sz = 2;
+        }
         return cpu.A[reg] -= sz;
     case 5: {
         int16_t d = FETCH();

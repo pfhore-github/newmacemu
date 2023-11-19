@@ -9,7 +9,6 @@
 
 #include <deque>
 void init_easc_and_play_sound(uint32_t asc, uint32_t via);
-struct AccessFault {};
 namespace bdata = boost::unit_test::data;
 void run_op();
 void debug_activate();
@@ -22,12 +21,17 @@ void test_rom(
     to |= 0x40800000;
     cpu.S = true;
     called.clear();
+    #if 0
     if(trace) {
         cpu.PC = from;
         debug_activate();
     }
+    #endif
     for(cpu.PC = from; cpu.PC != to;) {
-        if(setjmp(cpu.ex_buf) == 0) {
+        if(trace) {
+            printf("%X:%08x\n", cpu.PC, cpu.D[0]);
+        }
+        if(setjmp(cpu.ex) == 0) {
             run_op();
         }
         auto stubFound = testStubs.find(cpu.PC & ~0x40800000);
@@ -51,7 +55,7 @@ uint8_t DummyIO_B::read(uint32_t addr) {
                                                          << " at " << std::hex
                                                          << cpu.oldpc);
         } else {
-            throw AccessFault{};
+            throw BusError{};
         }
         return 0;
     }

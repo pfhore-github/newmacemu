@@ -1,32 +1,31 @@
 #include "68040.hpp"
 #include "exception.hpp"
 #include "memory.hpp"
-#include "proto.hpp"
+#include "inline.hpp"
 #include <utility>
 
 extern run_t run_table[0x10000];
 std::unordered_map<uint32_t, void (*)()> rom_funcs;
-void IRQ(int i);
-
-
-void run_op() {
+void op_prologue(uint32_t pc) {
     // check IRQ
-    if(int i = cpu.inturrupt.load(); i == 7 || i > cpu.I) {
-        IRQ(i);
+     if(int i = cpu.inturrupt.load(); i == 7 || i > cpu.I) {
         cpu.inturrupt.store(-1);
-        return;
+        IRQ(i);
     }
     cpu.EA = 0;
-    cpu.af_value.tt = TT::NORMAL;
     cpu.must_trace = cpu.T == 2;
-    cpu.oldpc = cpu.PC;
+    cpu.PC = cpu.oldpc = pc;
+}
+
+void run_op() {
+    op_prologue(cpu.PC);
     uint16_t op = FETCH();
     
     if(rom_funcs.contains(cpu.PC & 0xfffff)) {
         rom_funcs[cpu.PC & 0xfffff]();
     } else {
         if(auto p = run_table[op]) {
-            (*p)(op, op >> 9 & 7, op >> 3 & 7, op & 7);
+            (*p)(op);
         } else {
             ILLEGAL_OP();
         }

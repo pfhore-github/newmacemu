@@ -6,53 +6,33 @@
 #include <boost/test/unit_test.hpp>
 namespace bdata = boost::unit_test::data;
 BOOST_FIXTURE_TEST_SUITE(BSR, Prepare)
+struct F {
+    F() {
+        // BSR #2
+        TEST::SET_W(0, 0060400 | 2);
+        TEST::SET_W(2, TEST_BREAK);
+        TEST::SET_W(4, TEST_BREAK);
 
-BOOST_AUTO_TEST_CASE(execute) {
-    cpu.A[7] = 0x1004;
-    TEST::SET_W(0, 0060400 | 4);
-    BOOST_TEST(run_test() == 0);
-}
+        jit_compile(0, 6);
+    }
+};
+BOOST_AUTO_TEST_SUITE(R, *boost::unit_test::fixture<F>())
 
 BOOST_AUTO_TEST_CASE(traced) {
-    cpu.A[7] = 0x1004;
-    TEST::SET_W(0, 0060400 | 4);
+    cpu.A[7] = 0x404;
     cpu.T = 1;
-    BOOST_TEST(run_test() == 9);
+    run_test(0);
+	BOOST_TEST(cpu.ex_n == 9 );
 }
 
-BOOST_AUTO_TEST_CASE(offset1) {
-    cpu.A[7] = 0x1004;
-    TEST::SET_W(0, 0060400 | 4);
-    BOOST_TEST(run_test() == 0);
+BOOST_AUTO_TEST_CASE(not_traced) {
+    cpu.A[7] = 0x404;
+    run_test(0);
     BOOST_TEST(cpu.PC == 6);
-    BOOST_TEST(TEST::GET_L(0x1000) == 0x2);
-    BOOST_TEST(cpu.A[7] == 0x1000);
+    BOOST_TEST(TEST::GET_L(0x400) == 0x2);
+    BOOST_TEST(cpu.A[7] == 0x400);
 }
 
-BOOST_AUTO_TEST_CASE(offsetNeg) {
-    cpu.A[7] = 0x1004;
-    TEST::SET_W(0, 0060400 | 0xf0);
-    run_test();
-    BOOST_TEST(cpu.PC == -14);
-}
 
-BOOST_AUTO_TEST_CASE(offset00) {
-    cpu.A[7] = 0x1004;
-    TEST::SET_W(0, 0060400 | 0);
-    TEST::SET_W(2, 0x1000);
-    run_test();
-    BOOST_TEST(cpu.PC == 0x1002);
-    BOOST_TEST(TEST::GET_L(0x1000) == 0x4);
-    BOOST_TEST(cpu.A[7] == 0x1000);
-}
-BOOST_AUTO_TEST_CASE(offsetFF) {
-    cpu.A[7] = 0x1004;
-    TEST::SET_W(0, 0060400 | 0xFF);
-    TEST::SET_L(2, 0x20000);
-    run_test();
-    BOOST_TEST(cpu.PC == 0x20002);
-    BOOST_TEST(TEST::GET_L(0x1000) == 0x6);
-    BOOST_TEST(cpu.A[7] == 0x1000);
-}
-
+BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE_END()

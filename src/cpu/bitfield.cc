@@ -1,7 +1,7 @@
 #include "68040.hpp"
 #include "bus.hpp"
 #include "exception.hpp"
-#include "proto.hpp"
+#include "inline.hpp"
 #include "memory.hpp"
 #include <memory>
 #include <utility>

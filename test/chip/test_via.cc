@@ -9,7 +9,6 @@
 #include <boost/test/data/test_case.hpp>
 #include <boost/test/unit_test.hpp>
 #include <vector>
-struct AccessFault {};
 namespace bdata = boost::unit_test::data;
 struct DummyVIA : public VIA {
     bool inA_[8];
@@ -22,7 +21,6 @@ struct DummyVIA : public VIA {
     virtual void writePA(int n, bool v) override { outA_[n] = v; }
     virtual void writePB(int n, bool v) override  { outB_[n] = v; }
     int irqNum() override { return 1; }
-    uint8_t getSR() override { return sr_in; }
 };
 
 BOOST_FIXTURE_TEST_SUITE(via, Prepare)
@@ -198,9 +196,8 @@ BOOST_AUTO_TEST_CASE(disabled) {
 BOOST_AUTO_TEST_CASE(enabled) {
     DummyVIA via;
     via.ACR.sr_c = SR_C::IN_EC;
-    via.sr_in = 0x12;
     via.sr = 0x10;
-    BOOST_TEST(via.read(10) == 0x12);
+    BOOST_TEST(via.read(10) == 0x10);
 }
 BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE(write) 
@@ -241,15 +238,110 @@ BOOST_AUTO_TEST_CASE(t1_rep) {
     SDL_Delay(100);
     BOOST_TEST(via.outB_[7]);
 }
-/* T2-ctl is unused on MAC */
 
-BOOST_AUTO_TEST_CASE(sc) {
+BOOST_AUTO_TEST_SUITE_END()
+
+BOOST_AUTO_TEST_SUITE(IFR) 
+BOOST_AUTO_TEST_CASE(T1) {
     DummyVIA via;
-    via.write(11, 0x20);
-    via.write(8, 0x80);
-    via.write(9, 0x00);
+    via.write(11, 0);
+    via.write(4, 0);
+    via.write(5, 0x80);
     SDL_Delay(100);
-    BOOST_TEST(via.outB_[7]);
+    BOOST_TEST(via.read(13) & 0x80);
+    BOOST_TEST(via.read(13) & 0x40);
+    via.read(4);
+    BOOST_TEST(!(via.read(13) & 0x80));
+    BOOST_TEST(!(via.read(13) & 0x40));
+}
+
+
+BOOST_AUTO_TEST_CASE(T2) {
+    DummyVIA via;
+    via.write(11, 0);
+    via.write(8, 0);
+    via.write(9, 0x80);
+    SDL_Delay(100);
+    BOOST_TEST(via.read(13) & 0x80);
+    BOOST_TEST(via.read(13) & 0x20);
+    via.read(8);
+    BOOST_TEST(!(via.read(13) & 0x80));
+    BOOST_TEST(!(via.read(13) & 0x20));
+}
+
+BOOST_AUTO_TEST_CASE(CB1) {
+    DummyVIA via;
+    via.irq(VIA_IRQ::CB1);
+    BOOST_TEST(via.read(13) & 0x80);
+    BOOST_TEST(via.read(13) & 0x10);
+    via.read(0);
+    BOOST_TEST(!(via.read(13) & 0x80));
+    BOOST_TEST(!(via.read(13) & 0x10));
+}
+
+BOOST_AUTO_TEST_CASE(CB2) {
+    DummyVIA via;
+    via.irq(VIA_IRQ::CB2);
+    BOOST_TEST(via.read(13) & 0x80);
+    BOOST_TEST(via.read(13) & 0x08);
+    via.read(0);
+    BOOST_TEST(!(via.read(13) & 0x80));
+    BOOST_TEST(!(via.read(13) & 0x08));
+}
+
+BOOST_AUTO_TEST_CASE(SR) {
+    DummyVIA via;
+    via.irq(VIA_IRQ::SR);
+    BOOST_TEST(via.read(13) & 0x80);
+    BOOST_TEST(via.read(13) & 0x04);
+    via.read(10);
+    BOOST_TEST(!(via.read(13) & 0x80));
+    BOOST_TEST(!(via.read(13) & 0x04));
+}
+
+BOOST_AUTO_TEST_CASE(CA1) {
+    DummyVIA via;
+    via.irq(VIA_IRQ::CA1);
+    BOOST_TEST(via.read(13) & 0x80);
+    BOOST_TEST(via.read(13) & 0x02);
+    via.read(1);
+    BOOST_TEST(!(via.read(13) & 0x80));
+    BOOST_TEST(!(via.read(13) & 0x02));
+}
+
+BOOST_AUTO_TEST_CASE(CA2) {
+    DummyVIA via;
+    via.irq(VIA_IRQ::CA2);
+    BOOST_TEST(via.read(13) & 0x80);
+    BOOST_TEST(via.read(13) & 0x01);
+    via.read(1);
+    BOOST_TEST(!(via.read(13) & 0x80));
+    BOOST_TEST(!(via.read(13) & 0x01));
 }
 BOOST_AUTO_TEST_SUITE_END()
+
+BOOST_AUTO_TEST_SUITE(IER) 
+BOOST_DATA_TEST_CASE(SET, bdata::xrange(7), b) {
+    DummyVIA via;
+    via.write(14, 0x80 | 1 << b);
+    BOOST_TEST(via.read(14) & 0x80);
+    BOOST_TEST(via.read(14) & 1 << b);
+}
+
+
+BOOST_DATA_TEST_CASE(CLEAR, bdata::xrange(7), b) {
+    DummyVIA via;
+    via.write(14, 0xff);
+    via.write(14, 1 << b);
+    BOOST_TEST(via.read(14) & 0x80);
+    BOOST_TEST(!(via.read(14) & 1 << b));
+}
+
+BOOST_AUTO_TEST_SUITE_END()
+BOOST_AUTO_TEST_CASE(IRQ) {
+    DummyVIA via;
+    via.write(14, 0xff);
+    via.irq(VIA_IRQ::CA2);
+    BOOST_TEST( cpu.inturrupt.load() );
+}
 BOOST_AUTO_TEST_SUITE_END()

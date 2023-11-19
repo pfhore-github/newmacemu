@@ -1,17 +1,17 @@
 #ifndef INCLUDE_TEST_
 #define INCLUDE_TEST_ 1
-#include "mpfr.h"
 #include "io.hpp"
+#include "memory.hpp"
+#include "mpfr.h"
+#include "jit.hpp"
+#include <deque>
 #include <functional>
 #include <stdint.h>
 #include <string.h>
 #include <utility>
 #include <vector>
-#include <deque>
-extern std::vector<uint8_t> RAM;
 void reset_fpu();
-std::string disasm();
-
+constexpr uint32_t TEST_BREAK = 0044117;
 struct Prepare {
     Prepare();
 };
@@ -19,30 +19,18 @@ namespace TEST {
 inline void SET_FP(int n, double v) { mpfr_set_d(cpu.FP[n], v, MPFR_RNDN); }
 inline double GET_FP(int n) { return mpfr_get_d(cpu.FP[n], MPFR_RNDN); }
 
-inline uint16_t GET_W(uint32_t addr) { return RAM[addr] << 8 | RAM[addr + 1]; }
-inline uint32_t GET_L(uint32_t addr) {
-    return RAM[addr] << 24 | RAM[addr + 1] << 16 | RAM[addr + 2] << 8 |
-           RAM[addr + 3];
-}
-inline void SET_W(uint32_t addr, uint16_t v) {
-    RAM[addr] = v >> 8;
-    RAM[addr + 1] = v;
-}
-inline void SET_L(uint32_t addr, uint32_t v) {
-    RAM[addr] = v >> 24;
-    RAM[addr + 1] = v >> 16;
-    RAM[addr + 2] = v >> 8;
-    RAM[addr + 3] = v;
-}
+inline uint16_t GET_W(uint32_t addr) { return readBE16(RAM + addr); }
+inline uint32_t GET_L(uint32_t addr) {return readBE32(RAM + addr); }
+inline void SET_W(uint32_t addr, uint16_t v) { writeBE16(RAM+ addr, v); }
+inline void SET_L(uint32_t addr, uint32_t v) { writeBE32(RAM+ addr, v); }
 } // namespace TEST
 extern const double sg_v[2];
 extern const mpfr_rnd_t RND_MODES[4];
 
-int run_test();
+void run_test(uint32_t pc);
 
 void qnan_test(uint16_t op);
 void snan_test(uint16_t op);
-int GET_EXCEPTION();
 
 void test_rom(
     uint32_t from, uint32_t to,
@@ -52,7 +40,8 @@ void test_rom(
 extern std::vector<uint32_t> called;
 void called_impl();
 extern bool failure_is_exception;
-struct DummyIO_B  {
+void jit_run_test(uint32_t pc);
+struct DummyIO_B {
     std::deque<std::pair<uint32_t, uint8_t>> read_expected;
     std::deque<std::pair<uint32_t, uint8_t>> write_expected;
     uint8_t read(uint32_t addr);

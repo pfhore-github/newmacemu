@@ -6,136 +6,203 @@
 #include "exception.hpp"
 #include "io.hpp"
 #include "memory.hpp"
-uint8_t ReadBImpl(uint32_t addr, bool code = false);
-uint16_t ReadWImpl(uint32_t addr, bool code = false);
-uint32_t ReadLImpl(uint32_t addr, bool code = false);
-inline TM GetTM(bool code) {
-    return cpu.S  ? code ? TM::SYS_CODE : TM::SYS_DATA
-           : code ? TM::USER_CODE
-                  : TM::USER_DATA;
-}
-uint32_t ptest_and_raise(uint32_t addr, bool sys, bool code, bool W);
-uint8_t ReadBImpl(uint32_t addr, bool code) {
-    auto paddr = ptest_and_raise(addr, cpu.S, code, false);
-    return BusReadB(paddr);
-}
-uint8_t ReadB(uint32_t addr, bool code) {
-    try {
-        return ReadBImpl(addr, code);
-    } catch(AccessFault &) {
-        cpu.af_value.addr = addr;
-        cpu.af_value.RW = true;
-        cpu.af_value.size = SIZ::B;
-        cpu.af_value.tm = GetTM(code);
-        ACCESS_FAULT();
-        __builtin_unreachable();
-    }
+#include <expected>
+#include <optional>
+inline TM GetTMData() { return cpu.S ? TM::SYS_DATA : TM::USER_DATA; }
+inline TM GetTMCode() { return cpu.S ? TM::SYS_CODE : TM::USER_CODE; }
+std::optional<uint32_t> ptest_and_check(uint32_t addr, bool code, bool W);
+std::optional<uint8_t> ReadBImpl(uint32_t addr) {
+    auto paddr = ptest_and_check(addr, false, false);
+    return paddr.transform(BusReadB);
 }
 
-uint16_t ReadWImpl(uint32_t addr, bool code) {
-    if(addr & 1) {
-        uint16_t v1 = ReadBImpl(addr, code) << 8;
-        cpu.af_value.MA = true;
-        v1 |= ReadBImpl(addr + 1, code);
-        return v1;
-    }
-    auto paddr = ptest_and_raise(addr, cpu.S, code, false);
-    return BusReadW(paddr);
-}
-uint16_t ReadW(uint32_t addr, bool code) {
+uint8_t ReadB(uint32_t addr) {
     try {
-        return ReadWImpl(addr, code);
-    } catch(AccessFault &) {
-        cpu.af_value.addr = addr;
-        cpu.af_value.RW = true;
-        cpu.af_value.size = SIZ::W;
-        cpu.af_value.tm = GetTM(code);
-        ACCESS_FAULT();
-        __builtin_unreachable();
+        auto v = ReadBImpl(addr);
+        if(!v) {
+            goto FAULT;
+        }
+        return *v;
+    } catch(BusError &) {
+        goto FAULT;
     }
+FAULT:
+    ACCESS_FAULT(addr, SIZ::B, true, GetTMData());
 }
 
-uint32_t ReadLImpl(uint32_t addr, bool code) {
-    if(addr & 2) {
-        uint32_t v1 = ReadWImpl(addr, code) << 16;
-        cpu.af_value.MA = true;
-        v1 |= ReadWImpl(addr + 2, code);
-        return v1;
+std::optional<uint16_t> ReadWImpl(uint32_t addr) {
+    if(addr & 1) [[unlikely]] {
+        auto vx1 = ReadBImpl(addr);
+        if(!vx1) {
+            return {};
+        }
+        cpu.faultParam->MA = true;
+        auto vx2 = ReadBImpl(addr + 1);
+        if(!vx2) {
+            return {};
+        }
+        return *vx1 << 8 | *vx2;
     }
-    auto paddr = ptest_and_raise(addr, cpu.S, code, false);
-    return BusReadL(paddr);
-}
-uint32_t ReadL(uint32_t addr, bool code) {
-    try {
-        return ReadLImpl(addr, code);
-    } catch(AccessFault &) {
-        cpu.af_value.addr = addr;
-        cpu.af_value.RW = true;
-        cpu.af_value.size = SIZ::L;
-        cpu.af_value.tm = GetTM(code);
-        ACCESS_FAULT();
-        __builtin_unreachable();
-    }
+    auto paddr = ptest_and_check(addr, false, false);
+    return paddr.transform(BusReadW);
 }
 
-void WriteBImpl(uint32_t addr, uint8_t b) {
-    auto paddr = ptest_and_raise(addr, cpu.S, false, true);
-    BusWriteB(paddr, b);
+uint16_t ReadW(uint32_t addr) {
+    try {
+        auto v = ReadWImpl(addr);
+        if(!v) {
+            goto FAULT;
+        }
+        return *v;
+    } catch(BusError &) {
+        goto FAULT;
+    }
+FAULT:
+    ACCESS_FAULT(addr, SIZ::W, true, GetTMData());
 }
+
+uint16_t FetchW(uint32_t addr) {
+    try {
+        auto paddr = ptest_and_check(addr, true, false);
+        if(!paddr) {
+            goto FAULT;
+        }
+        return BusReadW(*paddr);
+    } catch(BusError &) {
+        goto FAULT;
+    }
+FAULT:
+    ACCESS_FAULT(addr, SIZ::W, true, GetTMCode());
+}
+
+uint32_t ReadL(uint32_t addr) {
+    try {
+        if(addr & 2) [[unlikely]] {
+            auto vx1 = ReadWImpl(addr);
+            if(!vx1) {
+                goto FAULT;
+            }
+            cpu.faultParam->MA = true;
+            auto vx2 = ReadWImpl(addr + 2);
+            if(!vx2) {
+                goto FAULT;
+            }
+            return *vx1 << 16 | *vx2;
+        }
+        auto paddr = ptest_and_check(addr, false, false);
+        if(!paddr) {
+            goto FAULT;
+        }
+        return BusReadL(*paddr);
+    } catch(BusError &) {
+        goto FAULT;
+    }
+FAULT:
+    ACCESS_FAULT(addr, SIZ::L, true, GetTMData());
+}
+
+static bool WriteBImpl(uint32_t addr, uint8_t b) {
+    auto paddr = ptest_and_check(addr, false, true);
+    if(paddr) {
+        BusWriteB(*paddr, b);
+        return true;
+    }
+    return false;
+}
+
 void WriteB(uint32_t addr, uint8_t b) {
     try {
-        WriteBImpl(addr, b);
-    } catch(AccessFault &) {
-        cpu.af_value.addr = addr;
-        cpu.af_value.RW = false;
-        cpu.af_value.size = SIZ::B;
-        cpu.af_value.tm = GetTM(false);
-        ACCESS_FAULT();
-        __builtin_unreachable();
+        if(!WriteBImpl(addr, b)) {
+            goto FAULT;
+        }
+        return;
+    } catch(BusError &) {
+        goto FAULT;
     }
+FAULT:
+    ACCESS_FAULT(addr, SIZ::B, false, GetTMData());
 }
 
-void WriteWImpl(uint32_t addr, uint16_t w) {
-    if(addr & 1) {
-        WriteBImpl(addr, w >> 8);
-        cpu.af_value.MA = true;
-        WriteBImpl(addr + 1, w);
-        return;
+bool WriteWImpl(uint32_t addr, uint16_t w) {
+    if(addr & 1)  [[unlikely]] {
+        if(!WriteBImpl(addr, w >> 8)) {
+            return false;
+        }
+        cpu.faultParam->MA = true;
+        return WriteBImpl(addr + 1, w);
     }
-    auto paddr = ptest_and_raise(addr, cpu.S, false, true);
-    BusWriteW(paddr, w);
+    auto paddr = ptest_and_check(addr, false, true);
+    if(paddr) {
+        BusWriteW(*paddr, w);
+        return true;
+    }
+    return false;
 }
 void WriteW(uint32_t addr, uint16_t w) {
     try {
-        WriteWImpl(addr, w);
-    } catch(AccessFault &) {
-        cpu.af_value.addr = addr;
-        cpu.af_value.RW = false;
-        cpu.af_value.size = SIZ::W;
-        cpu.af_value.tm = GetTM(false);
-        ACCESS_FAULT();
-        __builtin_unreachable();
-    }
-}
-void WriteLImpl(uint32_t addr, uint32_t l) {
-    if(addr & 2) {
-        WriteWImpl(addr, l >> 16);
-        cpu.af_value.MA = true;
-        WriteWImpl(addr + 2, l);
+        if(!WriteWImpl(addr, w)) {
+            goto FAULT;
+        }
         return;
+    } catch(BusError &) {
+        goto FAULT;
     }
-    auto paddr = ptest_and_raise(addr, cpu.S, false, true);
-    BusWriteL(paddr, l);
+FAULT:
+    ACCESS_FAULT(addr, SIZ::W, false, GetTMData());
 }
 void WriteL(uint32_t addr, uint32_t l) {
     try {
-        WriteLImpl(addr, l);
-    } catch(AccessFault &) {
-        cpu.af_value.addr = addr;
-        cpu.af_value.RW = false;
-        cpu.af_value.size = SIZ::L;
-        cpu.af_value.tm = GetTM(false);
-        ACCESS_FAULT();
-        __builtin_unreachable();
+        if(addr & 2)  [[unlikely]] {
+            if(!WriteWImpl(addr, l >> 16)) {
+                goto FAULT;
+            }
+            cpu.faultParam->MA = true;
+            if(!WriteWImpl(addr + 2, l)) {
+                goto FAULT;
+            }
+            return;
+        }
+        auto paddr = ptest_and_check(addr, false, true);
+        if(!paddr) {
+            goto FAULT;
+        }
+        BusWriteL(*paddr, l);
+        return;
+    } catch(BusError &) {
+        goto FAULT;
     }
+FAULT:
+    ACCESS_FAULT(addr, SIZ::L, false, GetTMData());
+}
+uint8_t *doBus16(uint32_t addr) ;
+void Read16(uint32_t addr, uint8_t *to) {
+    try {
+        auto paddr = ptest_and_check(addr, false, false);
+        if(!paddr) {
+            goto FAULT;
+        }
+        memcpy(to, doBus16(*paddr), 16);
+        return;
+    } catch(BusError &) {
+        goto FAULT;
+    }
+FAULT:
+    cpu.faultParam->tt = TT::MOVE16;
+    ACCESS_FAULT(addr, SIZ::LN, true, TM::USER_DATA);
+}
+
+void Write16(uint32_t addr, const uint8_t *from) {
+    try {
+        auto paddr = ptest_and_check(addr, false, true);
+        if(!paddr) {
+            goto FAULT;
+        }
+        memcpy(doBus16(*paddr), from, 16);
+        return;
+    } catch(BusError &) {
+        goto FAULT;
+    }
+FAULT:
+    cpu.faultParam->tt = TT::MOVE16;
+    ACCESS_FAULT(addr, SIZ::LN, false, TM::USER_DATA);
 }

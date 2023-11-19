@@ -2,7 +2,7 @@
 #include "bus.hpp"
 #include "exception.hpp"
 #include "memory.hpp"
-#include "proto.hpp"
+#include "inline.hpp"
 #include <memory>
 #include <utility>
 

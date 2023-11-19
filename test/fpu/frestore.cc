@@ -18,7 +18,7 @@ BOOST_AUTO_TEST_CASE(reset) {
     TEST::SET_W(0, 0171522);
     TEST::SET_L(0x1000, 0x00000000);
     mpfr_set_zero(cpu.FP[2], false);
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(cpu.PC == 2);
     BOOST_TEST(mpfr_nan_p(cpu.FP[2]));
 }
@@ -28,7 +28,7 @@ BOOST_AUTO_TEST_CASE(busy) {
     cpu.A[2] = 0x1000;
     TEST::SET_W(0, 0171522);
     TEST::SET_L(0x1000, 0x41600000);
-    BOOST_TEST(run_test() == 0);
+    run_test();
 }
 
 BOOST_AUTO_TEST_CASE(unimpl) {
@@ -36,7 +36,7 @@ BOOST_AUTO_TEST_CASE(unimpl) {
     cpu.A[2] = 0x1000;
     TEST::SET_W(0, 0171522);
     TEST::SET_L(0x1000, 0x41300000);
-    BOOST_TEST(run_test() == 0);
+    run_test();
 }
 
 BOOST_AUTO_TEST_CASE(idle) {
@@ -44,7 +44,7 @@ BOOST_AUTO_TEST_CASE(idle) {
     cpu.A[2] = 0x1000;
     TEST::SET_W(0, 0171522);
     TEST::SET_L(0x1000, 0x41000000);
-    BOOST_TEST(run_test() == 0);
+    run_test();
 }
 
 BOOST_AUTO_TEST_CASE(ferr1) {
@@ -77,7 +77,7 @@ BOOST_AUTO_TEST_CASE(reset) {
     TEST::SET_W(0, 0171532);
     TEST::SET_L(0x1000, 0x00000000);
     mpfr_set_zero(cpu.FP[2], false);
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(cpu.PC == 2);
     BOOST_TEST(cpu.A[2] == 0x1004);
     BOOST_TEST(mpfr_nan_p(cpu.FP[2]));
@@ -88,7 +88,7 @@ BOOST_AUTO_TEST_CASE(busy) {
     cpu.A[2] = 0x1000;
     TEST::SET_W(0, 0171532);
     TEST::SET_L(0x1000, 0x41600000);
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(cpu.A[2] == 0x1060);
 }
 
@@ -97,7 +97,7 @@ BOOST_AUTO_TEST_CASE(unimpl) {
     cpu.A[2] = 0x1000;
     TEST::SET_W(0, 0171532);
     TEST::SET_L(0x1000, 0x41300000);
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(cpu.A[2] == 0x1030);
 }
 
@@ -106,7 +106,7 @@ BOOST_AUTO_TEST_CASE(idle) {
     cpu.A[2] = 0x1000;
     TEST::SET_W(0, 0171532);
     TEST::SET_L(0x1000, 0x41000000);
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(cpu.A[2] == 0x1004);
 }
 

@@ -20,7 +20,7 @@ BOOST_DATA_TEST_CASE(inf, sg_v, sg) {
     TEST::SET_FP(3, copysign(INFINITY, sg));
     TEST::SET_W(0, 0171000);
     TEST::SET_W(2, 0B0001111 | 3 << 10 | 2 << 7);
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(mpfr_nan_p(cpu.FP[2]));
     BOOST_TEST(cpu.FPSR.OPERR);
     BOOST_TEST(cpu.FPSR.EXC_IOP);
@@ -30,7 +30,7 @@ BOOST_DATA_TEST_CASE(zero, sg_v, sg) {
     TEST::SET_FP(3, copysign(0.0, sg));
     TEST::SET_W(0, 0171000);
     TEST::SET_W(2, 0B0001111 | 3 << 10 | 2 << 7);
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(mpfr_zero_p(cpu.FP[2]));
     BOOST_TEST(!!mpfr_signbit(cpu.FP[2]) == !!signbit(sg));
 }
@@ -39,7 +39,7 @@ BOOST_AUTO_TEST_CASE(normal, *boost::unit_test::tolerance(1e-7)) {
     TEST::SET_FP(3, M_PI/4);
     TEST::SET_W(0, 0171000);
     TEST::SET_W(2, 0B0001111 | 3 << 10 | 2 << 7);
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(TEST::GET_FP(2) == 1.0);
 }
 

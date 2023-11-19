@@ -1,11 +1,11 @@
 #include "chip/via.hpp"
+#include "memory.hpp"
 #include "SDL.h"
 #include "SDL_timer.h"
 #include "chip/rbv.hpp"
 #include <deque>
 #include <utility>
 #include <vector>
-
 std::shared_ptr<VIA1> via1;
 std::shared_ptr<VIA2> via2;
 void do_irq(int i);
@@ -13,7 +13,6 @@ inline int64_t GetVIACounter() {
     return SDL_GetPerformanceCounter() * 1'276'600 /
            SDL_GetPerformanceFrequency();
 }
-extern bool adb_irq;
 void do_poweroff();
 VIA::~VIA() {
     SDL_RemoveTimer(timer1);
@@ -107,7 +106,6 @@ uint8_t VIA::read(uint32_t n) {
         return (timer2_cnt - (GetVIACounter() - timer2_base)) >> 8;
     case 10:
         IF[int(VIA_IRQ::SR)] = false;
-        adb_irq = false;
         return sr;
     case 11:
         return ACR.PB7_ENABLE << 7 | ACR.T1_REP << 6 | ACR.T2_CTL << 5 |
@@ -130,9 +128,7 @@ void VIA::irq(VIA_IRQ i) {
     }
 }
 
-void VIA::irq_off(VIA_IRQ i) {
-    IF[int(i)] = false;
-}
+void VIA::irq_off(VIA_IRQ i) { IF[int(i)] = false; }
 uint32_t via_timer1_callback(uint32_t, void *t) {
     auto v = static_cast<VIA *>(t);
     v->timer1_base = GetVIACounter();
@@ -260,7 +256,6 @@ bool MACHINE_CODE[2] = {
 };
 bool MACHINE_CODE2[4] = {false, false, false, true};
 // TODO
-extern bool rom_is_overlay;
 
 bool scc_wait_req() { return false; }
 bool VIA1::readPA(int n) {
@@ -284,7 +279,9 @@ bool VIA1::readPA(int n) {
 void VIA1::writePA(int n, bool v) {
     switch(n) {
     case 4:
-        //        rom_is_overlay = v;
+        if( v ) {
+            memcpy(RAM, ROM, ROMSize);
+        }
         break;
     case 1:
         appleTalkDebug = v;
@@ -300,7 +297,7 @@ bool VIA1::readPB(int n) {
     case 4:
         return adb_state[n - 4];
     case 3:
-        return adb_irq;
+        return true; /* ADB.IRQ is always true */
     case 0:
         return rtc_val;
     default:
@@ -311,22 +308,24 @@ void change_adbstate(uint8_t st);
 time_t rtc_diff = 0;
 std::deque<bool> rtc_lines;
 void transmitAdb(uint8_t adbState, uint8_t v);
-void adb_run(const std::vector<uint8_t> &b);
 void send_rtc(bool v);
 bool recv_rtc();
 uint8_t recieveAdb(uint8_t adbState);
 
 void VIA1::writePB(int n, bool v) {
     switch(n) {
-    case 5:
-    case 4: {
-        adb_state[n - 4] = v;
+    case 4:
+        adb_state[0] = v;
+        break;
+    case 5: {
+        adb_state[1] = v;
         int newstate = adb_state[1] << 1 | adb_state[0];
         if(std::exchange(old_state, newstate) != newstate) {
             if(ACR.sr_c != SR_C::DISABLED && !(int(ACR.sr_c) & 4)) {
-                sr = recieveAdb(adb_state[1] << 1 | adb_state[0]);
+                via1->recieve_sr();
+                sr = recieveAdb(newstate);
             } else {
-                transmitAdb(adb_state[1] << 1 | adb_state[0], sr);
+                transmitAdb(newstate, sr);
             }
         }
         break;
@@ -399,7 +398,6 @@ void VIA2::writePB(int n, bool v) {
     }
 }
 
-struct AccessFault {};
 uint8_t RBV::read(uint32_t n) {
     switch(n) {
     case 0:
@@ -420,7 +418,7 @@ uint8_t RBV::read(uint32_t n) {
     case 0x13:
         return 0x80 | rIER.to_ulong();
     default:
-        throw AccessFault{};
+        throw BusError{};
     }
 }
 void RBV::write(uint32_t n, uint8_t v) {
@@ -456,6 +454,6 @@ void RBV::write(uint32_t n, uint8_t v) {
         break;
     }
     default:
-        throw AccessFault{};
+        throw BusError{};
     }
 }

@@ -10,13 +10,13 @@ uint32_t MCU_ctl::read(uint32_t addr) {
         if((addr & 0xff) == 0xC0) {
             return 4;
         } else {
-            throw AccessFault{};
+            throw BusError{};
         }
     } else if(addr < 0x1800) {
         // SCSI #1
         return 0;
     } else {
-        throw AccessFault{};
+        throw BusError{};
     }
 }
 void MCU_ctl::write(uint32_t addr, uint32_t v) {

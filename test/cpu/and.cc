@@ -1,7 +1,7 @@
 #define BOOST_TEST_DYN_LINK
 #include "68040.hpp"
 #include "test.hpp"
-#include "proto.hpp"
+#include "inline.hpp"
 #include <boost/test/data/monomorphic.hpp>
 #include <boost/test/data/test_case.hpp>
 #include <boost/test/unit_test.hpp>
@@ -30,7 +30,7 @@ BOOST_AUTO_TEST_CASE(ToReg) {
     TEST::SET_W(0, 0140000 | 3 << 9 | 2);
     cpu.D[3] = 0x70;
     cpu.D[2] = 0x3F;
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(cpu.PC == 2);
     BOOST_TEST(cpu.D[3] == 0x30);
 }
@@ -40,7 +40,7 @@ BOOST_AUTO_TEST_CASE(ToMem) {
     cpu.D[3] = 0x3F;
     cpu.A[2] = 0x1000;
     RAM[0x1000] = 0x70;
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(cpu.PC == 2);
     BOOST_TEST(RAM[0x1000] == 0x30);
 }
@@ -71,7 +71,7 @@ BOOST_AUTO_TEST_CASE(ToReg) {
     TEST::SET_W(0, 0140100 | 3 << 9 | 2);
     cpu.D[3] = 0x7F7F;
     cpu.D[2] = 0x3080;
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(cpu.PC == 2);
     BOOST_TEST(cpu.D[3] == 0x3000);
 }
@@ -81,7 +81,7 @@ BOOST_AUTO_TEST_CASE(ToMem) {
     cpu.D[3] = 0x3FFF;
     TEST::SET_W(0x1000, 0x7000);
     cpu.A[2] = 0x1000;
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(cpu.PC == 2);
     BOOST_TEST(TEST::GET_W(0x1000) == 0x3000);
 }
@@ -111,7 +111,7 @@ BOOST_AUTO_TEST_CASE(ToReg) {
     TEST::SET_W(0, 0140200 | 3 << 9 | 2);
     cpu.D[3] = 0x7FFFFFFF;
     cpu.D[2] = 0x30000000;
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(cpu.PC == 2);
     BOOST_TEST(cpu.D[3] == 0x30000000);
 }
@@ -122,7 +122,7 @@ BOOST_AUTO_TEST_CASE(ToMem) {
     cpu.D[3] = 0x3FFFFFFF;
     TEST::SET_L(0x1000, 0x70000000);
     cpu.A[2] = 0x1000;
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(cpu.PC == 2);
     BOOST_TEST(TEST::GET_L(0x1000) == 0x30000000);
 }

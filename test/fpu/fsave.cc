@@ -16,7 +16,7 @@ BOOST_AUTO_TEST_CASE(normal) {
     cpu.S = true;
     cpu.A[2] = 0x1000;
     TEST::SET_W(0, 0171422);
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(cpu.PC == 2);
      BOOST_TEST(TEST::GET_L(0x1000) == 0x41000000);
 }

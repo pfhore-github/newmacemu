@@ -34,7 +34,7 @@ struct BadIO : public IO_BUS {
     void Write8(uint32_t, uint8_t) {}
 };
 struct BadIO2 : public IO_BUS {
-    uint8_t Read8(uint32_t) { throw AccessFault{}; }
+    uint8_t Read8(uint32_t) { throw BusError{}; }
     void Write8(uint32_t, uint8_t) {}
 };
 struct BadIO3 : public IO_BUS {
@@ -44,7 +44,7 @@ struct BadIO3 : public IO_BUS {
         case 19:
             return rbv.read(addr & 0xff);
         }
-        throw AccessFault{};
+        throw BusError{};
     }
     void Write8(uint32_t, uint8_t) {}
 };
@@ -373,7 +373,7 @@ BOOST_AUTO_TEST_CASE(success) {
     BOOST_TEST(cpu.Z);
 }
 struct BadVIA : public IO_BUS {
-    uint8_t Read8(uint32_t) { throw AccessFault{}; }
+    uint8_t Read8(uint32_t) { throw BusError{}; }
     void Write8(uint32_t, uint8_t) {}
 };
 BOOST_AUTO_TEST_CASE(fail1) {

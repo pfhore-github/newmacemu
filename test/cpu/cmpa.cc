@@ -10,7 +10,7 @@ BOOST_AUTO_TEST_CASE(Word) {
     TEST::SET_W(0, 0130300 | 3 << 9 | 2);
     cpu.A[3] = 0xfffffffe;
     cpu.D[2] = 0xfffe;
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(cpu.PC == 2);
     BOOST_TEST(cpu.Z);
 }
@@ -19,7 +19,7 @@ BOOST_AUTO_TEST_CASE(Long) {
     TEST::SET_W(0, 0130700 | 3 << 9 | 2);
     cpu.A[3] = -2;
     cpu.D[2] = -2;
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(cpu.PC == 2);
     BOOST_TEST(cpu.Z);
 }

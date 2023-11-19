@@ -91,7 +91,8 @@ BOOST_AUTO_TEST_CASE(traced) {
     cpu.A[2] = (1 << 13 | 2 << 6 | 3) << 12;
     cpu.DFC = 1;
     TEST::SET_W(0, 0172552);
-    BOOST_TEST(run_test() == 9);
+    un_test(0);
+	BOOST_TEST(cpu.ex_n == 9 );
 }
 BOOST_AUTO_TEST_CASE(user_data) {
     cpu.TCR_E = true;
@@ -103,7 +104,7 @@ BOOST_AUTO_TEST_CASE(user_data) {
     cpu.A[2] = (1 << 13 | 2 << 6 | 3) << 12;
     cpu.DFC = 1;
     TEST::SET_W(0, 0172552);
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(cpu.PC == 2);
     BOOST_TEST(cpu.MMUSR == 0x4001);
 }
@@ -118,7 +119,7 @@ BOOST_AUTO_TEST_CASE(user_code) {
     cpu.A[2] = (1 << 13 | 2 << 6 | 3) << 12;
     cpu.DFC = 2;
     TEST::SET_W(0, 0172552);
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(cpu.MMUSR == 0x4001);
 }
 
@@ -132,7 +133,7 @@ BOOST_AUTO_TEST_CASE(sys_data) {
     cpu.A[2] = (1 << 13 | 2 << 6 | 3) << 12;
     cpu.DFC = 5;
     TEST::SET_W(0, 0172552);
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(cpu.MMUSR == 0x4001);
 }
 
@@ -146,7 +147,7 @@ BOOST_AUTO_TEST_CASE(sys_code) {
     cpu.A[2] = (1 << 13 | 2 << 6 | 3) << 12;
     cpu.DFC = 6;
     TEST::SET_W(0, 0172552);
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(cpu.MMUSR == 0x4001);
 }
 
@@ -177,7 +178,8 @@ BOOST_AUTO_TEST_CASE(traced) {
     cpu.A[2] = (1 << 13 | 2 << 6 | 3) << 12;
     cpu.DFC = 1;
     TEST::SET_W(0, 0172512);
-    BOOST_TEST(run_test() == 9);
+    un_test(0);
+	BOOST_TEST(cpu.ex_n == 9 );
 }
 
 BOOST_AUTO_TEST_CASE(user_data) {
@@ -190,7 +192,7 @@ BOOST_AUTO_TEST_CASE(user_data) {
     cpu.A[2] = (1 << 13 | 2 << 6 | 3) << 12;
     cpu.DFC = 1;
     TEST::SET_W(0, 0172512);
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(cpu.PC == 2);
     BOOST_TEST(cpu.MMUSR == (0x4001 | 1 << 4));
 }
@@ -205,7 +207,7 @@ BOOST_AUTO_TEST_CASE(user_code) {
     cpu.A[2] = (1 << 13 | 2 << 6 | 3) << 12;
     cpu.DFC = 2;
     TEST::SET_W(0, 0172512);
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(cpu.MMUSR == (0x4001 | 1 << 4));
 }
 
@@ -219,7 +221,7 @@ BOOST_AUTO_TEST_CASE(sys_data) {
     cpu.A[2] = (1 << 13 | 2 << 6 | 3) << 12;
     cpu.DFC = 5;
     TEST::SET_W(0, 0172512);
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(cpu.MMUSR == (0x4001 | 1 << 4));
 }
 
@@ -233,7 +235,7 @@ BOOST_AUTO_TEST_CASE(sys_code) {
     cpu.A[2] = (1 << 13 | 2 << 6 | 3) << 12;
     cpu.DFC = 6;
     TEST::SET_W(0, 0172512);
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(cpu.MMUSR == (0x4001 | 1 << 4));
 }
 

@@ -1,7 +1,7 @@
 #define BOOST_TEST_DYN_LINK
 #include "68040.hpp"
 #include "test.hpp"
-#include "proto.hpp"
+#include "inline.hpp"
 #include <boost/test/data/monomorphic.hpp>
 #include <boost/test/data/test_case.hpp>
 #include <boost/test/unit_test.hpp>
@@ -29,7 +29,7 @@ BOOST_AUTO_TEST_CASE(both_imm) {
     TEST::SET_W(0, 0167300|  2 );
     TEST::SET_W(2, 8 << 6 | 4 );
     cpu.D[2] = 0x12345678;
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(cpu.PC == 4);
     BOOST_TEST(cpu.D[2] == 0x12F45678);
 }
@@ -40,7 +40,7 @@ BOOST_AUTO_TEST_CASE(off_r) {
     TEST::SET_W(2, 1 << 11 | 3 << 6 | 4 );
     cpu.D[2] = 0x12345678;
     cpu.D[3] = 8;
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(cpu.D[2] == 0x12F45678);
 }
 
@@ -49,7 +49,7 @@ BOOST_AUTO_TEST_CASE(width_r) {
     TEST::SET_W(2, 1 << 5 | 8 << 6 | 3 );
     cpu.D[2] = 0x12345678;
     cpu.D[3] = 4;
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(cpu.D[2] == 0x12F45678);
 }
 
@@ -60,7 +60,7 @@ BOOST_AUTO_TEST_CASE(both_r) {
     cpu.D[2] = 0x12345678;
     cpu.D[3] = 8;
     cpu.D[5] = 4;
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(cpu.D[2] == 0x12F45678);
 }
 BOOST_AUTO_TEST_SUITE_END()
@@ -114,7 +114,7 @@ BOOST_AUTO_TEST_CASE(both_imm) {
     cpu.A[2] = 0x1000;
     TEST::SET_W(2, 8 << 6 | 4);
     TEST::SET_L(0x1000, 0x12345678);
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(cpu.PC == 4);
     BOOST_TEST(TEST::GET_L(0x1000) == 0x12F45678);
 }
@@ -126,7 +126,7 @@ BOOST_AUTO_TEST_CASE(off_r) {
     cpu.A[2] = 0x1000;
     TEST::SET_L(0x1000, 0x12345678);
     cpu.D[3] = 8;
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(TEST::GET_L(0x1000) == 0x12F45678);
 }
 
@@ -136,7 +136,7 @@ BOOST_AUTO_TEST_CASE(width_r) {
     cpu.A[2] = 0x1000;
     TEST::SET_L(0x1000, 0x12345678);
     cpu.D[3] = 4;
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(TEST::GET_L(0x1000) == 0x12F45678);
 }
 
@@ -147,7 +147,7 @@ BOOST_AUTO_TEST_CASE(both_r) {
     TEST::SET_L(0x1000, 0x12345678);
     cpu.D[3] = 8;
     cpu.D[5] = 4;
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(TEST::GET_L(0x1000) == 0x12F45678);
 }
 

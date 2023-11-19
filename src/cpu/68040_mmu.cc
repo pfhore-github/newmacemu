@@ -1,7 +1,8 @@
 #include "68040.hpp"
 #include "exception.hpp"
 #include "memory.hpp"
-#include "proto.hpp"
+#include "inline.hpp"
+#include <optional>
 
 struct addr_e {
     addr_e(uint32_t v, bool large)
@@ -18,7 +19,6 @@ constexpr uint32_t DESP_U = 1 << 3;
 constexpr uint32_t DESP_M = 1 << 4;
 constexpr uint32_t DESP_S = 1 << 7;
 constexpr uint32_t DESP_G = 1 << 10;
-
 
 uint32_t Get_TTR_t(const Cpu::TTR_t &x) {
     return x.logic_base << 24 | x.logic_mask << 16 | x.E << 15 | x.S << 13 |
@@ -97,7 +97,7 @@ atc_set(uint32_t addr, uint32_t pg_addr, bool W, bool wp, bool s) {
     e.M = pg & DESP_M;
     e.W = wp;
     e.R = true;
-    
+
     if(pg & DESP_G) {
         return cpu.g_atc[s].insert_or_assign(addr, e).first;
     } else {
@@ -162,12 +162,12 @@ mmu_result ptest(uint32_t addr, bool sys, bool code, bool W) {
 ATC_SEARCH:
     try {
         atc_found = atc_search(addr, sys, W);
-    } catch(AccessFault &) {
+    } catch(BusError &) {
         return {.B = true};
     }
 FOUND: {
     auto &entry = atc_found->second;
-    if(W && !entry.W && !entry.M && !(entry.S && !sys)) {
+    if(entry.R && W && !entry.W && !entry.M && !(entry.S && !sys)) {
         cpu.l_atc[sys].erase(addr);
         cpu.g_atc[sys].erase(addr);
         goto ATC_SEARCH;
@@ -179,31 +179,29 @@ FOUND: {
     re.S = entry.S;
     re.Ux = entry.U;
     re.G = G;
-    re.paddr = entry.paddr;    
+    re.paddr = entry.paddr;
     return re;
 }
 }
-[[noreturn]] void ATC_Fault() {
-    cpu.af_value.ATC = true;
-    throw AccessFault{};
-}
-uint32_t ptest_and_raise(uint32_t addr, bool sys, bool code, bool W) {
-    auto ret = ptest(addr >> 12, sys, code, W);
+std::optional<uint32_t> ptest_and_check(uint32_t addr, bool code, bool W) {
+    auto ret = ptest(addr >> 12, cpu.S, code, W);
+    uint32_t base = ret.paddr << 12;
     if(ret.B) {
-        ATC_Fault();
+        goto FAIL;
     }
     if(!ret.R) {
-        ATC_Fault();
+        goto FAIL;
     }
     if(ret.W && W) {
-        ATC_Fault();
+        goto FAIL;
     }
-    if(ret.S && !sys) {
-        ATC_Fault();
+    if(ret.S && !cpu.S) {
+        goto FAIL;
     }
-    uint32_t base = ret.paddr << 12;
-    return cpu.TCR_P ? (base &~ 1) | (addr & 0x1fff)
-    : base | (addr & 0xfff);
+    return cpu.TCR_P ? (base & ~1) | (addr & 0x1fff) : base | (addr & 0xfff);
+FAIL:
+    cpu.faultParam->ATC = true;
+    return {};
 }
 
 static uint32_t page_size() { return cpu.TCR_P ? 0x2000 : 0x100; }
@@ -275,123 +273,123 @@ void cpusha_i() {
 }
 
 namespace OP {
-void cinvl_dc(uint16_t, int, int, int reg) {
+void cinvl_dc(uint16_t op) {
     PRIV_CHECK();
-    cinvl_d(cpu.A[reg]);
+    cinvl_d(cpu.A[REG(op)]);
     TRACE_BRANCH();
 }
 
-void cinvp_dc(uint16_t, int, int, int reg) {
+void cinvp_dc(uint16_t op) {
     PRIV_CHECK();
-    cinvp_d(cpu.A[reg]);
+    cinvp_d(cpu.A[REG(op)]);
     TRACE_BRANCH();
 }
 
-void cinva_dc(uint16_t, int, int, int) {
+void cinva_dc(uint16_t) {
     PRIV_CHECK();
     cinva_d();
     TRACE_BRANCH();
 }
 
-void cpushl_dc(uint16_t, int, int, int reg) {
+void cpushl_dc(uint16_t op) {
     PRIV_CHECK();
-    cpushl_d(cpu.A[reg]);
+    cpushl_d(cpu.A[REG(op)]);
     TRACE_BRANCH();
 }
 
-void cpushp_dc(uint16_t, int, int, int reg) {
+void cpushp_dc(uint16_t op) {
     PRIV_CHECK();
-    cpushp_d(cpu.A[reg]);
+    cpushp_d(cpu.A[REG(op)]);
     TRACE_BRANCH();
 }
 
-void cpusha_dc(uint16_t, int, int, int) {
+void cpusha_dc(uint16_t) {
     PRIV_CHECK();
     cpusha_d();
     TRACE_BRANCH();
 }
 
-void cinvl_ic(uint16_t, int, int, int reg) {
+void cinvl_ic(uint16_t op) {
     PRIV_CHECK();
-    cinvl_i(cpu.A[reg]);
+    cinvl_i(cpu.A[REG(op)]);
     TRACE_BRANCH();
 }
 
-void cinvp_ic(uint16_t, int, int, int reg) {
+void cinvp_ic(uint16_t op) {
     PRIV_CHECK();
-    cinvp_i(cpu.A[reg]);
+    cinvp_i(cpu.A[REG(op)]);
     TRACE_BRANCH();
 }
 
-void cinva_ic(uint16_t, int, int, int) {
+void cinva_ic(uint16_t) {
     PRIV_CHECK();
     cinva_i();
     TRACE_BRANCH();
 }
 
-void cpushl_ic(uint16_t, int, int, int reg) {
+void cpushl_ic(uint16_t op) {
     PRIV_CHECK();
-    cpushl_i(cpu.A[reg]);
+    cpushl_i(cpu.A[REG(op)]);
     TRACE_BRANCH();
 }
 
-void cpushp_ic(uint16_t, int, int, int reg) {
+void cpushp_ic(uint16_t op) {
     PRIV_CHECK();
-    cpushp_i(cpu.A[reg]);
+    cpushp_i(cpu.A[REG(op)]);
     TRACE_BRANCH();
 }
 
-void cpusha_ic(uint16_t, int, int, int) {
+void cpusha_ic(uint16_t) {
     PRIV_CHECK();
     cpusha_i();
     TRACE_BRANCH();
 }
 
-void cinvl_bc(uint16_t, int, int, int reg) {
+void cinvl_bc(uint16_t op) {
     PRIV_CHECK();
-    cinvl_d(cpu.A[reg]);
-    cinvl_i(cpu.A[reg]);
+    cinvl_d(cpu.A[REG(op)]);
+    cinvl_i(cpu.A[REG(op)]);
     TRACE_BRANCH();
 }
 
-void cinvp_bc(uint16_t, int, int, int reg) {
+void cinvp_bc(uint16_t op) {
     PRIV_CHECK();
-    cinvp_d(cpu.A[reg]);
-    cinvp_i(cpu.A[reg]);
+    cinvp_d(cpu.A[REG(op)]);
+    cinvp_i(cpu.A[REG(op)]);
     TRACE_BRANCH();
 }
 
-void cinva_bc(uint16_t, int, int, int) {
+void cinva_bc(uint16_t) {
     PRIV_CHECK();
     cinva_d();
     cinva_i();
     TRACE_BRANCH();
 }
 
-void cpushl_bc(uint16_t, int, int, int reg) {
+void cpushl_bc(uint16_t op) {
     PRIV_CHECK();
-    cpushl_d(cpu.A[reg]);
-    cpushl_i(cpu.A[reg]);
+    cpushl_d(cpu.A[REG(op)]);
+    cpushl_i(cpu.A[REG(op)]);
     TRACE_BRANCH();
 }
 
-void cpushp_bc(uint16_t, int, int, int reg) {
+void cpushp_bc(uint16_t op) {
     PRIV_CHECK();
-    cpushp_d(cpu.A[reg]);
-    cpushp_i(cpu.A[reg]);
+    cpushp_d(cpu.A[REG(op)]);
+    cpushp_i(cpu.A[REG(op)]);
     TRACE_BRANCH();
 }
 
-void cpusha_bc(uint16_t, int, int, int) {
+void cpusha_bc(uint16_t) {
     PRIV_CHECK();
     cpusha_d();
     cpusha_i();
     TRACE_BRANCH();
 }
 
-void pflushn(uint16_t, int, int, int reg) {
+void pflushn(uint16_t op) {
     PRIV_CHECK();
-    uint32_t addr = cpu.A[reg] >> 12;
+    uint32_t addr = cpu.A[REG(op)] >> 12;
     if(cpu.DFC == 1 || cpu.DFC == 2) {
         cpu.l_atc[0].erase(addr);
     } else if(cpu.DFC == 5 || cpu.DFC == 6) {
@@ -400,9 +398,9 @@ void pflushn(uint16_t, int, int, int reg) {
     TRACE_BRANCH();
 }
 
-void pflush(uint16_t, int, int, int reg) {
+void pflush(uint16_t op) {
     PRIV_CHECK();
-    uint32_t addr = cpu.A[reg] >> 12;
+    uint32_t addr = cpu.A[REG(op)] >> 12;
     if(cpu.DFC == 1 || cpu.DFC == 2) {
         cpu.l_atc[0].erase(addr);
         cpu.g_atc[0].erase(addr);
@@ -413,7 +411,7 @@ void pflush(uint16_t, int, int, int reg) {
     TRACE_BRANCH();
 }
 
-void pflushan(uint16_t, int, int, int) {
+void pflushan(uint16_t) {
     PRIV_CHECK();
     if(cpu.DFC == 1 || cpu.DFC == 2) {
         cpu.l_atc[0].clear();
@@ -423,7 +421,7 @@ void pflushan(uint16_t, int, int, int) {
     TRACE_BRANCH();
 }
 
-void pflusha(uint16_t, int, int, int) {
+void pflusha(uint16_t) {
     PRIV_CHECK();
     if(cpu.DFC == 1 || cpu.DFC == 2) {
         cpu.l_atc[0].clear();
@@ -435,15 +433,15 @@ void pflusha(uint16_t, int, int, int) {
     TRACE_BRANCH();
 }
 
-void ptestr(uint16_t, int, int, int reg) {
+void ptestr(uint16_t op) {
     PRIV_CHECK();
-    op_ptest(cpu.A[reg], false);
+    op_ptest(cpu.A[REG(op)], false);
     TRACE_BRANCH();
 }
 
-void ptestw(uint16_t, int, int, int reg) {
+void ptestw(uint16_t op) {
     PRIV_CHECK();
-    op_ptest(cpu.A[reg], true);
+    op_ptest(cpu.A[REG(op)], true);
     TRACE_BRANCH();
 }
 
@@ -630,7 +628,7 @@ bool movec_to_cr_impl(uint16_t extw, uint32_t v) {
     return true;
 }
 namespace OP {
-void movec_from_cr(uint16_t, int, int, int) {
+void movec_from_cr(uint16_t) {
     PRIV_CHECK();
     uint16_t extw = FETCH();
     int rn = extw >> 12 & 15;
@@ -639,7 +637,7 @@ void movec_from_cr(uint16_t, int, int, int) {
     }
     TRACE_BRANCH();
 }
-void movec_to_cr(uint16_t, int, int, int) {
+void movec_to_cr(uint16_t) {
     PRIV_CHECK();
     uint16_t extw = FETCH();
     int rn = extw >> 12 & 15;

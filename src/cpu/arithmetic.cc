@@ -2,7 +2,7 @@
 #include "bus.hpp"
 #include "exception.hpp"
 #include "memory.hpp"
-#include "proto.hpp"
+#include "inline.hpp"
 #include <memory>
 #include <utility>
 
@@ -196,7 +196,7 @@ std::tuple<int32_t, int32_t> DIVS_LL(int64_t a, int32_t b) {
     cpu.V = q > std::numeric_limits<int32_t>::max() ||
             q < std::numeric_limits<int32_t>::min();
     TEST_L(q);
-    return {static_cast<uint32_t>(q), r};
+    return {static_cast<int32_t>(q), r};
 }
 
 std::tuple<uint32_t, uint32_t> DIVU_L(uint32_t a, uint32_t b) {

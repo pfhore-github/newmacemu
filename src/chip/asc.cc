@@ -29,15 +29,12 @@ void ASC_CH::reset() {
     memset(FIFO, 0, 0x400);
     FIFO_READP = 0;
     FIFO_WRITEP = 0;
-    left_vol = 0;
-    right_vol = 0;
     FIFO_SIZE = 0;
     FIFO_PLAYP = 0;
     fifo_half.store(false);
     fifo_full.store(false);
     xa_last[0] = xa_last[1] = 0;
-    chStream =
-        SDL_NewAudioStream(AUDIO_S8, 2, 44100, AUDIO_S16SYS, 2, DEFAULT_FREQ);
+    SDL_AudioStreamClear(chStream);
 }
 void ASC_CH::fifo_write(uint8_t v) {
     FIFO[FIFO_WRITEP] = v ^ 0x80;
@@ -53,7 +50,6 @@ void ASC_CH::fifo_write(uint8_t v) {
         fifo_full.store(true);
         via2->irq(VIA_IRQ::CB1);
         SDL_AudioStreamPut(chStream, FIFO, 0x400);
-//        SDL_AudioStreamFlush(chStream);
     }
 }
 
@@ -99,7 +95,7 @@ ASC::ASC() {
     speakerSpec.freq = DEFAULT_FREQ;
     speakerSpec.format = AUDIO_S16SYS;
     speakerSpec.channels = 2;
-    speakerSpec.samples = 0x100;
+    speakerSpec.samples = 0x200;
     speakerSpec.callback = do_fifo;
     speakerSpec.userdata = this;
 
@@ -200,7 +196,6 @@ uint8_t ASC::read(uint32_t addr) {
     }
     return 0;
 }
-void IRQ(int i);
 
 void ASC_CH::write_reg(int t, uint8_t v) {
     switch(t) {
@@ -303,14 +298,14 @@ void ASC::fifo_play(uint8_t *dstp, int len) {
 
     std::vector<int16_t> v1(ln), v2(ln);
     SDL_AudioStreamGet(chA.chStream, v1.data(), v1.size() * 2);
-    if(SDL_AudioStreamAvailable(chA.chStream) < 0x200) {
+    if(SDL_AudioStreamAvailable(chA.chStream) < 0x400) {
         chA.fifo_half.store(true);
         if(chA.IRQ_CTL) {
             via2->irq(VIA_IRQ::CB1);
         }
     }
     SDL_AudioStreamGet(chB.chStream, v2.data(), v2.size() * 2);
-    if(SDL_AudioStreamAvailable(chB.chStream) < 0x200) {
+    if(SDL_AudioStreamAvailable(chB.chStream) < 0x400) {
         chB.fifo_half.store(true);
         if(chB.IRQ_CTL) {
             via2->irq(VIA_IRQ::CB1);
@@ -322,10 +317,9 @@ void ASC::fifo_play(uint8_t *dstp, int len) {
         int16_t chb_v = v2[i];
         int32_t left = cha_v * chA.left_vol + chb_v * chB.left_vol;
         int32_t right = cha_v * chA.right_vol + chb_v * chB.right_vol;
-        *p++ = left / 256;
-        *p++ = right / 256;
+        *p++ = std::clamp(left * volume / 65536, -32768, 32767);
+        *p++ = std::clamp(right * volume / 65536, -32768, 32767);
     }
-    SDL_MixAudioFormat(dstp, dstp, AUDIO_S16SYS, len, volume);
 }
 
 void ASC::write(uint32_t addr, uint8_t v) {
@@ -342,9 +336,13 @@ void ASC::write(uint32_t addr, uint8_t v) {
             chB.FIFO[addr & 0x3ff] = v;
         }
     } else if((addr & 0xF30) == 0xF00) {
+        SDL_LockAudioDevice(speaker);
         chA.write_reg(addr & 0x1F, v);
+        SDL_UnlockAudioDevice(speaker);
     } else if((addr & 0xF30) == 0xF20) {
+        SDL_LockAudioDevice(speaker);
         chB.write_reg(addr & 0x1F, v);
+        SDL_UnlockAudioDevice(speaker);
     } else {
         switch(addr & 0x3f) {
         case 1:

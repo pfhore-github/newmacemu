@@ -15,7 +15,7 @@ BOOST_AUTO_TEST_CASE(reg2reg) {
     TEST::SET_L(0x404, 0x89ABCDEF);
     TEST::SET_L(0x408, 0xFEDCBA98);
     TEST::SET_L(0x40C, 0x76543210);
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(cpu.PC == 4);
     BOOST_TEST(cpu.A[3] == 0x417);
     BOOST_TEST(cpu.A[2] == 0x613);
@@ -33,7 +33,7 @@ BOOST_AUTO_TEST_CASE(imm2reg) {
     TEST::SET_L(0x404, 0x89ABCDEF);
     TEST::SET_L(0x408, 0xFEDCBA98);
     TEST::SET_L(0x40C, 0x76543210);
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(cpu.PC == 6);
     BOOST_TEST(cpu.A[2] == 0x607);
     BOOST_TEST(TEST::GET_L(0x600) == 0x01234567);
@@ -51,7 +51,7 @@ BOOST_AUTO_TEST_CASE(imm2incr) {
     TEST::SET_L(0x404, 0x89ABCDEF);
     TEST::SET_L(0x408, 0xFEDCBA98);
     TEST::SET_L(0x40C, 0x76543210);
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(cpu.A[2] == 0x617);
     BOOST_TEST(TEST::GET_L(0x600) == 0x01234567);
     BOOST_TEST(TEST::GET_L(0x604) == 0x89ABCDEF);
@@ -68,7 +68,7 @@ BOOST_AUTO_TEST_CASE(reg2imm) {
     TEST::SET_L(0x404, 0x89ABCDEF);
     TEST::SET_L(0x408, 0xFEDCBA98);
     TEST::SET_L(0x40C, 0x76543210);
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(cpu.PC == 6);
     BOOST_TEST(cpu.A[2] == 0x407);
     BOOST_TEST(TEST::GET_L(0x600) == 0x01234567);
@@ -86,7 +86,7 @@ BOOST_AUTO_TEST_CASE(incr2imm) {
     TEST::SET_L(0x404, 0x89ABCDEF);
     TEST::SET_L(0x408, 0xFEDCBA98);
     TEST::SET_L(0x40C, 0x76543210);
-    BOOST_TEST(run_test() == 0);
+    run_test();
     BOOST_TEST(cpu.PC == 6);
     BOOST_TEST(cpu.A[2] == 0x417);
     BOOST_TEST(TEST::GET_L(0x600) == 0x01234567);

@@ -222,7 +222,7 @@ BOOST_AUTO_TEST_CASE(MUpdate) {
     TEST::SET_L(0x2008, 0x3002);
     TEST::SET_L(0x300C, 0x4002 | 2 << 5 | 1 << 8);
     uint32_t vaddr = 1 << 13 | 2 << 6 | 3;
-    cpu.l_atc[0][vaddr] = {
+    cpu.g_atc[0][vaddr] = {
         .paddr = 0,
         .U = 0,
         .S = false,
@@ -232,8 +232,8 @@ BOOST_AUTO_TEST_CASE(MUpdate) {
         .R = true,
     };
     ptest(vaddr, false, false, true);
-    auto found = cpu.l_atc[0].find(vaddr);
-    BOOST_REQUIRE(!!(found != cpu.l_atc[0].end()));
+    auto found = cpu.g_atc[0].find(vaddr);
+    BOOST_REQUIRE(!!(found != cpu.g_atc[0].end()));
     BOOST_TEST(found->second.M);
 }
 BOOST_AUTO_TEST_SUITE_END()

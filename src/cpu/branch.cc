@@ -2,7 +2,7 @@
 #include "bus.hpp"
 #include "exception.hpp"
 #include "memory.hpp"
-#include "proto.hpp"
+#include "inline.hpp"
 #include <memory>
 #include <utility>
 void do_bra(int32_t ix) {

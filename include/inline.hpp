@@ -6,7 +6,11 @@
 #include <limits>
 #include <stdint.h>
 inline void PUSH16(uint16_t v) { WriteW(cpu.A[7] -= 2, v); }
-inline void PUSH32(uint32_t v) { WriteL(cpu.A[7] -= 4, v); }
+inline void PUSH32(uint32_t v) {
+    WriteW(cpu.A[7] - 2, v );
+    WriteW(cpu.A[7] - 4, v >> 16);
+    cpu.A[7] -= 4;
+}
 inline uint16_t POP16() {
     uint16_t v = ReadW(cpu.A[7]);
     cpu.A[7] += 2;
@@ -19,50 +23,16 @@ inline void JUMP(uint32_t next) {
     cpu.PC = next;
 }
 inline uint16_t POP32() {
-    uint32_t v = ReadL(cpu.A[7]);
+    uint32_t v = ReadW(cpu.A[7]) << 16 | ReadW(cpu.A[7] +2);
     cpu.A[7] += 4;
     return v;
 }
-inline uint8_t GetCCR() {
-    return cpu.X << 4 | cpu.N << 3 | cpu.Z << 2 | cpu.V << 1 | cpu.C;
-}
-inline void SetCCR(uint8_t v) {
-    cpu.X = v >> 4 & 1;
-    cpu.N = v >> 3 & 1;
-    cpu.Z = v >> 2 & 1;
-    cpu.V = v >> 1 & 1;
-    cpu.C = v & 1;
-}
-inline uint16_t GetSR() {
-    return GetCCR() | cpu.I << 8 | cpu.M << 12 | cpu.S << 13 | cpu.T << 14;
-}
-inline void SaveSP() {
-    if(cpu.S)
-        if(cpu.M)
-            cpu.MSP = cpu.A[7];
-        else
-            cpu.ISP = cpu.A[7];
-    else
-        cpu.USP = cpu.A[7];
-}
-inline void LoadSP() {
-    if(cpu.S)
-        if(cpu.M)
-            cpu.A[7] = cpu.MSP;
-        else
-            cpu.A[7] = cpu.ISP;
-    else
-        cpu.A[7] = cpu.USP;
-}
-inline void SetSR(uint16_t v) {
-    SaveSP();
-    SetCCR(v);
-    cpu.I = v >> 8 & 7;
-    cpu.M = v >> 12 & 1;
-    cpu.S = v >> 13 & 1;
-    cpu.T = v >> 14 & 3;
-    LoadSP();
-}
+uint8_t GetCCR();
+void SetCCR(uint8_t v);
+uint16_t GetSR();
+void SaveSP();
+void LoadSP();
+void SetSR(uint16_t v);
 
 inline void TEST_B(int8_t v) {
     cpu.N = v < 0;
@@ -85,6 +55,10 @@ inline void TRACE_BRANCH() {
 inline void STORE_B(uint32_t &v, uint8_t b) { v = (v & 0xffffff00) | b; }
 inline void STORE_W(uint32_t &v, uint16_t w) { v = (v & 0xffff0000) | w; }
 inline void STORE_L(uint32_t &v, uint32_t l) { v = l; }
+inline int DN(uint16_t op) { return op >> 9 & 7; }
+inline int TYPE(uint16_t op) { return op >> 3 & 7; }
+inline int REG(uint16_t op) { return op & 7; }
+
 uint8_t AND_B(uint8_t a, uint8_t b);
 uint16_t AND_W(uint16_t a, uint16_t b);
 uint32_t AND_L(uint32_t a, uint32_t b);

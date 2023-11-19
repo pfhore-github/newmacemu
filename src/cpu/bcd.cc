@@ -2,11 +2,11 @@
 #include "bus.hpp"
 #include "exception.hpp"
 #include "memory.hpp"
-#include "proto.hpp"
+#include "inline.hpp"
 #include <memory>
 #include <utility>
-static int BCD2BIN(uint8_t v) { return (v >> 4) * 10 + (v & 0xf); }
-static uint8_t BIN2BCD(int v) { return (v / 10) << 4 | (v % 10); }
+static uint8_t BCD2BIN(uint8_t v) { return (v >> 4) * 10 + (v & 0xf); }
+static uint8_t BIN2BCD(uint8_t v) { return (v / 10) << 4 | (v % 10); }
 
 uint8_t do_abcd(uint8_t v1, uint8_t v2, bool old_x) {
     int d = BCD2BIN(v1);

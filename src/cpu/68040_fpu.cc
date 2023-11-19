@@ -4,7 +4,7 @@
 #include "gmp.h"
 #include "memory.hpp"
 #include "mpfr.h"
-#include "proto.hpp"
+#include "inline.hpp"
 #include <memory>
 #include <string.h>
 #include <utility>
@@ -242,7 +242,7 @@ void load_fpP(uint32_t addr) {
     cpu.FPSR.INEX1 = (cpu.fp_tmp_tv != 0);
 }
 
-static uint16_t Get_FPCR() {
+uint16_t Get_FPCR() {
     uint16_t v = 0;
     switch(cpu.FPCR.RND) {
     case MPFR_RNDN:
@@ -278,10 +278,6 @@ static uint16_t Get_FPCR() {
            cpu.FPCR.S_NAN << 14 | cpu.FPCR.BSUN << 15;
 }
 
-#if 0
-
-#endif
-
 static mpfr_rnd_t MPFR_RNDs[] = {MPFR_RNDN, MPFR_RNDZ, MPFR_RNDD, MPFR_RNDU};
 static FPU_PREC MPFR_PRECs[] = {FPU_PREC::X, FPU_PREC::S, FPU_PREC::D,
                                 FPU_PREC::X};
@@ -297,7 +293,7 @@ static void Set_FPCR(uint16_t v) {
     cpu.FPCR.S_NAN = v & 1 << 14;
     cpu.FPCR.BSUN = v & 1 << 15;
 }
-static uint32_t Get_FPSR() {
+uint32_t Get_FPSR() {
     return cpu.FPSR.CC_N << 27 | cpu.FPSR.CC_Z << 26 | cpu.FPSR.CC_I << 25 |
            cpu.FPSR.CC_NAN << 24 | cpu.FPSR.QuatSign << 23 |
            cpu.FPSR.Quat << 16 | cpu.FPSR.BSUN << 15 | cpu.FPSR.S_NAN << 14 |
@@ -392,13 +388,14 @@ static void Set_FPSR(uint32_t v) {
     cpu.FPSR.EXC_INEX = v & 1 << 3;
 }
 
-std::tuple<uint64_t, uint16_t> store_fpX() {
+std::tuple<uint64_t, uint16_t> store_fpX(int i) {
     normalize_fp(FPU_PREC::X);
-    if(mpfr_nan_p(cpu.fp_tmp)) {
+    auto self = cpu.FP[i];
+    if(mpfr_nan_p(self)) {
         // NAN
-        return {cpu.fp_tmp_nan, static_cast<uint16_t>(0x7FFF)};
+        return {cpu.FP_nan[i], static_cast<uint16_t>(0x7FFF)};
     }
-    uint16_t e = (!!mpfr_signbit(cpu.fp_tmp)) << 15;
+    uint16_t e = (!!mpfr_signbit(self)) << 15;
     if(mpfr_inf_p(cpu.fp_tmp)) {
         return {0, e | 0x7FFF};
     }
@@ -406,7 +403,7 @@ std::tuple<uint64_t, uint16_t> store_fpX() {
         return {0, e};
     }
     mpfr_exp_t exp;
-    mpfr_frexp(&exp, cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
+    mpfr_frexp(&exp, cpu.fp_tmp, self, cpu.FPCR.RND);
     mpfr_abs(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
     exp--;
     if(exp > -16383) {
@@ -426,9 +423,7 @@ uint32_t fmovem_from_reg_rev(uint32_t base, uint8_t regs) {
     for(int i = 7; i >= 0; --i) {
         if(regs & 1 << i) {
             base -= 12;
-            mpfr_set(cpu.fp_tmp, cpu.FP[i], cpu.FPCR.RND);
-            cpu.fp_tmp_nan = cpu.FP_nan[i];
-            auto [frac, exp] = store_fpX();
+            auto [frac, exp] = store_fpX(i);
             WriteW(base, exp);
             WriteLL(base + 4, frac);
         }
@@ -439,9 +434,7 @@ uint32_t fmovem_from_reg_rev(uint32_t base, uint8_t regs) {
 uint32_t fmovem_from_reg(uint32_t base, uint8_t regs) {
     for(int i = 0; i < 8; ++i) {
         if(regs & 1 << (7 - i)) {
-            mpfr_set(cpu.fp_tmp, cpu.FP[i], cpu.FPCR.RND);
-            cpu.fp_tmp_nan = cpu.FP_nan[i];
-            auto [frac, exp] = store_fpX();
+            auto [frac, exp] = store_fpX(i);
             WriteW(base, exp);
             WriteLL(base + 4, frac);
             base += 12;
@@ -1220,7 +1213,7 @@ void fpu_store(int t, int type, int reg, int fpn, int k) {
         break;
     case FP_SIZE::EXT: {
         cpu.EA = ea_getaddr(type, reg, 12);
-        auto [frac, exp] = store_fpX();
+        auto [frac, exp] = store_fpX(fpn);
         WriteW(cpu.EA, exp);
         WriteLL(cpu.EA + 4, frac);
         break;
@@ -1314,7 +1307,7 @@ void fmove_from_fpcc(int type, int reg, unsigned int regs) {
     TRACE_BRANCH();
 }
 
-void fop(uint16_t, int, int type, int reg) {
+void fop(uint16_t op) {
     fpu_prologue();
     uint16_t extw = FETCH();
     bool rm = extw & 1 << 14;
@@ -1328,28 +1321,28 @@ void fop(uint16_t, int, int type, int reg) {
                 fmovecr(opc, dst);
                 return;
             }
-            loadFP(type, reg, rm, src);
+            loadFP(TYPE(op), REG(op), rm, src);
             fop_do(opc, dst);
         } else {
             // FMOVE to ea
-            fpu_store(src, type, reg, dst, opc);
+            fpu_store(src, TYPE(op), REG(op), dst, opc);
         }
     } else {
         switch(extw >> 13 & 3) {
         case 0:
             // FMOVE(M) to FPcc
-            fmove_to_fpcc(type, reg, src);
+            fmove_to_fpcc(TYPE(op), REG(op), src);
             break;
         case 1:
-            fmove_from_fpcc(type, reg, src);
+            fmove_from_fpcc(TYPE(op), REG(op), src);
             break;
         case 2: {
             uint8_t reglist =
                 extw & 1 << 11 ? cpu.D[extw >> 4 & 7] : extw & 0xff;
-            if(type == 3) {
-                cpu.A[reg] = fmovem_to_reg(cpu.A[reg], reglist);
+            if(TYPE(op) == 3) {
+                cpu.A[REG(op)] = fmovem_to_reg(cpu.A[REG(op)], reglist);
             } else {
-                fmovem_to_reg(ea_getaddr(type, reg, 0), reglist);
+                fmovem_to_reg(ea_getaddr(TYPE(op), REG(op), 0), reglist);
             }
             TRACE_BRANCH();
             break;
@@ -1357,32 +1350,32 @@ void fop(uint16_t, int, int type, int reg) {
         case 3: {
             uint8_t reglist =
                 extw & 1 << 11 ? cpu.D[extw >> 4 & 7] : extw & 0xff;
-            if(!(extw & 1 << 12) && type == 4) {
-                cpu.A[reg] = fmovem_from_reg_rev(cpu.A[reg], reglist);
+            if(!(extw & 1 << 12) && TYPE(op) == 4) {
+                cpu.A[REG(op)] = fmovem_from_reg_rev(cpu.A[REG(op)], reglist);
             } else {
-                fmovem_from_reg(ea_getaddr(type, reg, 0), reglist);
+                fmovem_from_reg(ea_getaddr(TYPE(op), REG(op), 0), reglist);
             }
             TRACE_BRANCH();
         }
         }
     }
 }
-void fscc(uint16_t, int, int type, int reg) {
+void fscc(uint16_t op) {
     uint16_t extw = FETCH();
     if(extw & 1 << 4) {
         test_bsun();
     }
-    ea_writeB(type, reg, test_Fcc(extw & 0xf) ? 0xff : 0, false);
+    ea_writeB(TYPE(op), REG(op), test_Fcc(extw & 0xf) ? 0xff : 0, false);
 }
-void fdbcc(uint16_t, int, int, int reg) {
+void fdbcc(uint16_t op) {
     uint16_t extw = FETCH();
     int16_t offset = FETCH();
     if(extw & 1 << 4) {
         test_bsun();
     }
     if(!test_Fcc(extw & 0xf)) {
-        int16_t v2 = cpu.D[reg];
-        STORE_W(cpu.D[reg], --v2);
+        int16_t v2 = cpu.D[REG(op)];
+        STORE_W(cpu.D[REG(op)], --v2);
         if(v2 != -1) {
             JUMP(cpu.oldpc + 4 + offset);
         }
@@ -1390,11 +1383,11 @@ void fdbcc(uint16_t, int, int, int reg) {
     TRACE_BRANCH();
 }
 
-void ftrapcc(uint16_t, int, int, int reg) {
+void ftrapcc(uint16_t op) {
     uint16_t extw = FETCH();
-    if(reg == 2) {
+    if(REG(op) == 2) {
         FETCH();
-    } else if(reg == 3) {
+    } else if(REG(op) == 3) {
         FETCH32();
     }
     if(extw & 1 << 4) {
@@ -1405,7 +1398,7 @@ void ftrapcc(uint16_t, int, int, int reg) {
     }
 }
 
-void fbcc_w(uint16_t op, int, int, int) {
+void fbcc_w(uint16_t op) {
     int c = op & 077;
     int16_t offset = FETCH();
     if(c & 1 << 4) {
@@ -1417,7 +1410,7 @@ void fbcc_w(uint16_t op, int, int, int) {
     }
 }
 
-void fbcc_l(uint16_t op, int, int, int) {
+void fbcc_l(uint16_t op) {
     int c = op & 077;
     int32_t offset = FETCH32();
     if(c & 1 << 4) {
@@ -1429,39 +1422,39 @@ void fbcc_l(uint16_t op, int, int, int) {
     }
 }
 
-void fsave(uint16_t, int, int type, int reg) {
+void fsave(uint16_t op) {
     PRIV_CHECK();
     // always save idle
-    ea_writeL(type, reg, 0x41000000, false);
+    ea_writeL(TYPE(op), REG(op), 0x41000000, false);
     TRACE_BRANCH();
 }
 
-void frestore(uint16_t, int, int type, int reg) {
+void frestore(uint16_t op) {
     PRIV_CHECK();
-    if(type == 3) {
-        cpu.EA = cpu.A[reg];
+    if(TYPE(op) == 3) {
+        cpu.EA = cpu.A[REG(op)];
         auto first = do_frestore_common();
         if(!first) {
-            cpu.A[reg] += 4;
+            cpu.A[REG(op)] += 4;
             return;
         }
         // only increment reg
         switch(first >> 16 & 0xff) {
         case 0x60: // BUSY
-            cpu.A[reg] += 96;
+            cpu.A[REG(op)] += 96;
             break;
         case 0x30: // UNIMPLEMNET
-            cpu.A[reg] += 48;
+            cpu.A[REG(op)] += 48;
             break;
         case 0x00: // IDLE
-            cpu.A[reg] += 4;
+            cpu.A[REG(op)] += 4;
             break;
         default:
             // unknown frame
             FORMAT_ERROR();
         }
     } else {
-        cpu.EA = ea_getaddr(type, reg, 0);
+        cpu.EA = ea_getaddr(TYPE(op), REG(op), 0);
         auto first = do_frestore_common();
         if(!first) {
             reset_fpu();

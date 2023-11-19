@@ -2,6 +2,7 @@
 #define BOOST_TEST_DYN_LINK
 #include "68040.hpp"
 #include "SDL.h"
+#include "jit.hpp"
 #include "memory.hpp"
 #include "test.hpp"
 #include <boost/test/unit_test.hpp>
@@ -11,9 +12,6 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-std::vector<uint8_t> RAM;
-const uint8_t *ROM;
-size_t ROMSize;
 Cpu cpu;
 extern run_t run_table[0x10000];
 const double sg_v[] = {-1.0, 1.0};
@@ -21,21 +19,23 @@ const mpfr_rnd_t RND_MODES[4] = {MPFR_RNDN, MPFR_RNDZ, MPFR_RNDU, MPFR_RNDD};
 
 void initBus();
 void init_fpu();
+void jit_init();
+volatile bool testing;
 Prepare::Prepare() {
     reset_fpu();
     for(int i = 0; i < 8; ++i) {
         cpu.D[i] = cpu.A[i] = 0;
     }
-    cpu.ISP = cpu.USP = cpu.MSP = cpu.A[7] = 0x6C00;
+    cpu.ISP = cpu.USP = cpu.MSP = cpu.A[7] = 0xC00;
     cpu.oldpc = 0;
     cpu.Z = cpu.X = cpu.V = cpu.C = cpu.N = false;
+    cpu.S = true;
     cpu.T = 0;
-    memset(RAM.data(), 0, 0x8000);
     cpu.PC = 0;
     cpu.EA = 0;
     cpu.movem_run = false;
 
-    cpu.TCR_E = false;
+    cpu.TCR_E = true;
     cpu.TCR_P = false;
     cpu.must_trace = false;
     for(int i = 0; i < 2; ++i) {
@@ -48,59 +48,46 @@ Prepare::Prepare() {
     cpu.ITTR[1].E = false;
     cpu.in_exception = false;
     // EXCEPTION TABLE
-    cpu.VBR = 0x400;
+    cpu.VBR = 0x4000;
     for(int i = 0; i < 64; ++i) {
-        TEST::SET_L(0x400 + (i << 2), 0x5000 + (i << 2));
+        TEST::SET_L(0x4000 + (i << 2), 0x1000 + (i << 2));
     }
+    cpu.URP = cpu.SRP = 0x8000;
+    TEST::SET_L(0x8000, 0x8202); // ROOT-dsc
+    TEST::SET_L(0x8200, 0x8302); // Ptr-dsc
+    TEST::SET_L(0x8300, 1);      // TEST Area
+    TEST::SET_L(0x8304, 0x1005); // Write protected
+    TEST::SET_L(0x8308, 0x2081); // System only
+    TEST::SET_L(0x830C, 0x3000); // Invalid Area
     cpu.I = 0;
+    cpu.ex_n = 0;
 }
-int GET_EXCEPTION() { return (cpu.PC - 0x5000) >> 2; }
 void init_run_table();
-extern bool rom_is_overlay;
-struct MyGlobalFixture {
-    MyGlobalFixture() {
-        SDL_Init(SDL_INIT_AUDIO | SDL_INIT_TIMER);
-        RAM.resize(4 * 1024 * 1024);
-        int fd = open("../quadra950.rom", O_RDONLY);
-        if(fd == -1) {
-            perror("cannot open rom");
-        }
-        struct stat sb;
+void init_emu();
 
-        if(fstat(fd, &sb) == -1) /* To obtain file size */
-            perror("fstat");
-        ROMSize = sb.st_size;
-        ROM = static_cast<uint8_t *>(
-            mmap(nullptr, ROMSize, PROT_READ, MAP_SHARED, fd, 0));
-        init_run_table();
-        initBus();
-        init_fpu();
-    }
-    ~MyGlobalFixture() { SDL_Quit(); }
+struct MyGlobalFixture {
+    MyGlobalFixture() { init_emu(); }
 };
 BOOST_TEST_GLOBAL_FIXTURE(MyGlobalFixture);
 
-bool is_reset = false;
-__attribute__((weak)) void bus_reset() { is_reset = true; }
 void run_op();
 
 void do_poweroff() { quick_exit(0); }
-
-void do_irq(int i) {
-    std::lock_guard<std::mutex> lk(cpu.mtx_);
-    cpu.sleeping = false;
-    cpu.cond_.notify_one();
-    cpu.inturrupt.store(i);
-}
-
-int run_test() {
+#ifdef TEST_JIT
+extern std::unordered_map<uint32_t, std::shared_ptr<jit_cache>> jit_tables;
+#endif
+void run_test(uint32_t pc) {
+    cpu.PC = pc;
     cpu.in_exception = false;
-    if(setjmp(cpu.ex_buf) == 0) {
-        run_op();
-    }
-    if(cpu.PC >= 0x5000) {
-        return GET_EXCEPTION();
-    } else {
-        return 0;
+    testing = true;
+    if(setjmp(cpu.ex) == 0) {
+        while(testing) {
+#ifndef TEST_JIT
+            run_op();
+#else
+            auto e = jit_tables[cpu.PC].get();
+            (*e->exec)((cpu.PC - e->begin) >> 1);
+#endif
+        }
     }
 }
