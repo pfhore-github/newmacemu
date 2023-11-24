@@ -1,15 +1,13 @@
-#include "68040.hpp"
-#include "asmjit/asmjit.h"
-#include "jit.hpp"
+#include "jit_common.hpp"
 #include "memory.hpp"
-#include "inline.hpp"
 using namespace asmjit;
 extern CpuFeatures feature;
 void bus_reset();
 void do_rte();
-void jit_postop(x86::Assembler &a);
+void jit_postop();
 extern volatile bool testing;
 extern std::unordered_map<uint32_t, Label> jumpMap;
+void MMU_Transfer16(uint32_t from, uint32_t to);
 namespace OP {
 void stop_impl(uint16_t nw);
 }
@@ -17,839 +15,769 @@ bool movec_from_cr_impl(uint16_t extw, uint32_t *rn);
 bool movec_to_cr_impl(uint16_t extw, uint32_t rn);
 namespace JIT_OP {
 #ifdef __x86_64__
-constexpr auto EA = x86::dword_ptr(x86::rbx, offsetof(Cpu, EA));
-constexpr auto CC_C = x86::byte_ptr(x86::rbx, offsetof(Cpu, C));
-constexpr auto CC_V = x86::byte_ptr(x86::rbx, offsetof(Cpu, V));
-constexpr auto CC_N = x86::byte_ptr(x86::rbx, offsetof(Cpu, N));
-constexpr auto CC_Z = x86::byte_ptr(x86::rbx, offsetof(Cpu, Z));
-constexpr auto CC_X = x86::byte_ptr(x86::rbx, offsetof(Cpu, X));
-constexpr auto CC_T = x86::byte_ptr(x86::rbx, offsetof(Cpu, T));
-constexpr auto CC_S = x86::byte_ptr(x86::rbx, offsetof(Cpu, S));
+constexpr auto c_pc = x86::dword_ptr(x86::rbx, offsetof(Cpu, PC));
 Label end_lbl;
-void update_pc(x86::Assembler &a) {
-    a.mov(x86::esi, cpu.PC);
-    a.mov(x86::dword_ptr(x86::rbx, offsetof(Cpu, PC)), x86::esi);
+void update_pc() {
+    as->mov(x86::qword_ptr(x86::rsp, -8), x86::rsi);
+    as->mov(x86::esi, cpu.PC);
+    as->mov(c_pc, x86::esi);
+    as->mov(x86::rsi, x86::qword_ptr(x86::rsp, -8));
 }
-void update_nz(x86::Assembler &a) {
-    a.setz(CC_Z);
-    a.sets(CC_N);
+void update_nz() {
+    as->setz(CC_Z);
+    as->sets(CC_N);
 }
-void update_vc(x86::Assembler &a) {
-    a.seto(CC_V);
-    a.setc(CC_C);
+void update_vc() {
+    as->seto(CC_V);
+    as->setc(CC_C);
 }
-void clear_vc(x86::Assembler &a) {
-    a.mov(CC_V, 0);
-    a.mov(CC_C, 0);
+void clear_vc() {
+    as->mov(CC_V, 0);
+    as->mov(CC_C, 0);
 }
-void update_vcx(x86::Assembler &a) {
-    a.seto(CC_V);
-    a.setc(x86::dl);
-    a.mov(CC_C, x86::dl);
-    a.mov(CC_X, x86::dl);
+void update_vcx() {
+    as->seto(CC_V);
+    as->setc(x86::dl);
+    as->mov(CC_C, x86::dl);
+    as->mov(CC_X, x86::dl);
 }
-auto DR_B(int n) { return x86::byte_ptr(x86::rbx, n * sizeof(uint32_t)); }
-auto DR_W(int n) { return x86::word_ptr(x86::rbx, n * sizeof(uint32_t)); }
-auto DR_L(int n) { return x86::dword_ptr(x86::rbx, n * sizeof(uint32_t)); }
-auto AR_B(int n) { return x86::byte_ptr(x86::rbx, (8 + n) * sizeof(uint32_t)); }
-auto AR_W(int n) { return x86::word_ptr(x86::rbx, (8 + n) * sizeof(uint32_t)); }
-auto AR_L(int n) {
-    return x86::dword_ptr(x86::rbx, (8 + n) * sizeof(uint32_t));
-}
-constexpr auto SP = x86::dword_ptr(x86::rbx, 15 * sizeof(uint32_t));
-
-void jit_push16(x86::Assembler &a) {
-    a.mov(x86::r13d, SP);
-    a.lea(x86::r13, x86::ptr(x86::r13, -2));
-    a.mov(ARG1, x86::r13d);
-    a.mov(ARG2, x86::eax);
-    a.call(WriteW);
-
-    a.sub(SP, 2);
+void jit_push16() {
+    as->sub(SP, 2);
+    jit_writeW(SP, x86::ax);
 }
 
-void jit_push32(x86::Assembler &a) {
-    a.mov(x86::r12d, x86::eax);
-    a.mov(x86::r13d, SP);
-    a.lea(ARG1L, x86::ptr(x86::r13, -2));
-    a.mov(ARG2, x86::eax);
-    a.call(WriteW);
+void jit_push32() {
+    as->push(x86::rax);
+    as->sub(SP, 2);
+    jit_writeW(SP, x86::ax);
 
-    a.lea(ARG1L, x86::ptr(x86::r13, -4));
-    a.mov(ARG2, x86::r12d);
-    a.ror(ARG2, 16);
-    a.call(WriteW);
-
-    a.sub(SP, 4);
+    as->sub(SP, 2);
+    as->pop(x86::rax);
+    as->ror(x86::eax, 16);
+    jit_writeW(SP, x86::ax);
 }
 
-void jit_pop16(x86::Assembler &a) {
-    a.mov(ARG1, SP);
-    a.call(ReadW);
-    a.add(SP, 2);
+void jit_pop16() {
+    jit_readW(SP);
+    as->add(SP, 2);
 }
 
-void jit_pop32(x86::Assembler &a) {
-    a.mov(x86::r12d, SP);
-    a.mov(ARG1, x86::r12d);
-    a.call(ReadW);
-    a.mov(x86::r13d, x86::eax);
-    a.ror(x86::r13d, 16);
-    a.lea(ARG1L, x86::ptr(x86::r12, 2));
-    a.call(ReadW);
-    a.or_(x86::eax, x86::r13d);
-    a.add(SP, 4);
+void jit_pop32() {
+    jit_readW(SP);
+    as->mov(x86::r14d, x86::eax);
+    as->ror(x86::r14d, 16);
+    as->add(SP, 2);
+    jit_readW(SP);
+    as->or_(x86::eax, x86::r14d);
+    as->add(SP, 2);
 }
 
-void jit_trace_check(x86::Assembler &a) {
-    auto lb = a.newLabel();
-    a.mov(x86::al, CC_T);
-    a.cmp(x86::al, 1);
-    a.jne(lb);
-    a.mov(x86::byte_ptr(x86::rbx, offsetof(Cpu, must_trace)), 1);
-    a.bind(lb);
+void jit_trace_branch() {
+    auto l = as->newLabel();
+    as->test(CC_T, 1);
+    as->je(l);
+    as->mov(x86::byte_ptr(x86::rbx, offsetof(Cpu, must_trace)), 1);
+    as->bind(l);
 }
-void jit_trace_branch(x86::Assembler &a) {
-    auto l = a.newLabel();
-    a.mov(x86::al, CC_T);
-    a.test(x86::al, 1);
-    a.je(l);
-    a.mov(x86::byte_ptr(x86::rbx, offsetof(Cpu, must_trace)), 1);
-    a.bind(l);
-}
-void jit_priv_check(x86::Assembler &a) {
-    auto l = a.newLabel();
-    a.mov(x86::al, CC_S);
-    a.test(x86::al, 1);
-    a.jne(l);
-    a.call(PRIV_ERROR);
-    a.bind(l);
+void jit_priv_check() {
+    auto l = as->newLabel();
+    as->test(CC_S, 1);
+    as->jne(l);
+    as->call(PRIV_ERROR);
+    as->bind(l);
 }
 
-void jump(x86::Assembler &a) {
-    auto lb = a.newLabel();
-    a.test(x86::eax, 1);
-    a.jz(lb);
-    a.mov(ARG1, x86::eax);
-    a.call(ADDRESS_ERROR);
-    a.bind(lb);
-    a.mov(x86::dword_ptr(x86::rbx, offsetof(Cpu, PC)), x86::eax);
-    jit_trace_branch(a);
-    jit_postop(a);
-    a.jmp(end_lbl);
+void jump() {
+    auto lb = as->newLabel();
+    as->test(x86::eax, 1);
+    as->jz(lb);
+    as->mov(ARG1.r32(), x86::eax);
+    as->call(ADDRESS_ERROR);
+    as->bind(lb);
+    as->mov(c_pc, x86::eax);
+    jit_trace_branch();
+    jit_postop();
+    as->jmp(end_lbl);
 }
 
-void jumpC(x86::Assembler &a, uint32_t t) {
+void jumpC(uint32_t t) {
     if(t & 1) {
-        a.call(ADDRESS_ERROR);
+        as->call(ADDRESS_ERROR);
         return;
     }
-    a.mov(x86::eax, t);
-    a.mov(x86::dword_ptr(x86::rbx, offsetof(Cpu, PC)), x86::eax);
-    jit_trace_branch(a);
-    jit_postop(a);
-    a.jmp(jumpMap[t]);
+    as->mov(x86::eax, t);
+    as->mov(c_pc, x86::eax);
+    jit_trace_branch();
+    jit_postop();
+    as->jmp(jumpMap[t]);
 }
 #ifdef CI
-void jit_exit(x86::Assembler &a, uint16_t) {
-    update_pc(a);
-    a.mov(x86::rdi, reinterpret_cast<intptr_t>(&testing));
-    a.mov(x86::al, x86::byte_ptr(x86::rdi));
-    a.xor_(x86::al, x86::al);
-    a.mov(x86::byte_ptr(x86::rdi), x86::al);
-    a.jmp(end_lbl);
+void jit_exit(uint16_t) {
+    update_pc();
+    as->mov(x86::rdi, reinterpret_cast<intptr_t>(&testing));
+    as->mov(x86::al, x86::byte_ptr(x86::rdi));
+    as->xor_(x86::al, x86::al);
+    as->mov(x86::byte_ptr(x86::rdi), x86::al);
+    as->jmp(end_lbl);
 }
 #endif
-void ori_b(x86::Assembler &a, uint16_t op) {
+void ori_b(uint16_t op) {
     uint8_t v = FETCH();
-    ea_readB_jit(a, TYPE(op), REG(op));
-    update_pc(a);
-    a.or_(x86::al, v);
-    update_nz(a);
-    clear_vc(a);
-    ea_writeB_jit(a, TYPE(op), REG(op), true);
+    ea_readB_jit(TYPE(op), REG(op));
+    update_pc();
+    as->or_(x86::al, v);
+    update_nz();
+    clear_vc();
+    ea_writeB_jit(TYPE(op), REG(op), true);
 }
 
-void ori_w(x86::Assembler &a, uint16_t op) {
+void ori_w(uint16_t op) {
     uint16_t v = FETCH();
-    ea_readW_jit(a, TYPE(op), REG(op));
-    update_pc(a);
-    a.or_(x86::ax, v);
-    update_nz(a);
-    clear_vc(a);
-    ea_writeW_jit(a, TYPE(op), REG(op), true);
+    ea_readW_jit(TYPE(op), REG(op));
+    update_pc();
+    as->or_(x86::ax, v);
+    update_nz();
+    clear_vc();
+    ea_writeW_jit(TYPE(op), REG(op), true);
 }
-void ori_l(x86::Assembler &a, uint16_t op) {
+void ori_l(uint16_t op) {
     uint32_t v = FETCH32();
-    ea_readL_jit(a, TYPE(op), REG(op));
-    update_pc(a);
-    a.or_(x86::eax, v);
-    update_nz(a);
-    clear_vc(a);
-    ea_writeL_jit(a, TYPE(op), REG(op), true);
+    ea_readL_jit(TYPE(op), REG(op));
+    update_pc();
+    as->or_(x86::eax, v);
+    update_nz();
+    clear_vc();
+    ea_writeL_jit(TYPE(op), REG(op), true);
 }
 
-void ori_b_ccr(x86::Assembler &a, uint16_t) {
+void ori_b_ccr(uint16_t) {
     uint16_t v = FETCH();
-    update_pc(a);
-    a.call(GetCCR);
-    a.or_(x86::al, v);
-    a.mov(ARG1, x86::eax);
-    a.call(SetCCR);
+    update_pc();
+    as->call(GetCCR);
+    as->or_(x86::al, v);
+    as->mov(ARG1.r32(), x86::eax);
+    as->call(SetCCR);
 }
 
-void ori_w_sr(x86::Assembler &a, uint16_t) {
+void ori_w_sr(uint16_t) {
     uint16_t v = FETCH();
-    a.call(PRIV_CHECK);
-    update_pc(a);
-    a.call(GetSR);
-    a.or_(x86::ax, v);
-    a.mov(ARG1, x86::eax);
-    a.call(SetSR);
-    jit_trace_branch(a);
+    as->call(PRIV_CHECK);
+    update_pc();
+    as->call(GetSR);
+    as->or_(x86::ax, v);
+    as->mov(ARG1.r32(), x86::eax);
+    as->call(SetSR);
+    jit_trace_branch();
 }
-void andi_b(x86::Assembler &a, uint16_t op) {
+void andi_b(uint16_t op) {
     uint8_t v = FETCH();
-    ea_readB_jit(a, TYPE(op), REG(op));
-    update_pc(a);
-    a.and_(x86::al, v);
-    update_nz(a);
-    clear_vc(a);
-    ea_writeB_jit(a, TYPE(op), REG(op), true);
+    ea_readB_jit(TYPE(op), REG(op));
+    update_pc();
+    as->and_(x86::al, v);
+    update_nz();
+    clear_vc();
+    ea_writeB_jit(TYPE(op), REG(op), true);
 }
 
-void andi_w(x86::Assembler &a, uint16_t op) {
+void andi_w(uint16_t op) {
     uint16_t v = FETCH();
-    ea_readW_jit(a, TYPE(op), REG(op));
-    update_pc(a);
-    a.and_(x86::ax, v);
-    update_nz(a);
-    clear_vc(a);
-    ea_writeW_jit(a, TYPE(op), REG(op), true);
+    ea_readW_jit(TYPE(op), REG(op));
+    update_pc();
+    as->and_(x86::ax, v);
+    update_nz();
+    clear_vc();
+    ea_writeW_jit(TYPE(op), REG(op), true);
 }
-void andi_l(x86::Assembler &a, uint16_t op) {
+void andi_l(uint16_t op) {
     uint32_t v = FETCH32();
-    ea_readL_jit(a, TYPE(op), REG(op));
-    update_pc(a);
-    a.and_(x86::eax, v);
-    update_nz(a);
-    clear_vc(a);
-    ea_writeL_jit(a, TYPE(op), REG(op), true);
+    ea_readL_jit(TYPE(op), REG(op));
+    update_pc();
+    as->and_(x86::eax, v);
+    update_nz();
+    clear_vc();
+    ea_writeL_jit(TYPE(op), REG(op), true);
 }
 
-void andi_b_ccr(x86::Assembler &a, uint16_t) {
+void andi_b_ccr(uint16_t) {
     uint16_t v = FETCH();
-    update_pc(a);
-    a.call(GetCCR);
-    a.and_(x86::al, v);
-    a.mov(ARG1, x86::eax);
-    a.call(SetCCR);
+    update_pc();
+    as->call(GetCCR);
+    as->and_(x86::al, v);
+    as->mov(ARG1.r32(), x86::eax);
+    as->call(SetCCR);
 }
 
-void andi_w_sr(x86::Assembler &a, uint16_t) {
+void andi_w_sr(uint16_t) {
     uint16_t v = FETCH();
-    a.call(PRIV_CHECK);
-    update_pc(a);
-    a.call(GetSR);
-    a.and_(x86::ax, v);
-    a.mov(ARG1, x86::eax);
-    a.call(SetSR);
-    jit_trace_branch(a);
+    as->call(PRIV_CHECK);
+    update_pc();
+    as->call(GetSR);
+    as->and_(x86::ax, v);
+    as->mov(ARG1.r32(), x86::eax);
+    as->call(SetSR);
+    jit_trace_branch();
 }
 
-void eori_b(x86::Assembler &a, uint16_t op) {
+void eori_b(uint16_t op) {
     uint8_t v = FETCH();
-    ea_readB_jit(a, TYPE(op), REG(op));
-    update_pc(a);
-    a.xor_(x86::al, v);
-    update_nz(a);
-    clear_vc(a);
-    ea_writeB_jit(a, TYPE(op), REG(op), true);
+    ea_readB_jit(TYPE(op), REG(op));
+    update_pc();
+    as->xor_(x86::al, v);
+    update_nz();
+    clear_vc();
+    ea_writeB_jit(TYPE(op), REG(op), true);
 }
 
-void eori_w(x86::Assembler &a, uint16_t op) {
+void eori_w(uint16_t op) {
     uint16_t v = FETCH();
-    ea_readW_jit(a, TYPE(op), REG(op));
-    update_pc(a);
-    a.xor_(x86::ax, v);
-    update_nz(a);
-    clear_vc(a);
-    ea_writeW_jit(a, TYPE(op), REG(op), true);
+    ea_readW_jit(TYPE(op), REG(op));
+    update_pc();
+    as->xor_(x86::ax, v);
+    update_nz();
+    clear_vc();
+    ea_writeW_jit(TYPE(op), REG(op), true);
 }
-void eori_l(x86::Assembler &a, uint16_t op) {
+void eori_l(uint16_t op) {
     uint32_t v = FETCH32();
-    ea_readL_jit(a, TYPE(op), REG(op));
-    update_pc(a);
-    a.xor_(x86::eax, v);
-    update_nz(a);
-    clear_vc(a);
-    ea_writeL_jit(a, TYPE(op), REG(op), true);
+    ea_readL_jit(TYPE(op), REG(op));
+    update_pc();
+    as->xor_(x86::eax, v);
+    update_nz();
+    clear_vc();
+    ea_writeL_jit(TYPE(op), REG(op), true);
 }
 
-void eori_b_ccr(x86::Assembler &a, uint16_t) {
+void eori_b_ccr(uint16_t) {
     uint16_t v = FETCH();
-    update_pc(a);
-    a.call(GetCCR);
-    a.xor_(x86::al, v);
-    a.mov(ARG1, x86::eax);
-    a.call(SetCCR);
+    update_pc();
+    as->call(GetCCR);
+    as->xor_(x86::al, v);
+    as->mov(ARG1.r32(), x86::eax);
+    as->call(SetCCR);
 }
 
-void eori_w_sr(x86::Assembler &a, uint16_t) {
+void eori_w_sr(uint16_t) {
     uint16_t v = FETCH();
-    a.call(PRIV_CHECK);
-    update_pc(a);
-    a.call(GetSR);
-    a.xor_(x86::ax, v);
-    a.mov(ARG1, x86::eax);
-    a.call(SetSR);
-    jit_trace_branch(a);
+    as->call(PRIV_CHECK);
+    update_pc();
+    as->call(GetSR);
+    as->xor_(x86::ax, v);
+    as->mov(ARG1.r32(), x86::eax);
+    as->call(SetSR);
+    jit_trace_branch();
 }
 
-void subi_b(x86::Assembler &a, uint16_t op) {
+void subi_b(uint16_t op) {
     uint8_t v = FETCH();
-    ea_readB_jit(a, TYPE(op), REG(op));
-    update_pc(a);
-    a.sub(x86::al, v);
-    update_nz(a);
-    update_vcx(a);
-    ea_writeB_jit(a, TYPE(op), REG(op), true);
+    ea_readB_jit(TYPE(op), REG(op));
+    update_pc();
+    as->sub(x86::al, v);
+    update_nz();
+    update_vcx();
+    ea_writeB_jit(TYPE(op), REG(op), true);
 }
 
-void subi_w(x86::Assembler &a, uint16_t op) {
+void subi_w(uint16_t op) {
     uint16_t v = FETCH();
-    ea_readW_jit(a, TYPE(op), REG(op));
-    update_pc(a);
-    a.sub(x86::ax, v);
-    update_nz(a);
-    update_vcx(a);
-    ea_writeW_jit(a, TYPE(op), REG(op), true);
+    ea_readW_jit(TYPE(op), REG(op));
+    update_pc();
+    as->sub(x86::ax, v);
+    update_nz();
+    update_vcx();
+    ea_writeW_jit(TYPE(op), REG(op), true);
 }
-void subi_l(x86::Assembler &a, uint16_t op) {
+void subi_l(uint16_t op) {
     uint32_t v = FETCH32();
-    ea_readL_jit(a, TYPE(op), REG(op));
-    update_pc(a);
-    a.sub(x86::eax, v);
-    update_nz(a);
-    update_vcx(a);
-    ea_writeL_jit(a, TYPE(op), REG(op), true);
+    ea_readL_jit(TYPE(op), REG(op));
+    update_pc();
+    as->sub(x86::eax, v);
+    update_nz();
+    update_vcx();
+    ea_writeL_jit(TYPE(op), REG(op), true);
 }
 
-void addi_b(x86::Assembler &a, uint16_t op) {
+void addi_b(uint16_t op) {
     uint8_t v = FETCH();
-    ea_readB_jit(a, TYPE(op), REG(op));
-    update_pc(a);
-    a.add(x86::al, v);
-    update_nz(a);
-    update_vcx(a);
-    ea_writeB_jit(a, TYPE(op), REG(op), true);
+    ea_readB_jit(TYPE(op), REG(op));
+    update_pc();
+    as->add(x86::al, v);
+    update_nz();
+    update_vcx();
+    ea_writeB_jit(TYPE(op), REG(op), true);
 }
 
-void addi_w(x86::Assembler &a, uint16_t op) {
+void addi_w(uint16_t op) {
     uint16_t v = FETCH();
-    ea_readW_jit(a, TYPE(op), REG(op));
-    update_pc(a);
-    a.add(x86::ax, v);
-    update_nz(a);
-    update_vcx(a);
-    ea_writeW_jit(a, TYPE(op), REG(op), true);
+    ea_readW_jit(TYPE(op), REG(op));
+    update_pc();
+    as->add(x86::ax, v);
+    update_nz();
+    update_vcx();
+    ea_writeW_jit(TYPE(op), REG(op), true);
 }
-void addi_l(x86::Assembler &a, uint16_t op) {
+void addi_l(uint16_t op) {
     uint32_t v = FETCH32();
-    ea_readL_jit(a, TYPE(op), REG(op));
-    update_pc(a);
-    a.add(x86::eax, v);
-    update_nz(a);
-    update_vcx(a);
-    ea_writeL_jit(a, TYPE(op), REG(op), true);
+    ea_readL_jit(TYPE(op), REG(op));
+    update_pc();
+    as->add(x86::eax, v);
+    update_nz();
+    update_vcx();
+    ea_writeL_jit(TYPE(op), REG(op), true);
 }
 
-void cmpi_b(x86::Assembler &a, uint16_t op) {
+void cmpi_b(uint16_t op) {
     uint8_t v = FETCH();
-    ea_readB_jit(a, TYPE(op), REG(op));
-    update_pc(a);
-    a.sub(x86::al, v);
-    update_nz(a);
-    update_vc(a);
+    ea_readB_jit(TYPE(op), REG(op));
+    update_pc();
+    as->sub(x86::al, v);
+    update_nz();
+    update_vc();
 }
 
-void cmpi_w(x86::Assembler &a, uint16_t op) {
+void cmpi_w(uint16_t op) {
     uint16_t v = FETCH();
-    ea_readW_jit(a, TYPE(op), REG(op));
-    update_pc(a);
-    a.sub(x86::ax, v);
-    update_nz(a);
-    update_vc(a);
+    ea_readW_jit(TYPE(op), REG(op));
+    update_pc();
+    as->sub(x86::ax, v);
+    update_nz();
+    update_vc();
 }
-void cmpi_l(x86::Assembler &a, uint16_t op) {
+void cmpi_l(uint16_t op) {
     uint32_t v = FETCH32();
-    ea_readL_jit(a, TYPE(op), REG(op));
-    update_pc(a);
-    a.sub(x86::eax, v);
-    update_nz(a);
-    update_vc(a);
+    ea_readL_jit(TYPE(op), REG(op));
+    update_pc();
+    as->sub(x86::eax, v);
+    update_nz();
+    update_vc();
 }
 
-void cmp2_chk2_b(x86::Assembler &a, uint16_t op) {
+void cmp2_chk2_b(uint16_t op) {
     uint16_t nextop = FETCH();
     bool s = nextop & 1 << 15;
     int rn = nextop >> 12 & 7;
     bool chk2 = nextop & 1 << 11;
-    ea_getaddr_jit(a, TYPE(op), REG(op), 1);
-    a.mov(x86::r12d, x86::r9d);
-    update_pc(a);
-    a.mov(ARG1, x86::r12d);
-    a.call(ReadB);
-    a.mov(x86::r13b, x86::al); // LOW
-    a.mov(ARG1, x86::r12d);
-    a.add(ARG1, 1);
-    a.call(ReadB);
-    a.mov(x86::sil, x86::al); // HIGH
-    a.mov(x86::dil, DR_B(rn | s << 3));
+    ea_getaddr_jit(TYPE(op), REG(op), 1);
+    as->mov(x86::r12, ARG1);
+    update_pc();
+    // LOW
+    jit_readB(x86::r12d);
+    as->mov(x86::r13b, x86::al);
+    // HIGH
+    as->inc(x86::r12d);
+    jit_readB(x86::r12d);
+    as->mov(x86::sil, x86::al);
+    as->mov(x86::dil, DR_B(rn | s << 3));
 
-    a.cmp(x86::dil, x86::r13b);
-    a.sete(x86::cl);
+    as->cmp(x86::dil, x86::r13b);
+    as->sete(x86::cl);
     if(s) {
-        a.setl(x86::ch);
+        as->setl(x86::ch);
     } else {
-        a.setb(x86::ch);
+        as->setb(x86::ch);
     }
-    a.cmp(x86::sil, x86::dil);
-    a.sete(x86::al);
+    as->cmp(x86::sil, x86::dil);
+    as->sete(x86::al);
     if(s) {
-        a.setl(x86::ah);
+        as->setl(x86::ah);
     } else {
-        a.setb(x86::ah);
+        as->setb(x86::ah);
     }
-    a.or_(x86::ax, x86::cx);
-    a.mov(x86::cl, x86::ah);
-    a.mov(CC_Z, x86::al);
-    a.mov(CC_C, x86::cl);
+    as->or_(x86::ax, x86::cx);
+    as->mov(x86::cl, x86::ah);
+    as->mov(CC_Z, x86::al);
+    as->mov(CC_C, x86::cl);
     if(chk2) {
-        auto lb = a.newLabel();
-        a.test(x86::cl, 1);
-        a.je(lb);
-        a.call(CHK_ERROR);
-        a.bind(lb);
+        auto lb = as->newLabel();
+        as->test(x86::cl, 1);
+        as->je(lb);
+        as->call(CHK_ERROR);
+        as->bind(lb);
     }
 }
 
-void cmp2_chk2_w(x86::Assembler &a, uint16_t op) {
+void cmp2_chk2_w(uint16_t op) {
     uint16_t nextop = FETCH();
     bool s = nextop & 1 << 15;
     int rn = nextop >> 12 & 7;
     bool chk2 = nextop & 1 << 11;
-    ea_getaddr_jit(a, TYPE(op), REG(op), 2);
-    a.mov(x86::r12d, x86::r9d);
-    update_pc(a);
-    a.mov(ARG1, x86::r12d);
-    a.call(ReadW);
-    a.mov(x86::r13w, x86::ax); // LOW
-    a.mov(ARG1, x86::r12d);
-    a.add(ARG1, 2);
-    a.call(ReadW);
-    a.mov(x86::si, x86::ax); // HIGH
-    a.mov(x86::di, DR_W(rn | s << 3));
+    ea_getaddr_jit(TYPE(op), REG(op), 2);
+    as->mov(x86::r12, ARG1);
+    update_pc();
+    jit_readW(x86::r12d);
+    as->mov(x86::r13w, x86::ax); // LOW
+    as->add(x86::r12d, 2);
+    jit_readW(x86::r12d);
+    as->mov(x86::si, x86::ax); // HIGH
+    as->mov(x86::di, DR_W(rn | s << 3));
 
-    a.cmp(x86::di, x86::r13w);
-    a.sete(x86::cl);
+    as->cmp(x86::di, x86::r13w);
+    as->sete(x86::cl);
     if(s) {
-        a.setl(x86::ch);
+        as->setl(x86::ch);
     } else {
-        a.setb(x86::ch);
+        as->setb(x86::ch);
     }
-    a.cmp(x86::si, x86::di);
-    a.sete(x86::al);
+    as->cmp(x86::si, x86::di);
+    as->sete(x86::al);
     if(s) {
-        a.setl(x86::ah);
+        as->setl(x86::ah);
     } else {
-        a.setb(x86::ah);
+        as->setb(x86::ah);
     }
-    a.or_(x86::ax, x86::cx);
-    a.mov(x86::cl, x86::ah);
-    a.mov(CC_Z, x86::al);
-    a.mov(CC_C, x86::cl);
+    as->or_(x86::ax, x86::cx);
+    as->mov(x86::cl, x86::ah);
+    as->mov(CC_Z, x86::al);
+    as->mov(CC_C, x86::cl);
     if(chk2) {
-        auto lb = a.newLabel();
-        a.test(x86::cl, 1);
-        a.je(lb);
-        a.call(CHK_ERROR);
-        a.bind(lb);
+        auto lb = as->newLabel();
+        as->test(x86::cl, 1);
+        as->je(lb);
+        as->call(CHK_ERROR);
+        as->bind(lb);
     }
 }
 
-void cmp2_chk2_l(x86::Assembler &a, uint16_t op) {
+void cmp2_chk2_l(uint16_t op) {
     uint16_t nextop = FETCH();
     bool s = nextop & 1 << 15;
     int rn = nextop >> 12 & 7;
     bool chk2 = nextop & 1 << 11;
-    ea_getaddr_jit(a, TYPE(op), REG(op), 4);
-    a.mov(x86::r12d, x86::r9d);
-    update_pc(a);
-    a.mov(ARG1, x86::r12d);
-    a.call(ReadL);
-    a.mov(x86::r13d, x86::eax); // LOW
-    a.mov(ARG1, x86::r12d);
-    a.add(ARG1, 4);
-    a.call(ReadL);
-    a.mov(x86::esi, x86::eax); // HIGH
-    a.mov(x86::edi, DR_L(rn | s << 3));
+    ea_getaddr_jit(TYPE(op), REG(op), 4);
+    as->mov(x86::r12, ARG1);
+    update_pc();
+    jit_readL(x86::r12d);
+    as->mov(x86::r13d, x86::eax); // LOW
 
-    a.cmp(x86::edi, x86::r13d);
-    a.sete(x86::cl);
+    as->add(x86::r12d, 4);
+    jit_readL(x86::r12d);
+    as->mov(x86::esi, x86::eax); // HIGH
+    as->mov(x86::edi, DR_L(rn | s << 3));
+
+    as->cmp(x86::edi, x86::r13d);
+    as->sete(x86::cl);
     if(s) {
-        a.setl(x86::ch);
+        as->setl(x86::ch);
     } else {
-        a.setb(x86::ch);
+        as->setb(x86::ch);
     }
-    a.cmp(x86::esi, x86::edi);
-    a.sete(x86::al);
+    as->cmp(x86::esi, x86::edi);
+    as->sete(x86::al);
     if(s) {
-        a.setl(x86::ah);
+        as->setl(x86::ah);
     } else {
-        a.setb(x86::ah);
+        as->setb(x86::ah);
     }
-    a.or_(x86::ax, x86::cx);
-    a.mov(x86::cl, x86::ah);
-    a.mov(CC_Z, x86::al);
-    a.mov(CC_C, x86::cl);
+    as->or_(x86::ax, x86::cx);
+    as->mov(x86::cl, x86::ah);
+    as->mov(CC_Z, x86::al);
+    as->mov(CC_C, x86::cl);
     if(chk2) {
-        auto lb = a.newLabel();
-        a.test(x86::cl, 1);
-        a.je(lb);
-        a.call(CHK_ERROR);
-        a.bind(lb);
+        auto lb = as->newLabel();
+        as->test(x86::cl, 1);
+        as->je(lb);
+        as->call(CHK_ERROR);
+        as->bind(lb);
     }
 }
-void btst_l_i(x86::Assembler &a, uint16_t op) {
+void btst_l_i(uint16_t op) {
     int pos = FETCH() & 31;
-    update_pc(a);
-    a.mov(x86::eax, DR_L(REG(op)));
-    a.bt(x86::eax, pos);
-    a.setnc(CC_Z);
+    update_pc();
+    as->bt(DR_L(REG(op)), pos);
+    as->setnc(CC_Z);
 }
 
-void btst_b_i(x86::Assembler &a, uint16_t op) {
+void btst_b_i(uint16_t op) {
     int pos = FETCH() & 7;
-    ea_readB_jit(a, TYPE(op), REG(op));
-    update_pc(a);
-    a.bt(x86::ax, pos);
-    a.setnc(CC_Z);
+    ea_readB_jit(TYPE(op), REG(op));
+    update_pc();
+    as->bt(x86::ax, pos);
+    as->setnc(CC_Z);
 }
 
-void btst_b_i_imm(x86::Assembler &a, uint16_t) {
+void btst_b_i_imm(uint16_t) {
     int pos = FETCH() & 7;
     uint8_t imm = FETCH();
-    update_pc(a);
-    a.mov(x86::al, imm);
-    a.bt(x86::ax, pos);
-    a.setnc(CC_Z);
+    update_pc();
+    as->mov(x86::ax, imm);
+    as->bt(x86::ax, pos);
+    as->setnc(CC_Z);
 }
 
-void btst_l_r(x86::Assembler &a, uint16_t op) {
-    update_pc(a);
-    a.mov(x86::eax, DR_L(REG(op)));
-    a.mov(x86::cl, DR_B(DN(op)));
-    a.and_(x86::cl, 31);
-    a.bt(x86::eax, x86::cl);
-    a.setnc(CC_Z);
+void btst_l_r(uint16_t op) {
+    update_pc();
+    as->movzx(x86::ecx, DR_B(DN(op)));
+    as->bt(DR_L(REG(op)), x86::ecx);
+    as->setnc(CC_Z);
 }
 
-void btst_b_r(x86::Assembler &a, uint16_t op) {
-    ea_readB_jit(a, TYPE(op), REG(op));
-    update_pc(a);
-    a.mov(x86::cl, DR_L(DN(op)));
-    a.and_(x86::cl, 7);
-    a.bt(x86::ax, x86::cl);
-    a.setnc(CC_Z);
+void btst_b_r(uint16_t op) {
+    ea_readB_jit(TYPE(op), REG(op));
+    update_pc();
+    as->mov(x86::cl, DR_L(DN(op)));
+    as->and_(x86::cx, 7);
+    as->bt(x86::ax, x86::cx);
+    as->setnc(CC_Z);
 }
 
-void btst_b_r_imm(x86::Assembler &a, uint16_t op) {
+void btst_b_r_imm(uint16_t op) {
     uint8_t imm = FETCH();
-    update_pc(a);
-    a.mov(x86::al, imm);
-    a.mov(x86::cl, DR_B(DN(op)));
-    a.and_(x86::cl, 7);
-    a.bt(x86::ax, x86::cl);
-    a.setnc(CC_Z);
+    update_pc();
+    as->mov(x86::al, imm);
+    as->mov(x86::cl, DR_B(DN(op)));
+    as->and_(x86::cx, 7);
+    as->bt(x86::ax, x86::cx);
+    as->setnc(CC_Z);
 }
 
-void bchg_l_i(x86::Assembler &a, uint16_t op) {
+void bchg_l_i(uint16_t op) {
     int pos = FETCH() & 31;
-    update_pc(a);
-    a.mov(x86::eax, DR_L(REG(op)));
-    a.btc(x86::eax, pos);
-    a.setnc(CC_Z);
-    a.mov(DR_L(REG(op)), x86::eax);
+    update_pc();
+    as->btc(DR_L(REG(op)), pos);
+    as->setnc(CC_Z);
 }
 
-void bchg_b_i(x86::Assembler &a, uint16_t op) {
+void bchg_b_i(uint16_t op) {
     int pos = FETCH() & 7;
-    ea_readB_jit(a, TYPE(op), REG(op));
-    update_pc(a);
-    a.btc(x86::ax, pos);
-    a.setnc(CC_Z);
-    ea_writeB_jit(a, TYPE(op), REG(op), true);
+    ea_readB_jit(TYPE(op), REG(op));
+    update_pc();
+    as->btc(x86::ax, pos);
+    as->setnc(CC_Z);
+    ea_writeB_jit(TYPE(op), REG(op), true);
 }
 
-void bchg_l_r(x86::Assembler &a, uint16_t op) {
-    update_pc(a);
-    a.mov(x86::eax, DR_L(REG(op)));
-    a.mov(x86::cl, DR_B(DN(op)));
-    a.and_(x86::cl, 31);
-    a.btc(x86::eax, x86::cl);
-    a.setnc(CC_Z);
-    a.mov(DR_L(REG(op)), x86::eax);
+void bchg_l_r(uint16_t op) {
+    update_pc();
+    as->movzx(x86::ecx, DR_B(DN(op)));
+    as->btc(DR_L(REG(op)), x86::ecx);
+    as->setnc(CC_Z);
 }
 
-void bchg_b_r(x86::Assembler &a, uint16_t op) {
-    ea_readB_jit(a, TYPE(op), REG(op));
-    update_pc(a);
-    a.mov(x86::cl, DR_B(DN(op)));
-    a.and_(x86::cl, 7);
-    a.btc(x86::ax, x86::cl);
-    a.setnc(CC_Z);
-    ea_writeB_jit(a, TYPE(op), REG(op), true);
+void bchg_b_r(uint16_t op) {
+    ea_readB_jit(TYPE(op), REG(op));
+    update_pc();
+    as->mov(x86::cl, DR_B(DN(op)));
+    as->and_(x86::cx, 7);
+    as->btc(x86::ax, x86::cx);
+    as->setnc(CC_Z);
+    ea_writeB_jit(TYPE(op), REG(op), true);
 }
 
-void bclr_l_i(x86::Assembler &a, uint16_t op) {
+void bclr_l_i(uint16_t op) {
     int pos = FETCH() & 31;
-    update_pc(a);
-    a.mov(x86::eax, DR_L(REG(op)));
-    a.btr(x86::eax, pos);
-    a.setnc(CC_Z);
-    a.mov(DR_L(REG(op)), x86::eax);
+    update_pc();
+    as->btr(DR_L(REG(op)), pos);
+    as->setnc(CC_Z);
 }
 
-void bclr_b_i(x86::Assembler &a, uint16_t op) {
+void bclr_b_i(uint16_t op) {
     int pos = FETCH() & 7;
-    ea_readB_jit(a, TYPE(op), REG(op));
-    update_pc(a);
-    a.btr(x86::ax, pos);
-    a.setnc(CC_Z);
-    ea_writeB_jit(a, TYPE(op), REG(op), true);
+    ea_readB_jit(TYPE(op), REG(op));
+    update_pc();
+    as->btr(x86::ax, pos);
+    as->setnc(CC_Z);
+    ea_writeB_jit(TYPE(op), REG(op), true);
 }
 
-void bclr_l_r(x86::Assembler &a, uint16_t op) {
-    update_pc(a);
-    a.mov(x86::eax, DR_L(REG(op)));
-    a.mov(x86::cl, DR_B(DN(op)));
-    a.and_(x86::cl, 31);
-    a.btr(x86::eax, x86::cl);
-    a.setnc(CC_Z);
-    a.mov(DR_L(REG(op)), x86::eax);
+void bclr_l_r(uint16_t op) {
+    update_pc();
+    as->movzx(x86::ecx, DR_B(DN(op)));
+    as->btr(DR_L(REG(op)), x86::ecx);
+    as->setnc(CC_Z);
 }
 
-void bclr_b_r(x86::Assembler &a, uint16_t op) {
-    ea_readB_jit(a, TYPE(op), REG(op));
-    update_pc(a);
-    a.mov(x86::cl, DR_B(DN(op)));
-    a.and_(x86::cl, 7);
-    a.btr(x86::ax, x86::cl);
-    a.setnc(CC_Z);
-    ea_writeB_jit(a, TYPE(op), REG(op), true);
+void bclr_b_r(uint16_t op) {
+    ea_readB_jit(TYPE(op), REG(op));
+    update_pc();
+    as->mov(x86::cl, DR_B(DN(op)));
+    as->and_(x86::cl, 7);
+    as->btr(x86::ax, x86::cx);
+    as->setnc(CC_Z);
+    ea_writeB_jit(TYPE(op), REG(op), true);
 }
 
-void bset_l_i(x86::Assembler &a, uint16_t op) {
+void bset_l_i(uint16_t op) {
     int pos = FETCH() & 31;
-    update_pc(a);
-    a.mov(x86::eax, DR_L(REG(op)));
-    a.bts(x86::eax, pos);
-    a.setnc(CC_Z);
-    a.mov(DR_L(REG(op)), x86::eax);
+    update_pc();
+    as->bts(DR_L(REG(op)), pos);
+    as->setnc(CC_Z);
 }
 
-void bset_b_i(x86::Assembler &a, uint16_t op) {
+void bset_b_i(uint16_t op) {
     int pos = FETCH() & 7;
-    ea_readB_jit(a, TYPE(op), REG(op));
-    update_pc(a);
-    a.bts(x86::ax, pos);
-    a.setnc(CC_Z);
-    ea_writeB_jit(a, TYPE(op), REG(op), true);
+    ea_readB_jit(TYPE(op), REG(op));
+    update_pc();
+    as->bts(x86::ax, pos);
+    as->setnc(CC_Z);
+    ea_writeB_jit(TYPE(op), REG(op), true);
 }
 
-void bset_l_r(x86::Assembler &a, uint16_t op) {
-    update_pc(a);
-    a.mov(x86::eax, DR_L(REG(op)));
-    a.mov(x86::cl, DR_B(DN(op)));
-    a.and_(x86::cl, 31);
-    a.bts(x86::eax, x86::cl);
-    a.setnc(CC_Z);
-    a.mov(DR_L(REG(op)), x86::eax);
+void bset_l_r(uint16_t op) {
+    update_pc();
+    as->movzx(x86::ecx, DR_B(DN(op)));
+    as->bts(DR_L(REG(op)), x86::ecx);
+    as->setnc(CC_Z);
 }
 
-void bset_b_r(x86::Assembler &a, uint16_t op) {
-    ea_readB_jit(a, TYPE(op), REG(op));
-    update_pc(a);
-    a.mov(x86::cl, DR_B(DN(op)));
-    a.and_(x86::cl, 7);
-    a.bts(x86::al, x86::cl);
-    a.setnc(CC_Z);
-    ea_writeB_jit(a, TYPE(op), REG(op), true);
+void bset_b_r(uint16_t op) {
+    ea_readB_jit(TYPE(op), REG(op));
+    update_pc();
+    as->mov(x86::cl, DR_B(DN(op)));
+    as->and_(x86::cl, 7);
+    as->bts(x86::al, x86::cl);
+    as->setnc(CC_Z);
+    ea_writeB_jit(TYPE(op), REG(op), true);
 }
-void movep_w_load(x86::Assembler &a, uint16_t op) {
+void movep_w_load(uint16_t op) {
     int16_t disp = FETCH();
-    update_pc(a);
-    a.mov(x86::r10d, AR_L(REG(op)));
-    a.add(x86::r10d, disp);
-    a.mov(ARG1, x86::r10d);
-    a.call(ReadB);
-    a.mov(x86::r11b, x86::al);
-    a.shl(x86::r11w, 8);
-    a.lea(x86::r10, x86::ptr(x86::r10, 2));
-    a.mov(ARG1, x86::r10d);
-    a.call(ReadB);
-    a.mov(x86::r11b, x86::al);
-    a.mov(DR_W(DN(op)), x86::r11w);
+    update_pc();
+    as->mov(x86::r13d, AR_L(REG(op)));
+    as->add(x86::r13d, disp);
+    jit_readB(x86::r13d);
+    as->mov(x86::r12b, x86::al);
+    as->shl(x86::r12w, 8);
+    as->add(r13d, 2);
+    jit_readB(x86::r13d);
+    as->mov(x86::r12b, x86::al);
+    as->mov(DR_W(DN(op)), x86::r12w);
 }
 
-void movep_l_load(x86::Assembler &a, uint16_t op) {
+void movep_l_load(uint16_t op) {
     int16_t disp = FETCH();
-    update_pc(a);
-    a.mov(x86::r10d, AR_L(REG(op)));
-    a.add(x86::r10d, disp);
-    a.mov(ARG1, x86::r10d);
-    a.call(ReadB);
-    a.shl(x86::eax, 24);
-    a.mov(x86::r11d, x86::eax);
+    update_pc();
+    as->mov(x86::r13d, AR_L(REG(op)));
+    as->add(x86::r13d, disp);
+    jit_readB(x86::r13d);
+    as->shl(x86::eax, 24);
+    as->mov(x86::r11d, x86::eax);
 
-    a.lea(x86::r10, x86::ptr(x86::r10, 2));
-    a.mov(ARG1, x86::r10d);
-    a.call(ReadB);
-    a.shl(x86::eax, 16);
-    a.or_(x86::r11d, x86::eax);
+    as->add(x86::r13d, 2);
+    jit_readB(x86::r13d);
 
-    a.lea(x86::r10, x86::ptr(x86::r10, 2));
-    a.mov(ARG1, x86::r10d);
-    a.call(ReadB);
-    a.shl(x86::ax, 8);
-    a.or_(x86::r11w, x86::ax);
+    as->shl(x86::eax, 16);
+    as->or_(x86::r11d, x86::eax);
 
-    a.lea(x86::r10, x86::ptr(x86::r10, 2));
-    a.mov(ARG1, x86::r10d);
-    a.call(ReadB);
-    a.mov(x86::r11b, x86::al);
-    a.mov(DR_L(DN(op)), x86::r11d);
+    as->add(x86::r13d, 2);
+    jit_readB(x86::r13d);
+
+    as->shl(x86::ax, 8);
+    as->or_(x86::r11w, x86::ax);
+
+    as->add(x86::r13d, 2);
+    jit_readB(x86::r13d);
+
+    as->mov(x86::r11b, x86::al);
+    as->mov(DR_L(DN(op)), x86::r11d);
 }
 
-void movep_w_store(x86::Assembler &a, uint16_t op) {
+void movep_w_store(uint16_t op) {
     int16_t disp = FETCH();
-    update_pc(a);
-    a.mov(x86::r10d, AR_L(REG(op)));
-    a.add(x86::r10d, disp);
-    a.mov(x86::r11w, DR_W(DN(op)));
+    update_pc();
+    as->mov(x86::r10d, AR_L(REG(op)));
+    as->add(x86::r10d, disp);
+    as->mov(x86::r11w, DR_W(DN(op)));
 
-    a.mov(ARG1, x86::r10d);
-    a.mov(ARG2, x86::r11d);
-    a.shr(ARG2, 8);
-    a.call(WriteB);
+    as->mov(ARG1.r32(), x86::r10d);
+    as->mov(x86::dx, x86::r11w);
+    as->shr(x86::dx, 8);
+    jit_writeB(x86::r10d, x86::dl);
 
-    a.lea(x86::r10, x86::ptr(x86::r10, 2));
-    a.mov(ARG1, x86::r10d);
-    a.mov(ARG2, x86::r11d);
-    a.call(WriteB);
+    as->lea(x86::r10, x86::ptr(x86::r10, 2));
+    jit_writeB(x86::r10d, x86::r11b);
 }
 
-void movep_l_store(x86::Assembler &a, uint16_t op) {
+void movep_l_store(uint16_t op) {
     int16_t disp = FETCH();
-    update_pc(a);
-    a.mov(x86::r10d, AR_L(REG(op)));
-    a.add(x86::r10d, disp);
-    a.mov(x86::r11d, DR_L(DN(op)));
+    update_pc();
+    as->mov(x86::r12d, AR_L(REG(op)));
+    as->add(x86::r12d, disp);
+    as->mov(x86::r11d, DR_L(DN(op)));
 
-    a.mov(ARG1, x86::r10d);
-    a.mov(ARG2, x86::r11d);
-    a.shr(ARG2, 24);
-    a.call(WriteB);
+    as->mov(x86::edx, x86::r11d);
+    as->shr(x86::edx, 24);
+    jit_writeB(x86::r12d, x86::dl);
 
-    a.lea(x86::r10, x86::ptr(x86::r10, 2));
-    a.mov(ARG1, x86::r10d);
-    a.mov(ARG2, x86::r11d);
-    a.shr(ARG2, 16);
-    a.call(WriteB);
+    as->lea(x86::r12, x86::ptr(x86::r12, 2));
+    as->mov(x86::edx, x86::r11d);
+    as->shr(x86::edx, 16);
+    jit_writeB(x86::r12d, x86::dl);
 
-    a.lea(x86::r10, x86::ptr(x86::r10, 2));
-    a.mov(ARG1, x86::r10d);
-    a.mov(ARG2, x86::r11d);
-    a.shr(ARG2, 8);
-    a.call(WriteB);
+    as->lea(x86::r12, x86::ptr(x86::r12, 2));
+    as->mov(x86::edx, x86::r11d);
+    as->shr(x86::edx, 8);
+    jit_writeB(x86::r12d, x86::dl);
 
-    a.lea(x86::r10, x86::ptr(x86::r10, 2));
-    a.mov(ARG1, x86::r10d);
-    a.mov(ARG2, x86::r11d);
-    a.call(WriteB);
+    as->lea(x86::r12, x86::ptr(x86::r12, 2));
+    as->mov(x86::edx, x86::r11d);
+    jit_writeB(x86::r12d, x86::dl);
 }
 
-void cas_b(x86::Assembler &a, uint16_t op) {
-    auto lb = a.newLabel();
-    auto lb2 = a.newLabel();
+void cas_b(uint16_t op) {
+    auto lb = as->newLabel();
+    auto lb2 = as->newLabel();
     uint16_t extw = FETCH();
     int du = extw >> 6 & 7;
     int dc = extw & 7;
-    ea_readB_jit(a, TYPE(op), REG(op));
-    update_pc(a);
-    a.mov(x86::dl, DR_B(dc));
-    a.cmp(x86::dl, x86::al);
-    update_nz(a);
-    update_vc(a);
-    a.jne(lb);
-    a.mov(x86::al, DR_B(du));
-    ea_writeB_jit(a, TYPE(op), REG(op), true);
-    a.jmp(lb2);
-    a.bind(lb);
-    a.mov(DR_B(dc), x86::al);
-    a.bind(lb2);
-    jit_trace_check(a);
+    ea_readB_jit(TYPE(op), REG(op));
+    update_pc();
+    as->cmp(DR_B(dc), x86::al);
+    update_nz();
+    update_vc();
+    as->jne(lb);
+    as->mov(x86::al, DR_B(du));
+    ea_writeB_jit(TYPE(op), REG(op), true);
+    as->jmp(lb2);
+    as->bind(lb);
+    as->mov(DR_B(dc), x86::al);
+    as->bind(lb2);
+    jit_trace_branch();
 }
 
-void cas_w(x86::Assembler &a, uint16_t op) {
-    auto lb = a.newLabel();
-    auto lb2 = a.newLabel();
+void cas_w(uint16_t op) {
+    auto lb = as->newLabel();
+    auto lb2 = as->newLabel();
     uint16_t extw = FETCH();
     int du = extw >> 6 & 7;
     int dc = extw & 7;
-    ea_readW_jit(a, TYPE(op), REG(op));
-    update_pc(a);
-    a.mov(x86::dx, DR_W(dc));
-    a.cmp(x86::dx, x86::ax);
-    update_nz(a);
-    update_vc(a);
-    a.jne(lb);
-    a.mov(x86::ax, DR_W(du));
-    ea_writeW_jit(a, TYPE(op), REG(op), true);
-    a.jmp(lb2);
-    a.bind(lb);
-    a.mov(DR_W(dc), x86::ax);
-    a.bind(lb2);
-    jit_trace_check(a);
+    ea_readW_jit(TYPE(op), REG(op));
+    update_pc();
+    as->cmp(DR_W(dc), x86::ax);
+    update_nz();
+    update_vc();
+    as->jne(lb);
+    as->mov(x86::ax, DR_W(du));
+    ea_writeW_jit(TYPE(op), REG(op), true);
+    as->jmp(lb2);
+    as->bind(lb);
+    as->mov(DR_W(dc), x86::ax);
+    as->bind(lb2);
+    jit_trace_branch();
 }
 
-void cas_l(x86::Assembler &a, uint16_t op) {
-    auto lb = a.newLabel();
-    auto lb2 = a.newLabel();
+void cas_l(uint16_t op) {
+    auto lb = as->newLabel();
+    auto lb2 = as->newLabel();
     uint16_t extw = FETCH();
     int du = extw >> 6 & 7;
     int dc = extw & 7;
-    ea_readL_jit(a, TYPE(op), REG(op));
-    update_pc(a);
-    a.mov(x86::edx, DR_L(dc));
-    a.cmp(x86::edx, x86::eax);
-    update_nz(a);
-    update_vc(a);
-    a.jne(lb);
-    a.mov(x86::eax, DR_L(du));
-    ea_writeL_jit(a, TYPE(op), REG(op), true);
-    a.jmp(lb2);
-    a.bind(lb);
-    a.mov(DR_L(dc), x86::eax);
-    a.bind(lb2);
-    jit_trace_check(a);
+    ea_readL_jit(TYPE(op), REG(op));
+    update_pc();
+    as->cmp(DR_L(dc), x86::eax);
+    update_nz();
+    update_vc();
+    as->jne(lb);
+    as->mov(x86::eax, DR_L(du));
+    ea_writeL_jit(TYPE(op), REG(op), true);
+    as->jmp(lb2);
+    as->bind(lb);
+    as->mov(DR_L(dc), x86::eax);
+    as->bind(lb2);
+    jit_trace_branch();
 }
 
-void cas2_w(x86::Assembler &a, uint16_t) {
-    auto lb1 = a.newLabel();
-    auto lb2 = a.newLabel();
-    auto lb3 = a.newLabel();
+void cas2_w(uint16_t) {
+    auto lb1 = as->newLabel();
+    auto lb2 = as->newLabel();
+    auto lb3 = as->newLabel();
     uint16_t extw1 = FETCH();
     uint16_t extw2 = FETCH();
     int rn1 = extw1 >> 12 & 15;
@@ -858,41 +786,35 @@ void cas2_w(x86::Assembler &a, uint16_t) {
     int rn2 = extw2 >> 12 & 15;
     int du2 = extw2 >> 6 & 7;
     int dc2 = extw2 & 7;
-    update_pc(a);
-    a.mov(ARG1, DR_L(rn1));
-    a.call(ReadW);
-    a.mov(x86::r12w, x86::ax);
-    a.mov(ARG1, DR_L(rn2));
-    a.call(ReadW);
-    a.mov(x86::r13w, x86::ax);
+    update_pc();
+    jit_readW(DR_L(rn1));
+    as->mov(x86::r12w, x86::ax);
+    jit_readW(DR_L(rn2));
+    as->mov(x86::r13w, x86::ax);
 
-    a.cmp(x86::r12w, DR_W(dc1));
-    update_nz(a);
-    update_vc(a);
-    a.jne(lb1);
-    a.cmp(x86::r13w, DR_W(dc2));
-    update_nz(a);
-    update_vc(a);
-    a.bind(lb1);
-    a.jne(lb2);
-    a.mov(ARG1, DR_L(rn1));
-    a.mov(ARG2, DR_W(du1));
-    a.call(WriteW);
-    a.mov(ARG1, DR_L(rn2));
-    a.mov(ARG2, DR_W(du2));
-    a.call(WriteW);
-    a.jmp(lb3);
-    a.bind(lb2);
-    a.mov(DR_W(dc1), x86::r12w);
-    a.mov(DR_W(dc2), x86::r13w);
-    a.bind(lb3);
-    jit_trace_check(a);
+    as->cmp(x86::r12w, DR_W(dc1));
+    update_nz();
+    update_vc();
+    as->jne(lb1);
+    as->cmp(x86::r13w, DR_W(dc2));
+    update_nz();
+    update_vc();
+    as->bind(lb1);
+    as->jne(lb2);
+    jit_writeW(DR_L(rn1), DR_W(du1));
+    jit_writeW(DR_L(rn2), DR_W(du2));
+    as->jmp(lb3);
+    as->bind(lb2);
+    as->mov(DR_W(dc1), x86::r12w);
+    as->mov(DR_W(dc2), x86::r13w);
+    as->bind(lb3);
+    jit_trace_branch();
 }
 
-void cas2_l(x86::Assembler &a, uint16_t) {
-    auto lb1 = a.newLabel();
-    auto lb2 = a.newLabel();
-    auto lb3 = a.newLabel();
+void cas2_l(uint16_t) {
+    auto lb1 = as->newLabel();
+    auto lb2 = as->newLabel();
+    auto lb3 = as->newLabel();
     uint16_t extw1 = FETCH();
     uint16_t extw2 = FETCH();
     int rn1 = extw1 >> 12 & 15;
@@ -901,1096 +823,1061 @@ void cas2_l(x86::Assembler &a, uint16_t) {
     int rn2 = extw2 >> 12 & 15;
     int du2 = extw2 >> 6 & 7;
     int dc2 = extw2 & 7;
-    update_pc(a);
-    a.mov(ARG1, DR_L(rn1));
-    a.call(ReadL);
-    a.mov(x86::r12d, x86::eax);
-    a.mov(ARG1, DR_L(rn2));
-    a.call(ReadL);
-    a.mov(x86::r13d, x86::eax);
+    update_pc();
+    jit_readL(DR_L(rn1));
+    as->mov(x86::r12d, x86::eax);
+    jit_readL(DR_L(rn2));
+    as->mov(x86::r13d, x86::eax);
 
-    a.cmp(x86::r12d, DR_L(dc1));
-    update_nz(a);
-    update_vc(a);
-    a.jne(lb1);
-    a.cmp(x86::r13d, DR_L(dc2));
-    update_nz(a);
-    update_vc(a);
-    a.bind(lb1);
-    a.jne(lb2);
-    a.mov(ARG1, DR_L(rn1));
-    a.mov(ARG2, DR_L(du1));
-    a.call(WriteL);
-    a.mov(ARG1, DR_L(rn2));
-    a.mov(ARG2, DR_L(du2));
-    a.call(WriteL);
-    a.jmp(lb3);
-    a.bind(lb2);
-    a.mov(DR_L(dc1), x86::r12d);
-    a.mov(DR_L(dc2), x86::r13d);
-    a.bind(lb3);
-    jit_trace_check(a);
+    as->cmp(x86::r12d, DR_L(dc1));
+    update_nz();
+    update_vc();
+    as->jne(lb1);
+    as->cmp(x86::r13d, DR_L(dc2));
+    update_nz();
+    update_vc();
+    as->bind(lb1);
+    as->jne(lb2);
+    jit_writeL(DR_L(rn1), DR_L(du1));
+    jit_writeL(DR_L(rn2), DR_L(du2));
+    as->jmp(lb3);
+    as->bind(lb2);
+    as->mov(DR_L(dc1), x86::r12d);
+    as->mov(DR_L(dc2), x86::r13d);
+    as->bind(lb3);
+    jit_trace_branch();
 }
 
-void moves_b(x86::Assembler &a, uint16_t op) {
+void moves_b(uint16_t op) {
     uint16_t extw = FETCH();
     int rn = extw >> 12 & 15;
-    jit_priv_check(a);
-    a.mov(x86::rdi, reinterpret_cast<intptr_t>(&cpu.faultParam->tt));
-    a.mov(x86::byte_ptr(x86::rdi), TT::ALT);
-    ea_getaddr_jit(a, TYPE(op), REG(op), 1);
-    update_pc(a);
-    a.mov(ARG1, x86::r9d);
+    jit_priv_check();
+    as->mov(x86::rdi, reinterpret_cast<intptr_t>(&cpu.faultParam->tt));
+    as->mov(x86::byte_ptr(x86::rdi), TT::ALT);
+    ea_getaddr_jit(TYPE(op), REG(op), 1);
+    update_pc();
     if(extw & 1 << 11) {
-        a.movzx(ARG2, DR_B(rn));
-        a.mov(ARG3, 1);
-        a.call(WriteB);
+        jit_writeB(ARG1.r32(), DR_B(rn));
     } else {
-        a.mov(ARG2, 1);
-        a.call(ReadB);
-        a.mov(DR_B(rn), x86::al);
+        jit_readB(ARG1.r32());
+        as->mov(DR_B(rn), x86::al);
     }
-    jit_trace_check(a);
+    jit_trace_branch();
 }
 
-void moves_w(x86::Assembler &a, uint16_t op) {
+void moves_w(uint16_t op) {
     uint16_t extw = FETCH();
     int rn = extw >> 12 & 15;
-    jit_priv_check(a);
-    a.mov(x86::rdi, reinterpret_cast<intptr_t>(&cpu.faultParam->tt));
-    a.mov(x86::byte_ptr(x86::rdi), TT::ALT);
-    ea_getaddr_jit(a, TYPE(op), REG(op), 2);
-    update_pc(a);
-    a.mov(ARG1, x86::r9d);
+    jit_priv_check();
+    as->mov(x86::rdi, reinterpret_cast<intptr_t>(&cpu.faultParam->tt));
+    as->mov(x86::byte_ptr(x86::rdi), TT::ALT);
+    ea_getaddr_jit(TYPE(op), REG(op), 2);
+    update_pc();
     if(extw & 1 << 11) {
-        a.movzx(ARG2, DR_W(rn));
-        a.mov(ARG3, 1);
-        a.call(WriteW);
+        jit_writeW(ARG1.r32(), DR_W(rn));
     } else {
-        a.mov(ARG2, 1);
-        a.call(ReadW);
-        a.mov(DR_W(rn), x86::ax);
+        jit_readW(ARG1.r32());
+        as->mov(DR_W(rn), x86::ax);
     }
-    jit_trace_check(a);
+    jit_trace_branch();
 }
 
-void moves_l(x86::Assembler &a, uint16_t op) {
+void moves_l(uint16_t op) {
     uint16_t extw = FETCH();
     int rn = extw >> 12 & 15;
-    jit_priv_check(a);
-    ea_getaddr_jit(a, TYPE(op), REG(op), 4);
-    a.mov(x86::rdi, reinterpret_cast<intptr_t>(&cpu.faultParam->tt));
-    a.mov(x86::byte_ptr(x86::rdi), TT::ALT);
-    update_pc(a);
-    a.mov(ARG1, x86::r9d);
+    jit_priv_check();
+    as->mov(x86::rdi, reinterpret_cast<intptr_t>(&cpu.faultParam->tt));
+    as->mov(x86::byte_ptr(x86::rdi), TT::ALT);
+    ea_getaddr_jit(TYPE(op), REG(op), 4);
+    update_pc();
     if(extw & 1 << 11) {
-        a.mov(ARG2, DR_L(rn));
-        a.mov(ARG3, 1);
-        a.call(WriteL);
+        jit_writeL(ARG1.r32(), DR_L(rn));
     } else {
-        a.mov(ARG2, 1);
-        a.call(ReadL);
-        a.mov(DR_L(rn), x86::eax);
+        jit_readL(ARG1.r32());
+        as->mov(DR_L(rn), x86::eax);
     }
-    jit_trace_check(a);
+    jit_trace_branch();
 }
 
-void move_b(x86::Assembler &a, uint16_t op) {
+void move_b(uint16_t op) {
     int dst_type = op >> 6 & 7;
-    ea_readB_jit(a, TYPE(op), REG(op));
-    update_pc(a);
-    a.or_(x86::al, x86::al);
-    update_nz(a);
-    clear_vc(a);
-    ea_writeB_jit(a, dst_type, DN(op), false);
-    update_pc(a);
+    ea_readB_jit(TYPE(op), REG(op));
+    update_pc();
+    as->or_(x86::al, x86::al);
+    update_nz();
+    clear_vc();
+    ea_writeB_jit(dst_type, DN(op), false);
+    update_pc();
 }
 
-void move_w(x86::Assembler &a, uint16_t op) {
+void move_w(uint16_t op) {
     int dst_type = op >> 6 & 7;
-    ea_readW_jit(a, TYPE(op), REG(op));
-    update_pc(a);
-    a.or_(x86::ax, x86::ax);
-    update_nz(a);
-    clear_vc(a);
-    ea_writeW_jit(a, dst_type, DN(op), false);
+    ea_readW_jit(TYPE(op), REG(op));
+    update_pc();
+    as->or_(x86::ax, x86::ax);
+    update_nz();
+    clear_vc();
+    ea_writeW_jit(dst_type, DN(op), false);
 }
 
-void move_l(x86::Assembler &a, uint16_t op) {
+void move_l(uint16_t op) {
     int dst_type = op >> 6 & 7;
-    ea_readL_jit(a, TYPE(op), REG(op));
-    update_pc(a);
-    a.or_(x86::eax, x86::eax);
-    update_nz(a);
-    clear_vc(a);
-    ea_writeL_jit(a, dst_type, DN(op), false);
+    ea_readL_jit(TYPE(op), REG(op));
+    update_pc();
+    as->or_(x86::eax, x86::eax);
+    update_nz();
+    clear_vc();
+    ea_writeL_jit(dst_type, DN(op), false);
 }
 
-void movea_w(x86::Assembler &a, uint16_t op) {
-    ea_readW_jit(a, TYPE(op), REG(op));
-    update_pc(a);
-    a.cwde();
-    a.mov(AR_L(DN(op)), x86::eax);
+void movea_w(uint16_t op) {
+    ea_readW_jit(TYPE(op), REG(op));
+    update_pc();
+    as->cwde();
+    as->mov(AR_L(DN(op)), x86::eax);
 }
 
-void movea_l(x86::Assembler &a, uint16_t op) {
-    ea_readL_jit(a, TYPE(op), REG(op));
-    update_pc(a);
-    a.mov(AR_L(DN(op)), x86::eax);
+void movea_l(uint16_t op) {
+    ea_readL_jit(TYPE(op), REG(op));
+    update_pc();
+    as->mov(AR_L(DN(op)), x86::eax);
 }
 
-void move_from_sr(x86::Assembler &a, uint16_t op) {
-    jit_priv_check(a);
-    update_pc(a);
-    a.call(GetSR);
-    ea_writeW_jit(a, TYPE(op), REG(op), false);
+void move_from_sr(uint16_t op) {
+    jit_priv_check();
+    update_pc();
+    as->call(GetSR);
+    ea_writeW_jit(TYPE(op), REG(op), false);
 }
 
-void move_from_ccr(x86::Assembler &a, uint16_t op) {
-    update_pc(a);
-    a.call(GetCCR);
-    ea_writeW_jit(a, TYPE(op), REG(op), false);
+void move_from_ccr(uint16_t op) {
+    update_pc();
+    as->call(GetCCR);
+    ea_writeW_jit(TYPE(op), REG(op), false);
 }
 
-void move_to_sr(x86::Assembler &a, uint16_t op) {
-    jit_priv_check(a);
-    ea_readW_jit(a, TYPE(op), REG(op));
-    update_pc(a);
-    a.movzx(ARG1, x86::ax);
-    a.call(SetSR);
-    jit_trace_branch(a);
+void move_to_sr(uint16_t op) {
+    jit_priv_check();
+    ea_readW_jit(TYPE(op), REG(op));
+    update_pc();
+    as->movzx(ARG1.r32(), x86::ax);
+    as->call(SetSR);
+    jit_trace_branch();
 }
 
-void move_to_ccr(x86::Assembler &a, uint16_t op) {
-    ea_readW_jit(a, TYPE(op), REG(op));
-    update_pc(a);
-    a.movzx(ARG1, x86::al);
-    a.call(SetCCR);
+void move_to_ccr(uint16_t op) {
+    ea_readW_jit(TYPE(op), REG(op));
+    update_pc();
+    as->movzx(ARG1.r32(), x86::al);
+    as->call(SetCCR);
 }
 
-void negx_b(x86::Assembler &a, uint16_t op) {
-    ea_readB_jit(a, TYPE(op), REG(op));
-    update_pc(a);
-    a.add(x86::al, CC_X);
-    a.neg(x86::al);
-    update_nz(a);
-    update_vcx(a);
-    ea_writeB_jit(a, TYPE(op), REG(op), true);
+void negx_b(uint16_t op) {
+    ea_readB_jit(TYPE(op), REG(op));
+    update_pc();
+    as->add(x86::al, CC_X);
+    as->neg(x86::al);
+    update_nz();
+    update_vcx();
+    ea_writeB_jit(TYPE(op), REG(op), true);
 }
 
-void negx_w(x86::Assembler &a, uint16_t op) {
-    ea_readW_jit(a, TYPE(op), REG(op));
-    update_pc(a);
-    a.add(x86::ax, CC_X);
-    a.neg(x86::ax);
-    update_nz(a);
-    update_vcx(a);
-    ea_writeW_jit(a, TYPE(op), REG(op), true);
+void negx_w(uint16_t op) {
+    ea_readW_jit(TYPE(op), REG(op));
+    update_pc();
+    as->add(x86::ax, CC_X);
+    as->neg(x86::ax);
+    update_nz();
+    update_vcx();
+    ea_writeW_jit(TYPE(op), REG(op), true);
 }
 
-void negx_l(x86::Assembler &a, uint16_t op) {
-    ea_readL_jit(a, TYPE(op), REG(op));
-    update_pc(a);
-    a.add(x86::eax, CC_X);
-    a.neg(x86::eax);
-    update_nz(a);
-    update_vcx(a);
-    ea_writeL_jit(a, TYPE(op), REG(op), true);
+void negx_l(uint16_t op) {
+    ea_readL_jit(TYPE(op), REG(op));
+    update_pc();
+    as->add(x86::eax, CC_X);
+    as->neg(x86::eax);
+    update_nz();
+    update_vcx();
+    ea_writeL_jit(TYPE(op), REG(op), true);
 }
 
-void clr_b(x86::Assembler &a, uint16_t op) {
-    a.xor_(x86::al, x86::al);
-    update_nz(a);
-    clear_vc(a);
-    ea_writeB_jit(a, TYPE(op), REG(op), false);
-    update_pc(a);
+void clr_b(uint16_t op) {
+    as->xor_(x86::al, x86::al);
+    update_nz();
+    clear_vc();
+    ea_writeB_jit(TYPE(op), REG(op), false);
+    update_pc();
 }
 
-void clr_w(x86::Assembler &a, uint16_t op) {
-    a.xor_(x86::ax, x86::ax);
-    update_nz(a);
-    clear_vc(a);
-    ea_writeW_jit(a, TYPE(op), REG(op), false);
-    update_pc(a);
+void clr_w(uint16_t op) {
+    as->xor_(x86::ax, x86::ax);
+    update_nz();
+    clear_vc();
+    ea_writeW_jit(TYPE(op), REG(op), false);
+    update_pc();
 }
 
-void clr_l(x86::Assembler &a, uint16_t op) {
-    a.xor_(x86::eax, x86::eax);
-    update_nz(a);
-    clear_vc(a);
-    ea_writeL_jit(a, TYPE(op), REG(op), false);
-    update_pc(a);
+void clr_l(uint16_t op) {
+    as->xor_(x86::eax, x86::eax);
+    update_nz();
+    clear_vc();
+    ea_writeL_jit(TYPE(op), REG(op), false);
+    update_pc();
 }
 
-void neg_b(x86::Assembler &a, uint16_t op) {
-    ea_readB_jit(a, TYPE(op), REG(op));
-    update_pc(a);
-    a.neg(x86::al);
-    update_nz(a);
-    update_vcx(a);
-    ea_writeB_jit(a, TYPE(op), REG(op), true);
+void neg_b(uint16_t op) {
+    ea_readB_jit(TYPE(op), REG(op));
+    update_pc();
+    as->neg(x86::al);
+    update_nz();
+    update_vcx();
+    ea_writeB_jit(TYPE(op), REG(op), true);
 }
 
-void neg_w(x86::Assembler &a, uint16_t op) {
-    ea_readW_jit(a, TYPE(op), REG(op));
-    update_pc(a);
-    a.neg(x86::ax);
-    update_nz(a);
-    update_vcx(a);
-    ea_writeW_jit(a, TYPE(op), REG(op), true);
+void neg_w(uint16_t op) {
+    ea_readW_jit(TYPE(op), REG(op));
+    update_pc();
+    as->neg(x86::ax);
+    update_nz();
+    update_vcx();
+    ea_writeW_jit(TYPE(op), REG(op), true);
 }
 
-void neg_l(x86::Assembler &a, uint16_t op) {
-    ea_readL_jit(a, TYPE(op), REG(op));
-    update_pc(a);
-    a.neg(x86::eax);
-    update_nz(a);
-    update_vcx(a);
-    ea_writeL_jit(a, TYPE(op), REG(op), true);
+void neg_l(uint16_t op) {
+    ea_readL_jit(TYPE(op), REG(op));
+    update_pc();
+    as->neg(x86::eax);
+    update_nz();
+    update_vcx();
+    ea_writeL_jit(TYPE(op), REG(op), true);
 }
 
-void not_b(x86::Assembler &a, uint16_t op) {
-    ea_readB_jit(a, TYPE(op), REG(op));
-    update_pc(a);
-    a.not_(x86::al);
-    a.test(x86::al, x86::al);
-    update_nz(a);
-    clear_vc(a);
-    ea_writeB_jit(a, TYPE(op), REG(op), true);
+void not_b(uint16_t op) {
+    ea_readB_jit(TYPE(op), REG(op));
+    update_pc();
+    as->not_(x86::al);
+    as->test(x86::al, x86::al);
+    update_nz();
+    clear_vc();
+    ea_writeB_jit(TYPE(op), REG(op), true);
 }
 
-void not_w(x86::Assembler &a, uint16_t op) {
-    ea_readW_jit(a, TYPE(op), REG(op));
-    update_pc(a);
-    a.not_(x86::ax);
-    a.test(x86::ax, x86::ax);
-    update_nz(a);
-    clear_vc(a);
-    ea_writeW_jit(a, TYPE(op), REG(op), true);
+void not_w(uint16_t op) {
+    ea_readW_jit(TYPE(op), REG(op));
+    update_pc();
+    as->not_(x86::ax);
+    as->test(x86::ax, x86::ax);
+    update_nz();
+    clear_vc();
+    ea_writeW_jit(TYPE(op), REG(op), true);
 }
 
-void not_l(x86::Assembler &a, uint16_t op) {
-    ea_readL_jit(a, TYPE(op), REG(op));
-    update_pc(a);
-    a.not_(x86::eax);
-    a.test(x86::eax, x86::eax);
-    update_nz(a);
-    clear_vc(a);
-    ea_writeL_jit(a, TYPE(op), REG(op), true);
+void not_l(uint16_t op) {
+    ea_readL_jit(TYPE(op), REG(op));
+    update_pc();
+    as->not_(x86::eax);
+    as->test(x86::eax, x86::eax);
+    update_nz();
+    clear_vc();
+    ea_writeL_jit(TYPE(op), REG(op), true);
 }
 // BCD is rarely used and complecated, so not inlined
-void nbcd(x86::Assembler &a, uint16_t op) {
-    ea_readB_jit(a, TYPE(op), REG(op));
-    update_pc(a);
-    a.mov(ARG1, x86::eax);
-    a.movzx(ARG2, CC_X);
-    a.call(do_nbcd);
-    ea_writeB_jit(a, TYPE(op), REG(op), true);
+void nbcd(uint16_t op) {
+    ea_readB_jit(TYPE(op), REG(op));
+    update_pc();
+    as->mov(ARG1.r32(), x86::eax);
+    as->movzx(ARG2.r32(), CC_X);
+    as->call(do_nbcd);
+    ea_writeB_jit(TYPE(op), REG(op), true);
 }
 
-void link_l(x86::Assembler &a, uint16_t op) {
+void link_l(uint16_t op) {
     int32_t disp = FETCH32();
     int reg = REG(op);
-    update_pc(a);
-    a.mov(x86::eax, AR_L(reg));
-    jit_push32(a);
+    update_pc();
+    as->mov(x86::eax, AR_L(reg));
+    jit_push32();
 
-    a.mov(x86::eax, SP);
-    a.mov(AR_L(reg), x86::eax);
-    a.add(SP, disp);
+    as->mov(x86::eax, SP);
+    as->mov(AR_L(reg), x86::eax);
+    as->add(SP, disp);
 }
 
-void swap(x86::Assembler &a, uint16_t op) {
+void swap(uint16_t op) {
     const auto reg = DR_L(REG(op));
-    a.mov(x86::eax, reg);
-    clear_vc(a);
+    as->mov(x86::eax, reg);
+    clear_vc();
     if(feature.x86().hasBMI2()) {
-        a.rorx(x86::eax, x86::eax, 16);
+        as->rorx(x86::eax, x86::eax, 16);
     } else {
-        a.ror(x86::eax, 16);
+        as->ror(x86::eax, 16);
     }
-    a.test(x86::eax, x86::eax);
-    update_nz(a);
-    a.mov(reg, x86::eax);
+    as->test(x86::eax, x86::eax);
+    update_nz();
+    as->mov(reg, x86::eax);
 }
 
-void bkpt(x86::Assembler &a, uint16_t) { a.call(ILLEGAL_OP); }
+void bkpt(uint16_t) { as->call(ILLEGAL_OP); }
 
-void pea(x86::Assembler &a, uint16_t op) {
-    ea_getaddr_jit(a, TYPE(op), REG(op), 0);
-    update_pc(a);
-    a.mov(x86::eax, x86::r9d);
-    jit_push32(a);
+void pea(uint16_t op) {
+    ea_getaddr_jit(TYPE(op), REG(op), 0);
+    update_pc();
+    as->mov(x86::eax, ARG1.r32());
+    jit_push32();
 }
 
-void ext_w(x86::Assembler &a, uint16_t op) {
+void ext_w(uint16_t op) {
     int reg = REG(op);
-    a.movsx(x86::ax, DR_B(reg));
-    a.test(x86::ax, x86::ax);
-    update_nz(a);
-    clear_vc(a);
-    a.mov(DR_W(reg), x86::ax);
+    as->movsx(x86::ax, DR_B(reg));
+    as->test(x86::ax, x86::ax);
+    update_nz();
+    clear_vc();
+    as->mov(DR_W(reg), x86::ax);
 }
 
-void ext_l(x86::Assembler &a, uint16_t op) {
+void ext_l(uint16_t op) {
     int reg = REG(op);
-    a.movsx(x86::eax, DR_W(reg));
-    a.test(x86::eax, x86::eax);
-    update_nz(a);
-    clear_vc(a);
-    a.mov(DR_L(reg), x86::eax);
+    as->movsx(x86::eax, DR_W(reg));
+    as->test(x86::eax, x86::eax);
+    update_nz();
+    clear_vc();
+    as->mov(DR_L(reg), x86::eax);
 }
-void movem_w_store_decr(x86::Assembler &a, uint16_t op) {
+void movem_w_store_decr(uint16_t op) {
     uint16_t regs = FETCH();
-    auto lb = a.newLabel();
+    auto lb = as->newLabel();
     const auto reg = AR_L(REG(op));
-    a.mov(x86::al, x86::byte_ptr(x86::rbx, offsetof(Cpu, movem_run)));
-    a.test(x86::al, x86::al);
-    a.jne(lb);
-    a.mov(x86::edx, reg);
-    a.lea(x86::rdx, x86::ptr(x86::rdx, -2));
-    a.mov(reg, x86::edx);
-    a.mov(x86::dword_ptr(x86::rbx, offsetof(Cpu, EA)), x86::edx);
-    a.inc(x86::byte_ptr(x86::rbx, offsetof(Cpu, movem_run)));
-    a.bind(lb);
-    a.mov(x86::r12d, x86::dword_ptr(x86::rbx, offsetof(Cpu, EA)));
+    as->mov(x86::al, x86::byte_ptr(x86::rbx, offsetof(Cpu, movem_run)));
+    as->test(x86::al, x86::al);
+    as->jne(lb);
+    as->mov(x86::edx, reg);
+    as->lea(x86::rdx, x86::ptr(x86::rdx, -2));
+    as->mov(reg, x86::edx);
+    as->mov(EA, x86::edx);
+    as->inc(x86::byte_ptr(x86::rbx, offsetof(Cpu, movem_run)));
+    as->bind(lb);
+    as->mov(x86::r12d, EA);
     for(int i = 0; i < 16; ++i) {
         if(regs & 1 << i) {
-            a.mov(ARG1, x86::r12d);
-            a.mov(ARG2, DR_L(15 - i));
-            a.call(WriteW);
-            a.lea(x86::r12, x86::ptr(x86::r12, -2));
+            jit_writeW(x86::r12d, DR_L(15 - i));
+            as->lea(x86::r12, x86::ptr(x86::r12, -2));
         }
     }
-    a.lea(x86::r12, x86::ptr(x86::r12, 2));
-    a.mov(reg, x86::r12);
-    a.dec(x86::byte_ptr(x86::rbx, offsetof(Cpu, movem_run)));
+    as->lea(x86::r12, x86::ptr(x86::r12, 2));
+    as->mov(reg, x86::r12);
+    as->dec(x86::byte_ptr(x86::rbx, offsetof(Cpu, movem_run)));
 }
-void movem_w_store_base(x86::Assembler &a, uint16_t op) {
+void movem_w_store_base(uint16_t op) {
     uint16_t regs = FETCH();
-    auto lb = a.newLabel();
-    a.mov(x86::al, x86::byte_ptr(x86::rbx, offsetof(Cpu, movem_run)));
-    a.test(x86::al, x86::al);
-    a.jne(lb);
-    ea_getaddr_jit(a, TYPE(op), REG(op), 2);
-    a.inc(x86::byte_ptr(x86::rbx, offsetof(Cpu, movem_run)));
-    a.bind(lb);
-    a.mov(x86::r12d, x86::dword_ptr(x86::rbx, offsetof(Cpu, EA)));
+    auto lb = as->newLabel();
+    as->mov(x86::al, x86::byte_ptr(x86::rbx, offsetof(Cpu, movem_run)));
+    as->test(x86::al, x86::al);
+    as->jne(lb);
+    ea_getaddr_jit(TYPE(op), REG(op), 2);
+    as->mov(x86::r12, ARG1);
+    as->inc(x86::byte_ptr(x86::rbx, offsetof(Cpu, movem_run)));
+    as->bind(lb);
     for(int i = 0; i < 16; ++i) {
         if(regs & 1 << i) {
-            a.mov(ARG1, x86::r12d);
-            a.mov(ARG2, DR_L(i));
-            a.call(WriteW);
-            a.lea(x86::r12, x86::ptr(x86::r12, 2));
+            jit_writeW(x86::r12d, DR_L(i));
+            as->lea(x86::r12, x86::ptr(x86::r12, 2));
         }
     }
-    a.dec(x86::byte_ptr(x86::rbx, offsetof(Cpu, movem_run)));
+    as->dec(x86::byte_ptr(x86::rbx, offsetof(Cpu, movem_run)));
 }
-void movem_l_store_decr(x86::Assembler &a, uint16_t op) {
+void movem_l_store_decr(uint16_t op) {
     uint16_t regs = FETCH();
-    auto lb = a.newLabel();
+    auto lb = as->newLabel();
     const auto reg = AR_L(REG(op));
-    a.mov(x86::al, x86::byte_ptr(x86::rbx, offsetof(Cpu, movem_run)));
-    a.test(x86::al, x86::al);
-    a.jne(lb);
-    a.mov(x86::edx, reg);
-    a.lea(x86::rdx, x86::ptr(x86::rdx, -4));
-    a.mov(reg, x86::edx);
-    a.mov(x86::dword_ptr(x86::rbx, offsetof(Cpu, EA)), x86::edx);
-    a.inc(x86::byte_ptr(x86::rbx, offsetof(Cpu, movem_run)));
-    a.bind(lb);
-    a.mov(x86::r12d, x86::dword_ptr(x86::rbx, offsetof(Cpu, EA)));
+    as->mov(x86::al, x86::byte_ptr(x86::rbx, offsetof(Cpu, movem_run)));
+    as->test(x86::al, x86::al);
+    as->jne(lb);
+    as->mov(x86::edx, reg);
+    as->lea(x86::rdx, x86::ptr(x86::rdx, -4));
+    as->mov(reg, x86::edx);
+    as->mov(EA, x86::edx);
+    as->inc(x86::byte_ptr(x86::rbx, offsetof(Cpu, movem_run)));
+    as->bind(lb);
+    as->mov(x86::r12d, EA);
     for(int i = 0; i < 16; ++i) {
         if(regs & 1 << i) {
-            a.mov(ARG1, x86::r12d);
-            a.mov(ARG2, DR_L(15 - i));
-            a.call(WriteL);
-            a.lea(x86::r12, x86::ptr(x86::r12, -4));
+            jit_writeL(x86::r12d, DR_L(15 - i));
+            as->lea(x86::r12, x86::ptr(x86::r12, -4));
         }
     }
-    a.lea(x86::r12, x86::ptr(x86::r12, 4));
-    a.mov(reg, x86::r12);
-    a.dec(x86::byte_ptr(x86::rbx, offsetof(Cpu, movem_run)));
+    as->lea(x86::r12, x86::ptr(x86::r12, 4));
+    as->mov(reg, x86::r12);
+    as->dec(x86::byte_ptr(x86::rbx, offsetof(Cpu, movem_run)));
 }
-void movem_l_store_base(x86::Assembler &a, uint16_t op) {
+void movem_l_store_base(uint16_t op) {
     uint16_t regs = FETCH();
-    auto lb = a.newLabel();
-    a.mov(x86::al, x86::byte_ptr(x86::rbx, offsetof(Cpu, movem_run)));
-    a.test(x86::al, x86::al);
-    a.jne(lb);
-    ea_getaddr_jit(a, TYPE(op), REG(op), 4);
-    a.inc(x86::byte_ptr(x86::rbx, offsetof(Cpu, movem_run)));
-    a.bind(lb);
-    a.mov(x86::r12d, x86::dword_ptr(x86::rbx, offsetof(Cpu, EA)));
+    auto lb = as->newLabel();
+    as->mov(x86::al, x86::byte_ptr(x86::rbx, offsetof(Cpu, movem_run)));
+    as->test(x86::al, x86::al);
+    as->jne(lb);
+    ea_getaddr_jit(TYPE(op), REG(op), 4);
+    as->mov(x86::r12, ARG1);
+    as->inc(x86::byte_ptr(x86::rbx, offsetof(Cpu, movem_run)));
+    as->bind(lb);
     for(int i = 0; i < 16; ++i) {
         if(regs & 1 << i) {
-            a.mov(ARG1, x86::r12d);
-            a.mov(ARG2, DR_L(i));
-            a.call(WriteL);
-            a.lea(x86::r12, x86::ptr(x86::r12, 4));
+            jit_writeL(x86::r12d, DR_L(i));
+            as->lea(x86::r12, x86::ptr(x86::r12, 4));
         }
     }
-    a.dec(x86::byte_ptr(x86::rbx, offsetof(Cpu, movem_run)));
+    as->dec(x86::byte_ptr(x86::rbx, offsetof(Cpu, movem_run)));
 }
 
-void movem_w_load_incr(x86::Assembler &a, uint16_t op) {
+void movem_w_load_incr(uint16_t op) {
     uint16_t regs = FETCH();
-    auto lb = a.newLabel();
+    auto lb = as->newLabel();
     const auto reg = AR_L(REG(op));
-    a.mov(x86::al, x86::byte_ptr(x86::rbx, offsetof(Cpu, movem_run)));
-    a.test(x86::al, x86::al);
-    a.jne(lb);
-    a.mov(x86::edx, reg);
-    a.mov(x86::dword_ptr(x86::rbx, offsetof(Cpu, EA)), x86::edx);
-    a.inc(x86::byte_ptr(x86::rbx, offsetof(Cpu, movem_run)));
-    a.bind(lb);
-    a.mov(x86::r12d, x86::dword_ptr(x86::rbx, offsetof(Cpu, EA)));
-    a.mov(reg, x86::r12d);
+    as->mov(x86::al, x86::byte_ptr(x86::rbx, offsetof(Cpu, movem_run)));
+    as->test(x86::al, x86::al);
+    as->jne(lb);
+    as->mov(x86::edx, reg);
+    as->mov(EA, x86::edx);
+    as->inc(x86::byte_ptr(x86::rbx, offsetof(Cpu, movem_run)));
+    as->bind(lb);
+    as->mov(x86::r12d, EA);
+    as->mov(reg, x86::r12d);
     for(int i = 0; i < 16; ++i) {
         if(regs & 1 << i) {
-            a.mov(ARG1, x86::r12d);
-            a.call(ReadW);
+            jit_readW(x86::r12d);
             if(i > 7) {
-                a.cwde();
-                a.mov(AR_L(i & 7), x86::eax);
+                as->cwde();
+                as->mov(AR_L(i & 7), x86::eax);
             } else {
-                a.mov(DR_W(i), x86::ax);
+                as->mov(DR_W(i), x86::ax);
             }
-            a.lea(x86::r12, x86::ptr(x86::r12, 2));
-            a.mov(reg, x86::r12d);
+            as->lea(x86::r12, x86::ptr(x86::r12, 2));
+            as->mov(reg, x86::r12d);
         }
     }
-    a.dec(x86::byte_ptr(x86::rbx, offsetof(Cpu, movem_run)));
+    as->dec(x86::byte_ptr(x86::rbx, offsetof(Cpu, movem_run)));
 }
-void movem_w_load_base(x86::Assembler &a, uint16_t op) {
+void movem_w_load_base(uint16_t op) {
     uint16_t regs = FETCH();
-    auto lb = a.newLabel();
-    a.mov(x86::al, x86::byte_ptr(x86::rbx, offsetof(Cpu, movem_run)));
-    a.test(x86::al, x86::al);
-    a.jne(lb);
-    ea_getaddr_jit(a, TYPE(op), REG(op), 2);
-    a.inc(x86::byte_ptr(x86::rbx, offsetof(Cpu, movem_run)));
-    a.bind(lb);
-    a.mov(x86::r12d, x86::dword_ptr(x86::rbx, offsetof(Cpu, EA)));
+    auto lb = as->newLabel();
+    as->mov(x86::al, x86::byte_ptr(x86::rbx, offsetof(Cpu, movem_run)));
+    as->test(x86::al, x86::al);
+    as->jne(lb);
+    ea_getaddr_jit(TYPE(op), REG(op), 2);
+    as->mov(x86::r12, ARG1);
+    as->inc(x86::byte_ptr(x86::rbx, offsetof(Cpu, movem_run)));
+    as->bind(lb);
     for(int i = 0; i < 16; ++i) {
         if(regs & 1 << i) {
-            a.mov(ARG1, x86::r12d);
-            a.call(ReadW);
+            jit_readW(x86::r12d);
             if(i > 7) {
-                a.cwde();
-                a.mov(AR_L(i & 7), x86::eax);
+                as->cwde();
+                as->mov(AR_L(i & 7), x86::eax);
             } else {
-                a.mov(DR_W(i), x86::ax);
+                as->mov(DR_W(i), x86::ax);
             }
-            a.lea(x86::r12, x86::ptr(x86::r12, 2));
+            as->lea(x86::r12, x86::ptr(x86::r12, 2));
         }
     }
-    a.dec(x86::byte_ptr(x86::rbx, offsetof(Cpu, movem_run)));
+    as->dec(x86::byte_ptr(x86::rbx, offsetof(Cpu, movem_run)));
 }
-void movem_l_load_incr(x86::Assembler &a, uint16_t op) {
+void movem_l_load_incr(uint16_t op) {
     uint16_t regs = FETCH();
-    auto lb = a.newLabel();
+    auto lb = as->newLabel();
     const auto reg = AR_L(REG(op));
-    a.mov(x86::al, x86::byte_ptr(x86::rbx, offsetof(Cpu, movem_run)));
-    a.test(x86::al, x86::al);
-    a.jne(lb);
-    a.mov(x86::edx, reg);
-    a.mov(x86::dword_ptr(x86::rbx, offsetof(Cpu, EA)), x86::edx);
-    a.inc(x86::byte_ptr(x86::rbx, offsetof(Cpu, movem_run)));
-    a.bind(lb);
-    a.mov(x86::r12d, x86::dword_ptr(x86::rbx, offsetof(Cpu, EA)));
-    a.mov(reg, x86::r12d);
+    as->mov(x86::al, x86::byte_ptr(x86::rbx, offsetof(Cpu, movem_run)));
+    as->test(x86::al, x86::al);
+    as->jne(lb);
+    as->mov(x86::edx, reg);
+    as->mov(EA, x86::edx);
+    as->inc(x86::byte_ptr(x86::rbx, offsetof(Cpu, movem_run)));
+    as->bind(lb);
+    as->mov(x86::r12d, EA);
+    as->mov(reg, x86::r12d);
     for(int i = 0; i < 16; ++i) {
         if(regs & 1 << i) {
-            a.mov(ARG1, x86::r12d);
-            a.call(ReadL);
-            a.mov(DR_W(i), x86::eax);
-            a.lea(x86::r12, x86::ptr(x86::r12, 4));
-            a.mov(reg, x86::r12d);
+            jit_readL(x86::r12d);
+            as->mov(DR_W(i), x86::eax);
+            as->lea(x86::r12, x86::ptr(x86::r12, 4));
+            as->mov(reg, x86::r12d);
         }
     }
-    a.dec(x86::byte_ptr(x86::rbx, offsetof(Cpu, movem_run)));
+    as->dec(x86::byte_ptr(x86::rbx, offsetof(Cpu, movem_run)));
 }
-void movem_l_load_base(x86::Assembler &a, uint16_t op) {
+void movem_l_load_base(uint16_t op) {
     uint16_t regs = FETCH();
-    auto lb = a.newLabel();
-    a.mov(x86::al, x86::byte_ptr(x86::rbx, offsetof(Cpu, movem_run)));
-    a.test(x86::al, x86::al);
-    a.jne(lb);
-    ea_getaddr_jit(a, TYPE(op), REG(op), 4);
-    a.inc(x86::byte_ptr(x86::rbx, offsetof(Cpu, movem_run)));
-    a.bind(lb);
-    a.mov(x86::r12d, x86::dword_ptr(x86::rbx, offsetof(Cpu, EA)));
+    auto lb = as->newLabel();
+    as->mov(x86::al, x86::byte_ptr(x86::rbx, offsetof(Cpu, movem_run)));
+    as->test(x86::al, x86::al);
+    as->jne(lb);
+    ea_getaddr_jit(TYPE(op), REG(op), 4);
+    as->mov(x86::r12, ARG1);
+    as->inc(x86::byte_ptr(x86::rbx, offsetof(Cpu, movem_run)));
+    as->bind(lb);
     for(int i = 0; i < 16; ++i) {
         if(regs & 1 << i) {
-            a.mov(ARG1, x86::r12d);
-            a.call(ReadL);
-            a.mov(DR_L(i), x86::eax);
-            a.lea(x86::r12, x86::ptr(x86::r12, 4));
+            jit_readL(x86::r12d);
+            as->mov(DR_L(i), x86::eax);
+            as->lea(x86::r12, x86::ptr(x86::r12, 4));
         }
     }
-    a.dec(x86::byte_ptr(x86::rbx, offsetof(Cpu, movem_run)));
+    as->dec(x86::byte_ptr(x86::rbx, offsetof(Cpu, movem_run)));
 }
 
-void tst_b(x86::Assembler &a, uint16_t op) {
-    ea_readB_jit(a, TYPE(op), REG(op));
-    update_pc(a);
-    a.test(x86::al, x86::al);
-    update_nz(a);
-    clear_vc(a);
+void tst_b(uint16_t op) {
+    ea_readB_jit(TYPE(op), REG(op));
+    update_pc();
+    as->test(x86::al, x86::al);
+    update_nz();
+    clear_vc();
 }
-void tst_w(x86::Assembler &a, uint16_t op) {
-    ea_readW_jit(a, TYPE(op), REG(op));
-    update_pc(a);
-    a.test(x86::ax, x86::ax);
-    update_nz(a);
-    clear_vc(a);
+void tst_w(uint16_t op) {
+    ea_readW_jit(TYPE(op), REG(op));
+    update_pc();
+    as->test(x86::ax, x86::ax);
+    update_nz();
+    clear_vc();
 }
-void tst_l(x86::Assembler &a, uint16_t op) {
-    ea_readL_jit(a, TYPE(op), REG(op));
-    update_pc(a);
-    a.test(x86::eax, x86::eax);
-    update_nz(a);
-    clear_vc(a);
-}
-
-void tas(x86::Assembler &a, uint16_t op) {
-    ea_readB_jit(a, TYPE(op), REG(op));
-    update_pc(a);
-    a.test(x86::al, x86::al);
-    update_nz(a);
-    clear_vc(a);
-    a.bts(x86::ax, 7);
-    ea_writeB_jit(a, TYPE(op), REG(op), true);
+void tst_l(uint16_t op) {
+    ea_readL_jit(TYPE(op), REG(op));
+    update_pc();
+    as->test(x86::eax, x86::eax);
+    update_nz();
+    clear_vc();
 }
 
-void illegal(x86::Assembler &a, uint16_t) { a.call(ILLEGAL_OP); }
+void tas(uint16_t op) {
+    ea_readB_jit(TYPE(op), REG(op));
+    update_pc();
+    as->test(x86::al, x86::al);
+    update_nz();
+    clear_vc();
+    as->bts(x86::ax, 7);
+    ea_writeB_jit(TYPE(op), REG(op), true);
+}
 
-void mul_l(x86::Assembler &a, uint16_t op) {
+void illegal(uint16_t) { as->call(ILLEGAL_OP); }
+
+void mul_l(uint16_t op) {
     uint16_t ext = FETCH();
     int low = ext >> 12 & 7;
     bool sig = ext & 1 << 11;
     bool dbl = ext & 1 << 10;
     int high = ext & 7;
-    ea_readL_jit(a, TYPE(op), REG(op));
-    update_pc(a);
-    a.mov(x86::edx, DR_L(low));
-    a.mov(CC_C, 0);
+    ea_readL_jit(TYPE(op), REG(op));
+    update_pc();
+    as->mov(CC_C, 0);
     if(!sig) {
         // MULU.L
-        a.mul(x86::edx);
-        a.mov(DR_L(low), x86::eax);
+        as->mul(DR_L(low));
+        as->mov(DR_L(low), x86::eax);
         if(!dbl) {
-            a.test(x86::edx, x86::edx);
-            a.setne(CC_V);
+            as->test(x86::edx, x86::edx);
+            as->setne(CC_V);
         }
     } else {
         // MULS.L
         if(dbl) {
-            a.imul(x86::edx);
+            as->imul(DR_L(low));
         } else {
-            a.imul(x86::eax, x86::edx);
-            a.seto(CC_V);
+            as->imul(x86::eax, DR_L(low));
+            as->seto(CC_V);
         }
     }
-    a.mov(DR_L(low), x86::eax);
+    as->mov(DR_L(low), x86::eax);
     if(dbl) {
-        a.mov(DR_L(high), x86::edx);
-        a.mov(CC_V, 0);
-        a.ror(x86::rdx, 32);
-        a.or_(x86::rdx, x86::rax);
-        a.test(x86::rdx, x86::rdx);
+        as->mov(DR_L(high), x86::edx);
+        as->mov(CC_V, 0);
+        as->ror(x86::rdx, 32);
+        as->or_(x86::rdx, x86::rax);
+        as->test(x86::rdx, x86::rdx);
     } else {
-        a.test(x86::eax, x86::eax);
+        as->test(x86::eax, x86::eax);
     }
-    update_nz(a);
+    update_nz();
 }
 
-void div_l(x86::Assembler &a, uint16_t op) {
+void div_l(uint16_t op) {
     uint16_t ext = FETCH();
     int q = ext >> 12 & 7;
     bool sig = ext & 1 << 11;
     bool dbl = ext & 1 << 10;
     int r = ext & 7;
-    auto lb = a.newLabel();
-    ea_readL_jit(a, TYPE(op), REG(op));
-    update_pc(a);
-    a.mov(x86::ecx, x86::eax);
-    a.test(x86::ecx, x86::ecx);
-    a.jne(lb);
-    a.call(DIV0_ERROR);
-    a.bind(lb);
-    a.mov(CC_C, 0);
-    a.mov(x86::eax, DR_L(q));
+    auto lb = as->newLabel();
+    ea_readL_jit(TYPE(op), REG(op));
+    update_pc();
+    as->mov(x86::ecx, x86::eax);
+    as->test(x86::ecx, x86::ecx);
+    as->jne(lb);
+    as->call(DIV0_ERROR);
+    as->bind(lb);
+    as->mov(CC_C, 0);
+    as->mov(x86::eax, DR_L(q));
     if(!sig) {
         // DIVU.L
         if(!dbl) {
             // unsigned 32bit div doesn't overflow
-            a.mov(CC_V, 0);
-            a.xor_(x86::edx, x86::edx);
-            a.div(x86::ecx);
-            a.mov(DR_L(q), x86::eax);
-            a.test(x86::eax, x86::eax);
-            update_nz(a);
+            as->mov(CC_V, 0);
+            as->xor_(x86::edx, x86::edx);
+            as->div(x86::ecx);
+            as->mov(DR_L(q), x86::eax);
+            as->test(x86::eax, x86::eax);
+            update_nz();
             if(q != r) {
-                a.mov(DR_L(r), x86::edx);
+                as->mov(DR_L(r), x86::edx);
             }
         } else {
             // 64bit/32bit div may overflow, so calc 64bit
-            a.mov(x86::edx, DR_L(r));
-            a.ror(x86::rdx, 32);
-            a.or_(x86::rax, x86::rdx);
-            a.xor_(x86::rdx, x86::rdx);
-            a.div(x86::rcx);
+            as->mov(x86::edx, DR_L(r));
+            as->ror(x86::rdx, 32);
+            as->or_(x86::rax, x86::rdx);
+            as->xor_(x86::rdx, x86::rdx);
+            as->div(x86::rcx);
             if(q != r) {
-                a.mov(DR_L(r), x86::edx);
+                as->mov(DR_L(r), x86::edx);
             }
-            a.mov(DR_L(q), x86::eax);
-            a.test(x86::eax, x86::eax);
-            update_nz(a);
-            a.ror(x86::rax, 32);
-            a.test(x86::eax, x86::eax);
-            a.setne(CC_V);
+            as->mov(DR_L(q), x86::eax);
+            as->test(x86::eax, x86::eax);
+            update_nz();
+            as->ror(x86::rax, 32);
+            as->test(x86::eax, x86::eax);
+            as->setne(CC_V);
         }
     } else {
         // DIVS.L
         if(!dbl) {
             // signed 32bit div overflow only if INT_MIN / -1
-            auto lb2 = a.newLabel();
-            auto lb3 = a.newLabel();
-            a.cmp(x86::eax, 0x80000000);
-            a.jne(lb2);
-            a.cmp(x86::ecx, -1);
-            a.jne(lb2);
-            a.mov(CC_V, 1);
-            a.jmp(lb3);
-            a.bind(lb2);
-            a.cdq();
-            a.idiv(x86::ecx);
-            a.mov(DR_L(q), x86::eax);
-            a.test(x86::eax, x86::eax);
-            update_nz(a);
+            auto lb2 = as->newLabel();
+            auto lb3 = as->newLabel();
+            as->cmp(x86::eax, 0x80000000);
+            as->jne(lb2);
+            as->cmp(x86::ecx, -1);
+            as->jne(lb2);
+            as->mov(CC_V, 1);
+            as->jmp(lb3);
+            as->bind(lb2);
+            as->cdq();
+            as->idiv(x86::ecx);
+            as->mov(DR_L(q), x86::eax);
+            as->test(x86::eax, x86::eax);
+            update_nz();
             if(q != r) {
-                a.mov(DR_L(r), x86::edx);
+                as->mov(DR_L(r), x86::edx);
             }
-            a.bind(lb3);
+            as->bind(lb3);
         } else {
             // 64bit/32bit div may overflow, so calc 64bit
-            a.mov(x86::edx, DR_L(r));
-            a.ror(x86::rdx, 32);
-            a.or_(x86::rax, x86::rdx);
-            a.movsx(x86::rcx, x86::ecx);
-            a.cqo();
-            a.idiv(x86::rcx);
+            as->mov(x86::edx, DR_L(r));
+            as->ror(x86::rdx, 32);
+            as->or_(x86::rax, x86::rdx);
+            as->movsx(x86::rcx, x86::ecx);
+            as->cqo();
+            as->idiv(x86::rcx);
             if(q != r) {
-                a.mov(DR_L(r), x86::edx);
+                as->mov(DR_L(r), x86::edx);
             }
-            a.mov(DR_L(q), x86::eax);
-            a.test(x86::eax, x86::eax);
-            update_nz(a);
-            a.movsxd(x86::rcx, x86::eax);
-            a.cmp(x86::rcx, x86::rax);
-            a.setne(CC_V);
+            as->mov(DR_L(q), x86::eax);
+            as->test(x86::eax, x86::eax);
+            update_nz();
+            as->movsxd(x86::rcx, x86::eax);
+            as->cmp(x86::rcx, x86::rax);
+            as->setne(CC_V);
         }
     }
 }
-void trap(x86::Assembler &a, uint16_t op) {
-    a.mov(ARG1, op & 0xf);
-    a.call(TRAP_ERROR);
+void trap(uint16_t op) {
+    as->mov(ARG1.r32(), op & 0xf);
+    as->call(TRAP_ERROR);
 }
 
-void link_w(x86::Assembler &a, uint16_t op) {
+void link_w(uint16_t op) {
     int16_t disp = FETCH();
     int reg = REG(op);
-    update_pc(a);
-    a.mov(x86::eax, AR_L(reg));
-    jit_push32(a);
+    update_pc();
+    as->mov(x86::eax, AR_L(reg));
+    jit_push32();
 
-    a.mov(x86::eax, SP);
-    a.mov(AR_L(reg), x86::eax);
-    a.add(SP, disp);
+    as->mov(x86::eax, SP);
+    as->mov(AR_L(reg), x86::eax);
+    as->add(SP, disp);
 }
 
-void unlk(x86::Assembler &a, uint16_t op) {
+void unlk(uint16_t op) {
     int reg = REG(op);
-    a.mov(x86::eax, AR_L(reg));
-    a.mov(SP, x86::eax);
-    jit_pop32(a);
-    a.mov(AR_L(reg), x86::eax);
+    as->mov(x86::eax, AR_L(reg));
+    as->mov(SP, x86::eax);
+    jit_pop32();
+    as->mov(AR_L(reg), x86::eax);
 }
 
-void move_to_usp(x86::Assembler &a, uint16_t op) {
-    jit_priv_check(a);
-    a.mov(x86::eax, AR_L(REG(op)));
-    a.mov(x86::dword_ptr(x86::rbx, offsetof(Cpu, USP)), x86::eax);
-    jit_trace_branch(a);
+void move_to_usp(uint16_t op) {
+    jit_priv_check();
+    as->mov(x86::eax, AR_L(REG(op)));
+    as->mov(x86::dword_ptr(x86::rbx, offsetof(Cpu, USP)), x86::eax);
+    jit_trace_branch();
 }
 
-void move_from_usp(x86::Assembler &a, uint16_t op) {
-    jit_priv_check(a);
-    a.mov(x86::eax, x86::dword_ptr(x86::rbx, offsetof(Cpu, USP)));
-    a.mov(AR_L(REG(op)), x86::eax);
-    jit_trace_branch(a);
+void move_from_usp(uint16_t op) {
+    jit_priv_check();
+    as->mov(x86::eax, x86::dword_ptr(x86::rbx, offsetof(Cpu, USP)));
+    as->mov(AR_L(REG(op)), x86::eax);
+    jit_trace_branch();
 }
 
-void reset(x86::Assembler &a, uint16_t) {
-    jit_priv_check(a);
-    a.call(bus_reset);
+void reset(uint16_t) {
+    jit_priv_check();
+    as->call(bus_reset);
 }
 
-void nop(x86::Assembler &a, uint16_t) { jit_trace_branch(a); }
+void nop(uint16_t) { jit_trace_branch(); }
 
-void stop(x86::Assembler &a, uint16_t) {
+void stop(uint16_t) {
     uint16_t nw = FETCH();
-    a.mov(ARG1, nw);
-    a.call(OP::stop_impl);
+    as->mov(ARG1.r32(), nw);
+    as->call(OP::stop_impl);
 }
 
-void rte(x86::Assembler &a, uint16_t) {
-    jit_priv_check(a);
-    a.call(do_rte);
-    jit_trace_branch(a);
-    jit_postop(a);
-    a.jmp(end_lbl);
+void rte(uint16_t) {
+    jit_priv_check();
+    as->call(do_rte);
+    jit_trace_branch();
+    jit_postop();
+    as->jmp(end_lbl);
 }
 
-void rtd(x86::Assembler &a, uint16_t) {
+void rtd(uint16_t) {
     int16_t disp = FETCH();
-    update_pc(a);
-    a.mov(x86::eax, AR_L(7));
-    a.lea(x86::edi, x86::ptr(x86::eax, 4));
-    a.mov(AR_L(7), x86::edi);
-    a.mov(ARG1, x86::eax);
-    a.call(ReadL);
-    a.mov(x86::edx, AR_L(7));
-    a.lea(x86::edx, x86::ptr(x86::edx, disp));
-    a.mov(AR_L(7), x86::edx);
-    jump(a);
+    update_pc();
+    as->mov(x86::eax, AR_L(7));
+    as->lea(x86::edi, x86::ptr(x86::eax, 4));
+    as->mov(AR_L(7), x86::edi);
+    jit_readL(x86::eax);
+    as->mov(x86::edx, AR_L(7));
+    as->lea(x86::edx, x86::ptr(x86::edx, disp));
+    as->mov(AR_L(7), x86::edx);
+    jump();
 }
 
-void rts(x86::Assembler &a, uint16_t) {
-    a.mov(x86::esi, AR_L(7));
-    a.lea(x86::rdi, x86::ptr(x86::rsi, 4));
-    a.mov(AR_L(7), x86::edi);
-    a.mov(ARG1, x86::esi);
-    a.call(ReadL);
-    jump(a);
+void rts(uint16_t) {
+    as->mov(x86::esi, AR_L(7));
+    as->lea(x86::rdi, x86::ptr(x86::rsi, 4));
+    as->mov(AR_L(7), x86::edi);
+    jit_readL(x86::esi);
+    jump();
 }
 
-void trapv(x86::Assembler &a, uint16_t) {
-    auto lb = a.newLabel();
-    a.test(CC_V, 1);
-    a.jz(lb);
-    a.call(TRAPX_ERROR);
-    a.bind(lb);
+void trapv(uint16_t) {
+    auto lb = as->newLabel();
+    as->test(CC_V, 1);
+    as->jz(lb);
+    as->call(TRAPX_ERROR);
+    as->bind(lb);
 }
 
-void rtr(x86::Assembler &a, uint16_t) {
-    a.mov(x86::r12d, AR_L(7));
-    a.mov(ARG1, x86::r12d);
-    a.call(ReadW);
-    a.mov(ARG1, x86::eax);
-    a.call(SetCCR);
-    a.lea(x86::r12, x86::ptr(x86::r12, 2));
-    a.mov(ARG1, x86::r12d);
-    a.call(ReadL);
-    a.lea(x86::r12, x86::ptr(x86::r12, 4));
-    a.mov(AR_L(7), x86::r12d);
-    jump(a);
+void rtr(uint16_t) {
+    as->mov(x86::r12d, AR_L(7));
+    jit_readW(x86::r12d);
+    as->mov(ARG1.r32(), x86::eax);
+    as->call(SetCCR);
+    as->lea(x86::r12, x86::ptr(x86::r12, 2));
+    jit_readL(x86::r12d);
+    as->lea(x86::r12, x86::ptr(x86::r12, 4));
+    as->mov(AR_L(7), x86::r12d);
+    jump();
 }
 
-void movec_from_cr(x86::Assembler &a, uint16_t) {
+void movec_from_cr(uint16_t) {
     uint16_t extw = FETCH();
     int rn = extw >> 12 & 15;
-    auto lb = a.newLabel();
-    jit_priv_check(a);
-    update_pc(a);
-    a.mov(ARG1, extw & 0xfff);
-    a.lea(ARG2L, DR_L(rn));
-    a.call(movec_from_cr_impl);
-    a.test(x86::al, x86::al);
-    a.jne(lb);
-    a.call(ILLEGAL_OP);
-    a.bind(lb);
-    jit_trace_branch(a);
+    auto lb = as->newLabel();
+    jit_priv_check();
+    update_pc();
+    as->mov(ARG1.r32(), extw & 0xfff);
+    as->lea(ARG2, DR_L(rn));
+    as->call(movec_from_cr_impl);
+    as->test(x86::al, x86::al);
+    as->jne(lb);
+    as->call(ILLEGAL_OP);
+    as->bind(lb);
+    jit_trace_branch();
 }
 
-void movec_to_cr(x86::Assembler &a, uint16_t) {
+void movec_to_cr(uint16_t) {
     uint16_t extw = FETCH();
     int rn = extw >> 12 & 15;
-    auto lb = a.newLabel();
-    jit_priv_check(a);
-    update_pc(a);
-    a.mov(ARG1, extw & 0xfff);
-    a.mov(ARG2, DR_L(rn));
-    a.call(movec_to_cr_impl);
-    a.test(x86::al, x86::al);
-    a.jne(lb);
-    a.call(ILLEGAL_OP);
-    a.bind(lb);
-    jit_trace_branch(a);
+    auto lb = as->newLabel();
+    jit_priv_check();
+    update_pc();
+    as->mov(ARG1.r32(), extw & 0xfff);
+    as->mov(ARG2.r32(), DR_L(rn));
+    as->call(movec_to_cr_impl);
+    as->test(x86::al, x86::al);
+    as->jne(lb);
+    as->call(ILLEGAL_OP);
+    as->bind(lb);
+    jit_trace_branch();
 }
-void jsr(x86::Assembler &a, uint16_t op) {
-    ea_getaddr_jit(a, TYPE(op), REG(op), 0);
-    a.mov(x86::r12d, x86::r9d);
-    update_pc(a);
-    a.mov(x86::eax, x86::dword_ptr(x86::rbx, offsetof(Cpu, PC)));
-    jit_push32(a);
-    a.mov(x86::eax, x86::r9d);
-    jump(a);
-}
-
-void jmp(x86::Assembler &a, uint16_t op) {
-    ea_getaddr_jit(a, TYPE(op), REG(op), 0);
-    a.mov(x86::r12d, x86::r9d);
-    update_pc(a);
-    a.mov(x86::eax, x86::r9d);
-    jump(a);
+void jsr(uint16_t op) {
+    ea_getaddr_jit(TYPE(op), REG(op), 0);
+    as->mov(x86::r12, ARG1);
+    update_pc();
+    as->mov(x86::eax, c_pc);
+    jit_push32();
+    as->mov(x86::eax, x86::r12d);
+    jump();
 }
 
-void chk_l(x86::Assembler &a, uint16_t op) {
-    ea_readL_jit(a, TYPE(op), REG(op));
-    a.mov(x86::edx, DR_L(DN(op)));
-    auto lb = a.newLabel();
-    auto lb2 = a.newLabel();
-    a.cmp(x86::edx, 0);
-    a.jl(lb);
-    a.cmp(x86::edx, x86::eax);
-    a.jle(lb2);
-    a.bind(lb);
-    a.cmp(x86::edx, 0);
-    a.setl(CC_N);
-    a.call(CHK_ERROR);
-    a.bind(lb2);
+void jmp(uint16_t op) {
+    ea_getaddr_jit(TYPE(op), REG(op), 0);
+    as->mov(x86::r12, ARG1);
+    update_pc();
+    as->mov(x86::eax, x86::r12d);
+    jump();
 }
 
-void chk_w(x86::Assembler &a, uint16_t op) {
-    ea_readW_jit(a, TYPE(op), REG(op));
-    a.mov(x86::dx, DR_W(DN(op)));
-    auto lb = a.newLabel();
-    auto lb2 = a.newLabel();
-    a.cmp(x86::dx, 0);
-    a.jl(lb);
-    a.cmp(x86::dx, x86::ax);
-    a.jle(lb2);
-    a.bind(lb);
-    a.cmp(x86::dx, 0);
-    a.setl(CC_N);
-    a.call(CHK_ERROR);
-    a.bind(lb2);
+void chk_l(uint16_t op) {
+    ea_readL_jit(TYPE(op), REG(op));
+    as->mov(x86::edx, DR_L(DN(op)));
+    auto lb = as->newLabel();
+    auto lb2 = as->newLabel();
+    as->cmp(x86::edx, 0);
+    as->jl(lb);
+    as->cmp(x86::edx, x86::eax);
+    as->jle(lb2);
+    as->bind(lb);
+    as->cmp(x86::edx, 0);
+    as->setl(CC_N);
+    as->call(CHK_ERROR);
+    as->bind(lb2);
 }
 
-void extb_l(x86::Assembler &a, uint16_t op) {
+void chk_w(uint16_t op) {
+    ea_readW_jit(TYPE(op), REG(op));
+    as->mov(x86::dx, DR_W(DN(op)));
+    auto lb = as->newLabel();
+    auto lb2 = as->newLabel();
+    as->cmp(x86::dx, 0);
+    as->jl(lb);
+    as->cmp(x86::dx, x86::ax);
+    as->jle(lb2);
+    as->bind(lb);
+    as->cmp(x86::dx, 0);
+    as->setl(CC_N);
+    as->call(CHK_ERROR);
+    as->bind(lb2);
+}
+
+void extb_l(uint16_t op) {
     int reg = REG(op);
-    a.movsx(x86::eax, DR_B(reg));
-    a.test(x86::eax, x86::eax);
-    update_nz(a);
-    clear_vc(a);
-    a.mov(DR_L(reg), x86::eax);
+    as->movsx(x86::eax, DR_B(reg));
+    as->test(x86::eax, x86::eax);
+    update_nz();
+    clear_vc();
+    as->mov(DR_L(reg), x86::eax);
 }
 
-void lea(x86::Assembler &a, uint16_t op) {
-    ea_getaddr_jit(a, TYPE(op), REG(op), 0);
-    a.mov(AR_L(DN(op)), x86::r9d);
+void lea(uint16_t op) {
+    ea_getaddr_jit(TYPE(op), REG(op), 0);
+    as->mov(AR_L(DN(op)), ARG1);
 }
 
-void addq_b(x86::Assembler &a, uint16_t op) {
+void addq_b(uint16_t op) {
     int d = DN(op);
     if(d == 0) {
         d = 8;
     }
-    ea_readB_jit(a, TYPE(op), REG(op));
-    update_pc(a);
-    a.add(x86::al, d);
-    update_nz(a);
-    update_vcx(a);
-    ea_writeB_jit(a, TYPE(op), REG(op), true);
+    ea_readB_jit(TYPE(op), REG(op));
+    update_pc();
+    as->add(x86::al, d);
+    update_nz();
+    update_vcx();
+    ea_writeB_jit(TYPE(op), REG(op), true);
 }
 
-void addq_w(x86::Assembler &a, uint16_t op) {
+void addq_w(uint16_t op) {
     int d = DN(op);
     if(d == 0) {
         d = 8;
     }
-    ea_readW_jit(a, TYPE(op), REG(op));
-    update_pc(a);
-    a.add(x86::ax, d);
-    update_nz(a);
-    update_vcx(a);
-    ea_writeW_jit(a, TYPE(op), REG(op), true);
+    ea_readW_jit(TYPE(op), REG(op));
+    update_pc();
+    as->add(x86::ax, d);
+    update_nz();
+    update_vcx();
+    ea_writeW_jit(TYPE(op), REG(op), true);
 }
 
-void addq_l(x86::Assembler &a, uint16_t op) {
+void addq_l(uint16_t op) {
     int d = DN(op);
     if(d == 0) {
         d = 8;
     }
-    ea_readL_jit(a, TYPE(op), REG(op));
-    update_pc(a);
-    a.add(x86::eax, d);
-    update_nz(a);
-    update_vcx(a);
-    ea_writeL_jit(a, TYPE(op), REG(op), true);
+    ea_readL_jit(TYPE(op), REG(op));
+    update_pc();
+    as->add(x86::eax, d);
+    update_nz();
+    update_vcx();
+    ea_writeL_jit(TYPE(op), REG(op), true);
 }
 
-void subq_b(x86::Assembler &a, uint16_t op) {
+void subq_b(uint16_t op) {
     int d = DN(op);
     if(d == 0) {
         d = 8;
     }
-    ea_readB_jit(a, TYPE(op), REG(op));
-    update_pc(a);
-    a.sub(x86::al, d);
-    update_nz(a);
-    update_vcx(a);
-    ea_writeB_jit(a, TYPE(op), REG(op), true);
+    ea_readB_jit(TYPE(op), REG(op));
+    update_pc();
+    as->sub(x86::al, d);
+    update_nz();
+    update_vcx();
+    ea_writeB_jit(TYPE(op), REG(op), true);
 }
 
-void subq_w(x86::Assembler &a, uint16_t op) {
+void subq_w(uint16_t op) {
     int d = DN(op);
     if(d == 0) {
         d = 8;
     }
-    ea_readW_jit(a, TYPE(op), REG(op));
-    update_pc(a);
-    a.sub(x86::ax, d);
-    update_nz(a);
-    update_vcx(a);
-    ea_writeW_jit(a, TYPE(op), REG(op), true);
+    ea_readW_jit(TYPE(op), REG(op));
+    update_pc();
+    as->sub(x86::ax, d);
+    update_nz();
+    update_vcx();
+    ea_writeW_jit(TYPE(op), REG(op), true);
 }
 
-void subq_l(x86::Assembler &a, uint16_t op) {
+void subq_l(uint16_t op) {
     int d = DN(op);
     if(d == 0) {
         d = 8;
     }
-    ea_readL_jit(a, TYPE(op), REG(op));
-    update_pc(a);
-    a.sub(x86::eax, d);
-    update_nz(a);
-    update_vcx(a);
-    ea_writeL_jit(a, TYPE(op), REG(op), true);
+    ea_readL_jit(TYPE(op), REG(op));
+    update_pc();
+    as->sub(x86::eax, d);
+    update_nz();
+    update_vcx();
+    ea_writeL_jit(TYPE(op), REG(op), true);
 }
 
-void addq_an(x86::Assembler &a, uint16_t op) {
+void addq_an(uint16_t op) {
     int d = DN(op);
     if(d == 0) {
         d = 8;
     }
-    update_pc(a);
-    a.add(AR_L(REG(op)), d);
+    update_pc();
+    as->add(AR_L(REG(op)), d);
 }
 
-void subq_an(x86::Assembler &a, uint16_t op) {
+void subq_an(uint16_t op) {
     int d = DN(op);
     if(d == 0) {
         d = 8;
     }
-    update_pc(a);
-    a.sub(AR_L(REG(op)), d);
+    update_pc();
+    as->sub(AR_L(REG(op)), d);
 }
 
-void jit_testcc(x86::Assembler &a, int cc) {
+void jit_testcc(int cc) {
     switch(cc) {
     case 0: // T
-        a.mov(x86::al, 1);
+        as->mov(x86::al, 1);
         return;
     case 1: // F
-        a.xor_(x86::al, x86::al);
+        as->xor_(x86::al, x86::al);
         return;
     case 2: // HI
-        a.mov(x86::al, CC_C);
-        a.or_(x86::al, CC_Z);
-        a.setz(x86::al);
+        as->mov(x86::al, CC_C);
+        as->or_(x86::al, CC_Z);
+        as->setz(x86::al);
         return;
     case 3: // LS
-        a.mov(x86::al, CC_C);
-        a.or_(x86::al, CC_Z);
+        as->mov(x86::al, CC_C);
+        as->or_(x86::al, CC_Z);
         return;
     case 4: // CC
-        a.mov(x86::al, CC_C);
-        a.test(x86::al, x86::al);
-        a.setz(x86::al);
+        as->mov(x86::al, CC_C);
+        as->test(x86::al, x86::al);
+        as->setz(x86::al);
         return;
     case 5: // CS
-        a.mov(x86::al, CC_C);
+        as->mov(x86::al, CC_C);
         return;
     case 6: // NE
-        a.mov(x86::al, CC_Z);
-        a.test(x86::al, x86::al);
-        a.sete(x86::al);
+        as->mov(x86::al, CC_Z);
+        as->test(x86::al, x86::al);
+        as->sete(x86::al);
         return;
     case 7: // EQ
-        a.mov(x86::al, CC_Z);
+        as->mov(x86::al, CC_Z);
         return;
     case 8: // VC
-        a.mov(x86::al, CC_V);
-        a.test(x86::al, x86::al);
-        a.sete(x86::al);
+        as->mov(x86::al, CC_V);
+        as->test(x86::al, x86::al);
+        as->sete(x86::al);
         return;
     case 9: // VS
-        a.mov(x86::al, CC_V);
+        as->mov(x86::al, CC_V);
         return;
     case 10: // PL
-        a.mov(x86::al, CC_N);
-        a.test(x86::al, x86::al);
-        a.sete(x86::al);
+        as->mov(x86::al, CC_N);
+        as->test(x86::al, x86::al);
+        as->sete(x86::al);
         return;
     case 11: // MI
-        a.mov(x86::al, CC_N);
+        as->mov(x86::al, CC_N);
         return;
     case 12: // GE
-        a.mov(x86::al, CC_N);
-        a.xor_(x86::al, CC_V);
-        a.sete(x86::al);
+        as->mov(x86::al, CC_N);
+        as->xor_(x86::al, CC_V);
+        as->sete(x86::al);
         return;
     case 13: // LT
-        a.mov(x86::al, CC_N);
-        a.xor_(x86::al, CC_V);
+        as->mov(x86::al, CC_N);
+        as->xor_(x86::al, CC_V);
         return;
     case 14: // GT
-        a.mov(x86::al, CC_N);
-        a.xor_(x86::al, CC_V);
-        a.or_(x86::al, CC_Z);
-        a.sete(x86::al);
+        as->mov(x86::al, CC_N);
+        as->xor_(x86::al, CC_V);
+        as->or_(x86::al, CC_Z);
+        as->sete(x86::al);
         return;
     case 15: // LE
-        a.mov(x86::al, CC_N);
-        a.xor_(x86::al, CC_V);
-        a.or_(x86::al, CC_Z);
+        as->mov(x86::al, CC_N);
+        as->xor_(x86::al, CC_V);
+        as->or_(x86::al, CC_Z);
         return;
     default:
         __builtin_unreachable();
     }
 }
 
-void scc_ea(x86::Assembler &a, uint16_t op) {
+void scc_ea(uint16_t op) {
     int cc = op >> 8 & 0xf;
-    jit_testcc(a, cc);
-    a.neg(x86::al);
-    a.sbb(x86::dl, x86::dl);
-    a.mov(x86::al, x86::dl);
-    ea_writeB_jit(a, TYPE(op), REG(op), false);
+    jit_testcc(cc);
+    as->neg(x86::al);
+    as->sbb(x86::dl, x86::dl);
+    as->mov(x86::al, x86::dl);
+    ea_writeB_jit(TYPE(op), REG(op), false);
 }
 
-void dbcc(x86::Assembler &a, uint16_t op) {
+void dbcc(uint16_t op) {
     int cc = op >> 8 & 0xf;
     int16_t disp = FETCH();
     int reg = REG(op);
-    jit_testcc(a, cc);
-    auto lb = a.newLabel();
-    a.test(x86::al, x86::al);
-    a.jne(lb);
-    a.mov(x86::cx, DR_W(reg));
-    a.dec(x86::cx);
-    a.mov(DR_W(reg), x86::cx);
-    a.cmp(x86::cx, -1);
-    a.je(lb);
-    jumpC(a, cpu.PC + disp - 2);
-    a.bind(lb);
+    jit_testcc(cc);
+    auto lb = as->newLabel();
+    as->test(x86::al, x86::al);
+    as->jne(lb);
+    as->mov(x86::cx, DR_W(reg));
+    as->dec(x86::cx);
+    as->mov(DR_W(reg), x86::cx);
+    as->cmp(x86::cx, -1);
+    as->je(lb);
+    jumpC(cpu.PC + disp - 2);
+    as->bind(lb);
 }
 
-void trapcc(x86::Assembler &a, uint16_t op) {
+void trapcc(uint16_t op) {
     int cc = op >> 8 & 0xf;
     switch(REG(op)) {
     case 2:
@@ -2004,16 +1891,16 @@ void trapcc(x86::Assembler &a, uint16_t op) {
     default:
         __builtin_unreachable();
     }
-    auto lb = a.newLabel();
-    update_pc(a);
-    jit_testcc(a, cc);
-    a.test(x86::al, x86::al);
-    a.je(lb);
-    a.call(TRAPX_ERROR);
-    a.bind(lb);
+    auto lb = as->newLabel();
+    update_pc();
+    jit_testcc(cc);
+    as->test(x86::al, x86::al);
+    as->je(lb);
+    as->call(TRAPX_ERROR);
+    as->bind(lb);
 }
 
-void bxx(x86::Assembler &a, uint16_t op) {
+void bxx(uint16_t op) {
     int cc = op >> 8 & 0xf;
     int8_t imm8 = op & 0xff;
     int32_t imm;
@@ -2026,351 +1913,2211 @@ void bxx(x86::Assembler &a, uint16_t op) {
         imm = imm8;
     }
     int target = p + imm;
-    auto lb = a.newLabel();
+    auto lb = as->newLabel();
     if(cc == 0) {
         // BRA
     } else if(cc == 1) {
         // BSR
-        update_pc(a);
-        a.mov(x86::eax, x86::dword_ptr(x86::rbx, offsetof(Cpu, PC)));
-        jit_push32(a);
+        update_pc();
+        as->mov(x86::eax, c_pc);
+        jit_push32();
     } else {
         // Bcc
-        jit_testcc(a, cc);
-        a.test(x86::al, x86::al);
-        a.je(lb);
+        jit_testcc(cc);
+        as->test(x86::al, x86::al);
+        as->je(lb);
     }
     if(jumpMap.contains(target)) {
-        jumpC(a, target);
+        jumpC(target);
     } else {
-        a.mov(x86::eax, target);
-        jump(a);
+        as->mov(x86::eax, target);
+        jump();
     }
-    a.bind(lb);
+    as->bind(lb);
 }
 
-void moveq(x86::Assembler &a, uint16_t op) {
-    clear_vc(a);
-    a.mov(x86::al, op & 0xff);
-    a.test(x86::al, x86::al);
-    update_nz(a);
-    a.movsx(x86::eax, x86::al);
-    a.mov(DR_L(DN(op)), x86::eax);
+void moveq(uint16_t op) {
+    clear_vc();
+    as->mov(x86::al, op & 0xff);
+    as->test(x86::al, x86::al);
+    update_nz();
+    as->movsx(x86::eax, x86::al);
+    as->mov(DR_L(DN(op)), x86::eax);
 }
 
-void or_b_to_dn(x86::Assembler &a, uint16_t op) {
-    clear_vc(a);
-    ea_readB_jit(a, TYPE(op), REG(op));
-    a.mov(x86::dl, DR_B(DN(op)));
-    a.or_(x86::al, x86::dl);
-    update_nz(a);
-    a.mov(DR_B(DN(op)), x86::al);
+void or_b_to_dn(uint16_t op) {
+    clear_vc();
+    ea_readB_jit(TYPE(op), REG(op));
+    update_pc();
+    as->or_(x86::al, DR_B(DN(op)));
+    update_nz();
+    as->mov(DR_B(DN(op)), x86::al);
 }
 
-void or_w_to_dn(x86::Assembler &a, uint16_t op) {
-    clear_vc(a);
-    ea_readW_jit(a, TYPE(op), REG(op));
-    a.mov(x86::dx, DR_W(DN(op)));
-    a.or_(x86::ax, x86::dx);
-    update_nz(a);
-    a.mov(DR_W(DN(op)), x86::ax);
+void or_w_to_dn(uint16_t op) {
+    clear_vc();
+    ea_readW_jit(TYPE(op), REG(op));
+    update_pc();
+    as->or_(x86::ax, DR_W(DN(op)));
+    update_nz();
+    as->mov(DR_W(DN(op)), x86::ax);
 }
 
-void or_l_to_dn(x86::Assembler &a, uint16_t op) {
-    clear_vc(a);
-    ea_readL_jit(a, TYPE(op), REG(op));
-    a.mov(x86::edx, DR_L(DN(op)));
-    a.or_(x86::eax, x86::edx);
-    update_nz(a);
-    a.mov(DR_L(DN(op)), x86::eax);
+void or_l_to_dn(uint16_t op) {
+    clear_vc();
+    ea_readL_jit(TYPE(op), REG(op));
+    update_pc();
+    as->or_(x86::eax, DR_L(DN(op)));
+    update_nz();
+    as->mov(DR_L(DN(op)), x86::eax);
 }
 
-void divu_w(x86::Assembler &a, uint16_t op) {
-    auto lb = a.newLabel();
-    ea_readW_jit(a, TYPE(op), REG(op));
-    update_pc(a);
-    a.test(x86::ax, x86::ax);
-    a.jne(lb);
-    a.call(DIV0_ERROR);
-    a.bind(lb);
-    a.cwde();
-    a.mov(CC_C, 0);
-    a.mov(x86::ecx, DR_L(DN(op)));
-    a.xchg(x86::ecx, x86::eax);
-    a.xor_(x86::edx, x86::edx);
-    a.div(x86::ecx);
-    a.mov(x86::ecx, x86::eax);
-    a.shr(x86::ecx, 16);
-    a.test(x86::cx, x86::cx);
-    a.setne(CC_V);
-    a.test(x86::ax, x86::ax);
-    update_nz(a);
-    a.movzx(x86::eax, x86::ax);
-    a.ror(x86::edx, 16);
-    a.or_(x86::eax, x86::edx);
-    a.mov(DR_L(DN(op)), x86::eax);
+void divu_w(uint16_t op) {
+    auto lb = as->newLabel();
+    ea_readW_jit(TYPE(op), REG(op));
+    update_pc();
+    as->test(x86::ax, x86::ax);
+    as->jne(lb);
+    as->call(DIV0_ERROR);
+    as->bind(lb);
+    as->cwde();
+    as->mov(CC_C, 0);
+    as->mov(x86::ecx, DR_L(DN(op)));
+    as->xchg(x86::ecx, x86::eax);
+    as->xor_(x86::edx, x86::edx);
+    as->div(x86::ecx);
+    as->mov(x86::ecx, x86::eax);
+    as->shr(x86::ecx, 16);
+    as->test(x86::cx, x86::cx);
+    as->setne(CC_V);
+    as->test(x86::ax, x86::ax);
+    update_nz();
+    as->movzx(x86::eax, x86::ax);
+    as->ror(x86::edx, 16);
+    as->or_(x86::eax, x86::edx);
+    as->mov(DR_L(DN(op)), x86::eax);
 }
 
-void sbcd_d(x86::Assembler &a, uint16_t op) {
+void sbcd_d(uint16_t op) {
     int reg = REG(op);
-    a.movzx(ARG1, DR_B(reg));
-    a.movzx(ARG2, DR_B(DN(op)));
-    a.movzx(ARG3, CC_X);
-    a.call(do_sbcd);
-    a.mov(DR_B(reg), x86::al);
+    as->movzx(ARG1.r32(), DR_B(reg));
+    as->movzx(ARG2.r32(), DR_B(DN(op)));
+    as->mov(ARG3.r8(), CC_X);
+    as->call(do_sbcd);
+    as->mov(DR_B(reg), x86::al);
 }
 
-void sbcd_m(x86::Assembler &a, uint16_t op) {
+void sbcd_m(uint16_t op) {
     int reg = REG(op);
-    a.mov(x86::r12d, AR_L(reg));
-    a.dec(x86::r12d);
-    a.mov(AR_L(reg), x86::r12d);
-    a.mov(ARG1, x86::r12d);
-    a.call(ReadB);
-    a.mov(x86::r11d, x86::eax);
+    as->mov(x86::r12d, AR_L(reg));
+    as->dec(x86::r12d);
+    as->mov(AR_L(reg), x86::r12d);
+    jit_readB(x86::r12d);
+    as->mov(x86::r11d, x86::eax);
 
-    a.mov(x86::edi, AR_L(DN(op)));
-    a.dec(x86::edi);
-    a.mov(AR_L(DN(op)), x86::edi);
-    a.mov(ARG1, x86::edi);
-    a.call(ReadB);
+    as->mov(x86::esi, AR_L(DN(op)));
+    as->dec(x86::esi);
+    as->mov(AR_L(DN(op)), x86::esi);
+    jit_readB(x86::esi);
 
-    a.mov(ARG1, x86::r11d);
-    a.mov(ARG2, x86::eax);
-    a.movzx(ARG3, CC_X);
-    a.call(do_sbcd);
-    a.mov(ARG1, x86::r12d);
-    a.movzx(ARG2, x86::al);
-    a.call(WriteB);
+    as->mov(ARG1.r32(), x86::r11d);
+    as->mov(ARG2.r32(), x86::eax);
+    as->mov(ARG3.r8(), CC_X);
+    as->call(do_sbcd);
+    jit_writeB(x86::r12d, x86::al);
 }
 
-void or_b_to_ea(x86::Assembler &a, uint16_t op) {
-    clear_vc(a);
-    ea_readB_jit(a, TYPE(op), REG(op));
-    a.mov(x86::dl, DR_B(DN(op)));
-    a.or_(x86::al, x86::dl);
-    update_nz(a);
-    ea_writeB_jit(a, TYPE(op), REG(op), true);
+void or_b_to_ea(uint16_t op) {
+    clear_vc();
+    ea_readB_jit(TYPE(op), REG(op));
+    update_pc();
+    as->or_(x86::al, DR_B(DN(op)));
+    update_nz();
+    ea_writeB_jit(TYPE(op), REG(op), true);
 }
 
-void pack_d(x86::Assembler &a, uint16_t op) {
+void pack_d(uint16_t op) {
     int reg = REG(op);
     uint16_t adj = FETCH();
-    update_pc(a);
+    update_pc();
 
-    a.movzx(ARG1, DR_W(reg));
-    a.mov(ARG2, adj);
-    a.call(do_pack);
-    a.mov(DR_B(DN(op)), x86::al);
+    as->movzx(ARG1.r32(), DR_W(reg));
+    as->mov(ARG2.r32(), adj);
+    as->call(do_pack);
+    as->mov(DR_B(DN(op)), x86::al);
 }
 
-void pack_m(x86::Assembler &a, uint16_t op) {
+void pack_m(uint16_t op) {
     int reg = REG(op);
     uint16_t adj = FETCH();
-    update_pc(a);
+    update_pc();
 
-    a.mov(x86::r12d, AR_L(reg));
-    a.dec(x86::r12d);
-    a.mov(AR_L(reg), x86::r12d);
-    a.mov(ARG1, x86::r12d);
-    a.call(ReadB);
-    a.movzx(x86::r11d, x86::al);
+    as->mov(x86::r12d, AR_L(reg));
+    as->dec(x86::r12d);
+    as->mov(AR_L(reg), x86::r12d);
+    jit_readB(x86::r12d);
+    as->movzx(x86::r11d, x86::al);
 
-    a.dec(x86::r12d);
-    a.mov(AR_L(reg), x86::r12d);
-    a.mov(ARG1, x86::r12d);
-    a.call(ReadB);
-    a.movzx(x86::eax, x86::al);
-    a.xchg(x86::al, x86::ah);
-    a.or_(x86::ax, x86::r11w);
-    a.movzx(ARG1, x86::ax);
-    a.mov(ARG2, adj);
-    a.call(do_pack);
-    
-    a.mov(x86::edi, AR_L(DN(op)));
-    a.dec(x86::edi);
-    a.mov(AR_L(DN(op)), x86::edi);
-    a.mov(ARG1, x86::edi);
-    a.movzx(ARG2, x86::al);
-    a.call(WriteB);
+    as->dec(x86::r12d);
+    as->mov(AR_L(reg), x86::r12d);
+    jit_readB(x86::r12d);
+    as->movzx(x86::eax, x86::al);
+    as->xchg(x86::al, x86::ah);
+    as->or_(x86::ax, x86::r11w);
+    as->movzx(ARG1.r32(), x86::ax);
+    as->mov(ARG2.r32(), adj);
+    as->call(do_pack);
 
+    as->mov(x86::edi, AR_L(DN(op)));
+    as->dec(x86::edi);
+    as->mov(AR_L(DN(op)), x86::edi);
+    jit_writeB(x86::edi, x86::al);
 }
 
-void or_w_to_ea(x86::Assembler &a, uint16_t op) {
-    clear_vc(a);
-    ea_readW_jit(a, TYPE(op), REG(op));
-    a.mov(x86::dx, DR_W(DN(op)));
-    a.or_(x86::ax, x86::dx);
-    update_nz(a);
-    ea_writeW_jit(a, TYPE(op), REG(op), true);
+void or_w_to_ea(uint16_t op) {
+    clear_vc();
+    ea_readW_jit(TYPE(op), REG(op));
+    update_pc();
+    as->or_(x86::ax, DR_W(DN(op)));
+    update_nz();
+    ea_writeW_jit(TYPE(op), REG(op), true);
 }
 
-
-void unpk_d(x86::Assembler &a, uint16_t op) {
+void unpk_d(uint16_t op) {
     int reg = REG(op);
     uint16_t adj = FETCH();
-    update_pc(a);
+    update_pc();
 
-    a.movzx(ARG1, DR_L(reg));
-    a.mov(ARG2, adj);
-    a.call(do_unpk);
-    a.mov(DR_W(DN(op)), x86::ax);
+    as->movzx(ARG1.r32(), DR_L(reg));
+    as->mov(ARG2.r32(), adj);
+    as->call(do_unpk);
+    as->mov(DR_W(DN(op)), x86::ax);
 }
 
-void unpk_m(x86::Assembler &a, uint16_t op) {
+void unpk_m(uint16_t op) {
     int reg = REG(op);
     int dn = DN(op);
     uint16_t adj = FETCH();
-    update_pc(a);
+    update_pc();
 
-    a.mov(x86::esi, AR_L(reg));
-    a.dec(x86::esi);
-    a.mov(AR_L(reg), x86::esi);
-    a.mov(ARG1, x86::esi);
-    a.call(ReadB);
-    a.movzx(ARG1, x86::al);
-    a.mov(ARG2, adj);
-    a.call(do_unpk);
-    a.movzx(x86::r13d, x86::ax);
+    as->mov(x86::esi, AR_L(reg));
+    as->dec(x86::esi);
+    as->mov(AR_L(reg), x86::esi);
+    jit_readB(x86::esi);
 
+    as->movzx(ARG1.r32(), x86::al);
+    as->mov(ARG2.r32(), adj);
+    as->call(do_unpk);
+    as->movzx(x86::r13d, x86::ax);
 
-    a.mov(x86::r12d, AR_L(dn));
-    a.dec(x86::r12d);
-    a.mov(AR_L(dn), x86::r12d);    
-    a.mov(ARG1, x86::r12d);
-    a.movzx(ARG2, x86::r13b);
-    a.call(WriteB);
+    as->mov(x86::r12d, AR_L(dn));
+    as->dec(x86::r12d);
+    as->mov(AR_L(dn), x86::r12d);
+    jit_writeB(x86::r12d, x86::r13b);
 
-    a.dec(x86::r12d);
-    a.mov(AR_L(dn), x86::r12d);    
-    a.mov(ARG1, x86::r12d);
-    a.shr(x86::r13w, 8);
-    a.movzx(ARG2, x86::r13b);
-    a.call(WriteB);
-
+    as->dec(x86::r12d);
+    as->mov(AR_L(dn), x86::r12d);
+    as->shr(x86::r13w, 8);
+    jit_writeB(x86::r12d, x86::r13b);
 }
 
-void or_l_to_ea(x86::Assembler &a, uint16_t op) {
-    clear_vc(a);
-    ea_readL_jit(a, TYPE(op), REG(op));
-    a.mov(x86::edx, DR_L(DN(op)));
-    a.or_(x86::eax, x86::edx);
-    update_nz(a);
-    ea_writeL_jit(a, TYPE(op), REG(op), true);
+void or_l_to_ea(uint16_t op) {
+    clear_vc();
+    ea_readL_jit(TYPE(op), REG(op));
+    update_pc();
+    as->or_(x86::eax, DR_L(DN(op)));
+    update_nz();
+    ea_writeL_jit(TYPE(op), REG(op), true);
 }
-void divs_w(x86::Assembler &a, uint16_t op) {
-    auto lb = a.newLabel();
-    auto lb2 = a.newLabel();
-    auto lb3 = a.newLabel();
-    ea_readW_jit(a, TYPE(op), REG(op));
-    update_pc(a);
-    a.test(x86::ax, x86::ax);
-    a.jne(lb);
-    a.call(DIV0_ERROR);
-    a.bind(lb);
-    a.cwde();
-    a.mov(CC_C, 0);
-    a.mov(x86::ecx, DR_L(DN(op)));
-    a.xchg(x86::ecx, x86::eax);
-    a.cmp(x86::eax, 0x80000000);
-    a.jne(lb3);
-    a.cmp(x86::ecx, -1);
-    a.jne(lb3);
-    a.mov(CC_V, 1);
-    a.jmp(lb2);
-    a.bind(lb3);
-    a.cdq();
-    a.idiv(x86::ecx);
-    a.mov(x86::ecx, x86::eax);
-    a.shr(x86::ecx, 16);
-    a.test(x86::cx, x86::cx);
-    a.setne(CC_V);
-    a.test(x86::ax, x86::ax);
-    update_nz(a);
-    a.movzx(x86::eax, x86::ax);
-    a.shl(x86::edx, 16);
-    a.or_(x86::eax, x86::edx);
-    a.mov(DR_L(DN(op)), x86::eax);
-    a.bind(lb2);
-}
-
-void sub_b_to_dn(x86::Assembler &a, uint16_t op) {
-    ea_readB_jit(a, TYPE(op), REG(op));
-    a.mov(x86::dl, DR_B(DN(op)));
-    a.sub(x86::dl, x86::al);
-    a.xchg(x86::dl, x86::al);
-    update_nz(a);
-    update_vcx(a);
-    a.mov(DR_B(DN(op)), x86::al);
+void divs_w(uint16_t op) {
+    auto lb = as->newLabel();
+    auto lb2 = as->newLabel();
+    auto lb3 = as->newLabel();
+    ea_readW_jit(TYPE(op), REG(op));
+    update_pc();
+    as->test(x86::ax, x86::ax);
+    as->jne(lb);
+    as->call(DIV0_ERROR);
+    as->bind(lb);
+    as->cwde();
+    as->mov(CC_C, 0);
+    as->mov(x86::ecx, DR_L(DN(op)));
+    as->xchg(x86::ecx, x86::eax);
+    as->cmp(x86::eax, 0x80000000);
+    as->jne(lb3);
+    as->cmp(x86::ecx, -1);
+    as->jne(lb3);
+    as->mov(CC_V, 1);
+    as->jmp(lb2);
+    as->bind(lb3);
+    as->cdq();
+    as->idiv(x86::ecx);
+    as->mov(x86::ecx, x86::eax);
+    as->shr(x86::ecx, 16);
+    as->test(x86::cx, x86::cx);
+    as->setne(CC_V);
+    as->test(x86::ax, x86::ax);
+    update_nz();
+    as->movzx(x86::eax, x86::ax);
+    as->shl(x86::edx, 16);
+    as->or_(x86::eax, x86::edx);
+    as->mov(DR_L(DN(op)), x86::eax);
+    as->bind(lb2);
 }
 
-void sub_w_to_dn(x86::Assembler &a, uint16_t op) {
-    ea_readW_jit(a, TYPE(op), REG(op));
-    a.mov(x86::dx, DR_W(DN(op)));
-    a.sub(x86::dx, x86::ax);
-    a.xchg(x86::dx, x86::ax);
-    update_nz(a);
-    update_vcx(a);
-    a.mov(DR_W(DN(op)), x86::ax);
+void sub_b_to_dn(uint16_t op) {
+    ea_readB_jit(TYPE(op), REG(op));
+    update_pc();
+    as->sub(DR_B(DN(op)), x86::al);
+    update_nz();
+    update_vcx();
 }
 
-void sub_l_to_dn(x86::Assembler &a, uint16_t op) {
-    ea_readL_jit(a, TYPE(op), REG(op));
-    a.mov(x86::edx, DR_L(DN(op)));
-    a.sub(x86::edx, x86::eax);
-    a.xchg(x86::edx, x86::eax);
-    update_nz(a);
-    update_vcx(a);
-    a.mov(DR_L(DN(op)), x86::eax);
+void sub_w_to_dn(uint16_t op) {
+    ea_readW_jit(TYPE(op), REG(op));
+    update_pc();
+    as->sub(DR_W(DN(op)), x86::ax);
+    update_nz();
+    update_vcx();
 }
 
-void suba_w(x86::Assembler &a, uint16_t op) {
-    ea_readW_jit(a, TYPE(op), REG(op));
-    a.cwde();
-    a.sub(AR_L(DN(op)), x86::eax);
+void sub_l_to_dn(uint16_t op) {
+    ea_readL_jit(TYPE(op), REG(op));
+    update_pc();
+    as->sub(DR_L(DN(op)), x86::eax);
+    update_nz();
+    update_vcx();
 }
 
-void suba_l(x86::Assembler &a, uint16_t op) {
-    ea_readL_jit(a, TYPE(op), REG(op));
-    a.sub(AR_L(DN(op)), x86::eax);
+void suba_w(uint16_t op) {
+    ea_readW_jit(TYPE(op), REG(op));
+    update_pc();
+    as->cwde();
+    as->sub(AR_L(DN(op)), x86::eax);
 }
 
-void subx_b_d(x86::Assembler &a, uint16_t op) {
-    a.mov(x86::al, DR_B(REG(op)));
-    a.mov(x86::dl, DR_B(DN(op)));
-    a.mov(x86::cl, CC_X);
-    a.shr(x86::cl, 1);
-    a.sbb(x86::al, x86::dl);
-    update_vcx(a);
-    a.sets(CC_N);
-    a.setz(x86::sil);
-    a.and_(CC_Z, x86::sil);
-    a.mov(DR_B(REG(op)), x86::al);    
+void suba_l(uint16_t op) {
+    ea_readL_jit(TYPE(op), REG(op));
+    update_pc();
+    as->sub(AR_L(DN(op)), x86::eax);
 }
 
-void subx_b_m(x86::Assembler &a, uint16_t op) {
-    a.mov(x86::r12d, AR_L(REG(op)));
-    a.dec(x86::r12d);
-    a.mov(AR_L(REG(op)), x86::r12d);
-    a.mov(ARG1, x86::r12d);
-    a.call(ReadB);
-    a.mov(x86::r13b, x86::al);
-    a.mov(ARG1, AR_L(REG(op)));
-    a.dec(ARG1);
-    a.mov(AR_L(REG(op)), ARG1);
-    a.call(ReadB);
-    a.mov(x86::cl, CC_X);
-    a.shr(x86::cl, 1);
-    a.sbb(x86::r13b, x86::al);
-    update_vcx(a);
-    a.sets(CC_N);
-    a.setz(x86::sil);
-    a.and_(CC_Z, x86::sil);
-    a.mov(ARG1, x86::r12d);
-    a.mov(ARG2, x86::r13b);
-    a.call(WriteB);
+void subx_b_d(uint16_t op) {
+    as->mov(x86::al, DR_B(DN(op)));
+    as->mov(x86::cl, CC_X);
+    as->shr(x86::cl, 1);
+    as->sbb(DR_B(REG(op)), x86::al);
+    update_vcx();
+    as->sets(CC_N);
+    as->setz(x86::sil);
+    as->and_(CC_Z, x86::sil);
 }
 
+void subx_b_m(uint16_t op) {
+    as->mov(x86::r12d, AR_L(REG(op)));
+    as->dec(x86::r12d);
+    as->mov(AR_L(REG(op)), x86::r12d);
+    jit_readB(x86::r12d);
+    as->mov(x86::r13b, x86::al);
+    as->mov(x86::esi, AR_L(DN(op)));
+    as->dec(x86::esi);
+    as->mov(AR_L(DN(op)), x86::esi);
+    jit_readB(x86::esi);
+    as->mov(x86::cl, CC_X);
+    as->shr(x86::cl, 1);
+    as->sbb(x86::r13b, x86::al);
+    update_vcx();
+    as->sets(CC_N);
+    as->setz(x86::sil);
+    as->and_(CC_Z, x86::sil);
+    as->mov(ARG1.r32(), x86::r12d);
+    as->movzx(ARG2.r32(), x86::r13b);
+    jit_writeB(x86::r12d, x86::r13b);
+}
+
+void subx_w_d(uint16_t op) {
+    as->mov(x86::ax, DR_W(DN(op)));
+    as->mov(x86::cl, CC_X);
+    as->shr(x86::cl, 1);
+    as->sbb(DR_W(REG(op)), x86::ax);
+    update_vcx();
+    as->sets(CC_N);
+    as->setz(x86::sil);
+    as->and_(CC_Z, x86::sil);
+}
+
+void subx_w_m(uint16_t op) {
+    as->mov(x86::r12d, AR_L(REG(op)));
+    as->sub(x86::r12d, 2);
+    as->mov(AR_L(REG(op)), x86::r12d);
+    jit_readW(x86::r12d);
+    as->mov(x86::r13w, x86::ax);
+    as->mov(x86::esi, AR_L(DN(op)));
+    as->sub(x86::esi, 2);
+    as->mov(AR_L(DN(op)), x86::esi);
+    jit_readW(x86::esi);
+    as->mov(x86::cl, CC_X);
+    as->shr(x86::cl, 1);
+    as->sbb(x86::r13w, x86::ax);
+    update_vcx();
+    as->sets(CC_N);
+    as->setz(x86::sil);
+    as->and_(CC_Z, x86::sil);
+    jit_writeW( x86::r12d, x86::r13w);
+}
+
+void subx_l_d(uint16_t op) {
+    as->mov(x86::eax, DR_L(DN(op)));
+    as->mov(x86::cl, CC_X);
+    as->shr(x86::cl, 1);
+    as->sbb(DR_L(REG(op)), x86::eax);
+    update_vcx();
+    as->sets(CC_N);
+    as->setz(x86::sil);
+    as->and_(CC_Z, x86::sil);
+}
+
+void subx_l_m(uint16_t op) {
+    as->mov(x86::r12d, AR_L(REG(op)));
+    as->sub(x86::r12d, 4);
+    as->mov(AR_L(REG(op)), x86::r12d);
+    jit_readL(x86::r12d);
+    as->mov(x86::r13d, x86::eax);
+    as->mov(x86::esi, AR_L(DN(op)));
+    as->sub(x86::esi, 4);
+    as->mov(AR_L(DN(op)), x86::esi);
+    jit_readL(x86::esi);
+    as->mov(x86::cl, CC_X);
+    as->shr(x86::cl, 1);
+    as->sbb(x86::r13d, x86::eax);
+    update_vcx();
+    as->sets(CC_N);
+    as->setz(x86::sil);
+    as->and_(CC_Z, x86::sil);
+    jit_writeL(x86::r12d, x86::r13d);
+}
+
+void sub_b_to_ea(uint16_t op) {
+    ea_readB_jit(TYPE(op), REG(op));
+    update_pc();
+    as->sub(x86::al, DR_B(DN(op)));
+    update_nz();
+    update_vcx();
+    ea_writeB_jit(TYPE(op), REG(op), true);
+}
+
+void sub_w_to_ea(uint16_t op) {
+    ea_readW_jit(TYPE(op), REG(op));
+    update_pc();
+    as->sub(x86::ax, DR_W(DN(op)));
+    update_nz();
+    update_vcx();
+    ea_writeW_jit(TYPE(op), REG(op), true);
+}
+
+void sub_l_to_ea(uint16_t op) {
+    ea_readL_jit(TYPE(op), REG(op));
+    update_pc();
+    as->sub(x86::eax, DR_W(DN(op)));
+    update_nz();
+    update_vcx();
+    ea_writeL_jit(TYPE(op), REG(op), true);
+}
+
+void aline_ex(uint16_t /* op */) {
+    // some optimize for specific op?
+    as->call(ALINE);
+}
+
+void cmp_b(uint16_t op) {
+    ea_readB_jit(TYPE(op), REG(op));
+    update_pc();
+    as->cmp(DR_B(DN(op)), x86::al);
+    update_vc();
+    update_nz();
+}
+
+void cmp_w(uint16_t op) {
+    ea_readW_jit(TYPE(op), REG(op));
+    update_pc();
+    as->cmp(DR_W(DN(op)), x86::ax);
+    update_vc();
+    update_nz();
+}
+
+void cmp_l(uint16_t op) {
+    ea_readL_jit(TYPE(op), REG(op));
+    update_pc();
+    as->cmp(DR_L(DN(op)), x86::eax);
+    update_vc();
+    update_nz();
+}
+
+void cmpa_w(uint16_t op) {
+    ea_readW_jit(TYPE(op), REG(op));
+    update_pc();
+    as->cwde();
+    as->cmp(AR_L(DN(op)), x86::eax);
+    update_vc();
+    update_nz();
+}
+
+void cmpa_l(uint16_t op) {
+    ea_readL_jit(TYPE(op), REG(op));
+    update_pc();
+    as->cmp(AR_L(DN(op)), x86::eax);
+    update_vc();
+    update_nz();
+}
+
+void eor_b(uint16_t op) {
+    ea_readB_jit(TYPE(op), REG(op));
+    update_pc();
+    clear_vc();
+    as->xor_(x86::al, DR_B(DN(op)));
+    update_nz();
+    ea_writeB_jit(TYPE(op), REG(op), true);
+}
+
+void eor_w(uint16_t op) {
+    ea_readW_jit(TYPE(op), REG(op));
+    update_pc();
+    clear_vc();
+    as->xor_(x86::ax, DR_W(DN(op)));
+    update_nz();
+    ea_writeW_jit(TYPE(op), REG(op), true);
+}
+
+void eor_l(uint16_t op) {
+    ea_readL_jit(TYPE(op), REG(op));
+    update_pc();
+    clear_vc();
+    as->xor_(x86::eax, DR_L(DN(op)));
+    update_nz();
+    ea_writeL_jit(TYPE(op), REG(op), true);
+}
+
+void cmpm_b(uint16_t op) {
+    as->mov(x86::esi, AR_L(REG(op)));
+    as->inc(AR_L(REG(op)));
+    jit_readB(x86::esi);
+    as->mov(x86::r12b, x86::al);
+
+    as->mov(x86::esi, AR_L(DN(op)));
+    as->inc(AR_L(DN(op)));
+    jit_readB(x86::esi);
+    as->cmp(x86::al, x86::r12b);
+
+    update_nz();
+    update_vc();
+}
+
+void cmpm_w(uint16_t op) {
+    as->mov(x86::esi, AR_L(REG(op)));
+    as->add(AR_L(REG(op)), 2);
+    jit_readW(x86::esi);
+    as->mov(x86::r12w, x86::ax);
+
+    as->mov(x86::esi, AR_L(DN(op)));
+    as->add(AR_L(DN(op)), 2);
+    jit_readW(x86::esi);
+    as->cmp(x86::ax, x86::r12w);
+
+    update_nz();
+    update_vc();
+}
+
+void cmpm_l(uint16_t op) {
+    as->mov(x86::esi, AR_L(REG(op)));
+    as->add(AR_L(REG(op)), 4);
+    jit_readL(x86::esi);
+    as->mov(x86::r12d, x86::eax);
+
+    as->mov(x86::esi, AR_L(DN(op)));
+    as->add(AR_L(DN(op)), 4);
+    jit_readL(x86::esi);
+    as->cmp(x86::eax, x86::r12d);
+
+    update_nz();
+    update_vc();
+}
+
+void and_b_to_dn(uint16_t op) {
+    ea_readB_jit(TYPE(op), REG(op));
+    update_pc();
+    as->and_(DR_B(DN(op)), x86::al);
+    update_nz();
+    clear_vc();
+}
+
+void and_w_to_dn(uint16_t op) {
+    ea_readW_jit(TYPE(op), REG(op));
+    update_pc();
+    as->and_(DR_W(DN(op)), x86::ax);
+    update_nz();
+    clear_vc();
+}
+
+void and_l_to_dn(uint16_t op) {
+    ea_readL_jit(TYPE(op), REG(op));
+    update_pc();
+    as->and_(DR_L(DN(op)), x86::eax);
+    update_nz();
+    clear_vc();
+}
+
+void mulu_w(uint16_t op) {
+    ea_readW_jit(TYPE(op), REG(op));
+    update_pc();
+    as->mul(DR_W(DN(op)));
+    as->ror(x86::edx, 16);
+    as->or_(x86::eax, x86::edx);
+    as->test(x86::eax, x86::eax);
+    update_nz();
+    clear_vc();
+    as->mov(DR_L(DN(op)), x86::eax);
+}
+
+void abcd_d(uint16_t op) {
+    int dn = DN(op);
+    as->movzx(ARG1.r32(), DR_B(dn));
+    as->movzx(ARG2.r32(), DR_B(REG(op)));
+    as->mov(ARG3.r8(), CC_X);
+    as->call(do_abcd);
+    as->mov(DR_B(dn), x86::al);
+}
+
+void abcd_m(uint16_t op) {
+    int dn = DN(op);
+    as->mov(x86::r12d, AR_L(dn));
+    as->dec(x86::r12d);
+    as->mov(AR_L(dn), x86::r12d);
+    jit_readB(x86::r12d);
+    as->mov(x86::r11d, x86::eax);
+
+    as->mov(x86::edi, AR_L(REG(op)));
+    as->dec(x86::edi);
+    as->mov(AR_L(REG(op)), x86::edi);
+    jit_readB(x86::edi);
+
+    as->mov(ARG1.r32(), x86::r11d);
+    as->mov(ARG2.r32(), x86::eax);
+    as->mov(ARG3.r8(), CC_X);
+    as->call(do_abcd);
+    as->mov(ARG1.r32(), x86::r12d);
+    as->movzx(ARG2.r32(), x86::al);
+    jit_writeB(x86::r12d, x86::al);
+}
+
+void and_b_to_ea(uint16_t op) {
+    clear_vc();
+    ea_readB_jit(TYPE(op), REG(op));
+    update_pc();
+    as->and_(x86::al, DR_B(DN(op)));
+    update_nz();
+    ea_writeB_jit(TYPE(op), REG(op), true);
+}
+
+void and_w_to_ea(uint16_t op) {
+    clear_vc();
+    ea_readW_jit(TYPE(op), REG(op));
+    update_pc();
+    as->and_(x86::ax, DR_W(DN(op)));
+    update_nz();
+    ea_writeW_jit(TYPE(op), REG(op), true);
+}
+
+void and_l_to_ea(uint16_t op) {
+    clear_vc();
+    ea_readL_jit(TYPE(op), REG(op));
+    update_pc();
+    as->and_(x86::eax, DR_L(DN(op)));
+    update_nz();
+    ea_writeL_jit(TYPE(op), REG(op), true);
+}
+
+void muls_w(uint16_t op) {
+    ea_readW_jit(TYPE(op), REG(op));
+    update_pc();
+    as->imul(DR_W(DN(op)));
+    as->ror(x86::edx, 16);
+    as->or_(x86::eax, x86::edx);
+    as->test(x86::eax, x86::eax);
+    update_nz();
+    clear_vc();
+    as->mov(DR_L(DN(op)), x86::eax);
+}
+
+void exg_dn(uint16_t op) {
+    as->mov(x86::eax, DR_L(REG(op)));
+    as->xchg(DR_L(DN(op)), x86::eax);
+    as->mov(DR_L(REG(op)), x86::eax);
+}
+
+void exg_an(uint16_t op) {
+    as->mov(x86::eax, AR_L(REG(op)));
+    as->xchg(AR_L(DN(op)), x86::eax);
+    as->mov(AR_L(REG(op)), x86::eax);
+}
+
+void exg_da(uint16_t op) {
+    as->mov(x86::eax, AR_L(REG(op)));
+    as->xchg(DR_L(DN(op)), x86::eax);
+    as->mov(AR_L(REG(op)), x86::eax);
+}
+
+void add_b_to_dn(uint16_t op) {
+    ea_readB_jit(TYPE(op), REG(op));
+    update_pc();
+    as->add(DR_B(DN(op)), x86::al);
+    update_nz();
+    update_vcx();
+}
+
+void add_w_to_dn(uint16_t op) {
+    ea_readW_jit(TYPE(op), REG(op));
+    update_pc();
+    as->add(DR_W(DN(op)), x86::ax);
+    update_nz();
+    update_vcx();
+}
+
+void add_l_to_dn(uint16_t op) {
+    ea_readL_jit(TYPE(op), REG(op));
+    update_pc();
+    as->add(DR_L(DN(op)), x86::eax);
+    update_nz();
+    update_vcx();
+}
+
+void adda_w(uint16_t op) {
+    ea_readW_jit(TYPE(op), REG(op));
+    update_pc();
+    as->cwde();
+    as->add(AR_L(DN(op)), x86::eax);
+}
+
+void adda_l(uint16_t op) {
+    ea_readL_jit(TYPE(op), REG(op));
+    update_pc();
+    as->add(AR_L(DN(op)), x86::eax);
+}
+
+void addx_b_d(uint16_t op) {
+    as->mov(x86::al, DR_B(REG(op)));
+    as->mov(x86::cl, CC_X);
+    as->shr(x86::cl, 1);
+    as->adc(DR_B(DN(op)), x86::al);
+    update_vcx();
+    as->sets(CC_N);
+    as->setz(x86::sil);
+    as->and_(CC_Z, x86::sil);
+}
+
+void addx_b_m(uint16_t op) {
+    as->mov(x86::r12d, AR_L(DN(op)));
+    as->dec(x86::r12d);
+    as->mov(AR_L(DN(op)), x86::r12d);
+    jit_readB(x86::r12d);
+    as->mov(x86::r13b, x86::al);
+    as->mov(x86::esi, AR_L(REG(op)));
+    as->dec(x86::esi);
+    as->mov(AR_L(REG(op)), x86::esi);
+    jit_readB(x86::esi);
+
+    as->mov(x86::cl, CC_X);
+    as->shr(x86::cl, 1);
+    as->adc(x86::r13b, x86::al);
+    update_vcx();
+    as->sets(CC_N);
+    as->setz(x86::sil);
+    as->and_(CC_Z, x86::sil);
+    as->mov(ARG1.r32(), x86::r12d);
+    as->movzx(ARG2.r32(), x86::r13b);
+    jit_writeB(x86::r12d, x86::r13b);
+}
+
+void addx_w_d(uint16_t op) {
+    as->mov(x86::ax, DR_W(REG(op)));
+    as->mov(x86::cl, CC_X);
+    as->shr(x86::cl, 1);
+    as->adc(DR_W(DN(op)), x86::ax);
+    update_vcx();
+    as->sets(CC_N);
+    as->setz(x86::sil);
+    as->and_(CC_Z, x86::sil);
+}
+
+void addx_w_m(uint16_t op) {
+    as->mov(x86::r12d, AR_L(DN(op)));
+    as->sub(x86::r12d, 2);
+    as->mov(AR_L(DN(op)), x86::r12d);
+    jit_readW(x86::r12d);
+    as->mov(x86::r13w, x86::ax);
+    as->mov(x86::esi, AR_L(REG(op)));
+    as->sub(x86::esi, 2);
+    as->mov(AR_L(REG(op)), x86::esi);
+    jit_readW(x86::esi);
+    as->mov(x86::cl, CC_X);
+    as->shr(x86::cl, 1);
+    as->adc(x86::r13w, x86::ax);
+    update_vcx();
+    as->sets(CC_N);
+    as->setz(x86::sil);
+    as->and_(CC_Z, x86::sil);
+    jit_writeW(x86::r12d, x86::r13w);
+}
+
+void addx_l_d(uint16_t op) {
+    as->mov(x86::eax, DR_L(REG(op)));
+    as->mov(x86::cl, CC_X);
+    as->shr(x86::cl, 1);
+    as->adc(DR_L(DN(op)), x86::eax);
+    update_vcx();
+    as->sets(CC_N);
+    as->setz(x86::sil);
+    as->and_(CC_Z, x86::sil);
+}
+
+void addx_l_m(uint16_t op) {
+    as->mov(x86::r12d, AR_L(DN(op)));
+    as->sub(x86::r12d, 4);
+    as->mov(AR_L(DN(op)), x86::r12d);
+    jit_readL(x86::r12d);
+    as->mov(x86::r13d, x86::eax);
+    as->mov(x86::esi, AR_L(REG(op)));
+    as->sub(x86::esi, 4);
+    as->mov(AR_L(REG(op)), x86::esi);
+    jit_readL(x86::esi);
+    as->mov(x86::cl, CC_X);
+    as->shr(x86::cl, 1);
+    as->adc(x86::r13d, x86::eax);
+    update_vcx();
+    as->sets(CC_N);
+    as->setz(x86::sil);
+    as->and_(CC_Z, x86::sil);
+    jit_writeL(x86::r12d, x86::r13d);
+}
+
+void add_b_to_ea(uint16_t op) {
+    ea_readB_jit(TYPE(op), REG(op));
+    update_pc();
+    as->add(x86::al, DR_B(DN(op)));
+    update_nz();
+    update_vcx();
+    ea_writeB_jit(TYPE(op), REG(op), true);
+}
+
+void add_w_to_ea(uint16_t op) {
+    ea_readW_jit(TYPE(op), REG(op));
+    update_pc();
+    as->add(x86::ax, DR_W(DN(op)));
+    update_nz();
+    update_vcx();
+    ea_writeW_jit(TYPE(op), REG(op), true);
+}
+
+void add_l_to_ea(uint16_t op) {
+    ea_readL_jit(TYPE(op), REG(op));
+    update_pc();
+    as->add(x86::eax, DR_W(DN(op)));
+    update_nz();
+    update_vcx();
+    ea_writeL_jit(TYPE(op), REG(op), true);
+}
+
+void asr_b_i(uint16_t op) {
+    int cnt = DN(op) ? DN(op) : 8;
+    as->mov(CC_V, 0);
+    as->sar(DR_B(REG(op)), cnt);
+    as->setc(CC_C);
+    as->setc(CC_X);
+    update_nz();
+}
+
+void lsr_b_i(uint16_t op) {
+    int cnt = DN(op) ? DN(op) : 8;
+    as->mov(CC_V, 0);
+    as->shr(DR_B(REG(op)), cnt);
+    as->setc(CC_C);
+    as->setc(CC_X);
+    update_nz();
+}
+
+void roxr_b_i(uint16_t op) {
+    int cnt = DN(op) ? DN(op) : 8;
+    as->mov(CC_V, 0);
+    as->mov(x86::al, DR_B(REG(op)));
+    as->mov(x86::dl, CC_X);
+    as->shr(x86::dl, 1);
+    as->rcr(x86::al, cnt);
+    as->setc(CC_C);
+    as->setc(CC_X);
+    as->test(x86::al, x86::al);
+    update_nz();
+    as->mov(DR_B(REG(op)), x86::al);
+}
+
+void ror_b_i(uint16_t op) {
+    int cnt = DN(op) ? DN(op) : 8;
+    as->mov(CC_V, 0);
+    as->mov(x86::al, DR_B(REG(op)));
+    as->ror(x86::al, cnt);
+    as->setc(CC_C);
+    as->test(x86::al, x86::al);
+    update_nz();
+    as->mov(DR_B(REG(op)), x86::al);
+}
+
+void asr_b_r(uint16_t op) {
+    auto lb = as->newLabel();
+    auto lb2 = as->newLabel();
+    as->movsx(x86::rax, DR_B(REG(op)));
+    as->mov(x86::cl, DR_B(DN(op)));
+    as->and_(x86::cl, 63);
+    as->cmp(x86::cl, 0);
+    as->jne(lb);
+    as->mov(CC_C, 0);
+    as->test(x86::al, x86::al);
+    update_nz();
+    as->jmp(lb2);
+    as->bind(lb);
+
+    as->mov(CC_V, 0);
+    as->sar(x86::rax, x86::cl);
+    as->setc(CC_C);
+    as->setc(CC_X);
+    update_nz();
+    as->mov(DR_B(REG(op)), x86::al);
+    as->bind(lb2);
+}
+
+void lsr_b_r(uint16_t op) {
+    auto lb = as->newLabel();
+    auto lb2 = as->newLabel();
+    as->movzx(x86::rax, DR_B(REG(op)));
+    as->mov(x86::cl, DR_B(DN(op)));
+    as->and_(x86::cl, 63);
+    as->cmp(x86::cl, 0);
+    as->jne(lb);
+    as->mov(CC_C, 0);
+    as->test(x86::al, x86::al);
+    update_nz();
+    as->jmp(lb2);
+    as->bind(lb);
+    as->mov(CC_V, 0);
+    as->shr(x86::rax, x86::cl);
+    as->setc(CC_C);
+    as->setc(CC_X);
+    update_nz();
+    as->mov(DR_B(REG(op)), x86::al);
+    as->bind(lb2);
+}
+
+void roxr_b_r(uint16_t op) {
+    auto lb = as->newLabel();
+    auto lb2 = as->newLabel();
+    auto lb3 = as->newLabel();
+    auto lb4 = as->newLabel();
+    as->mov(CC_V, 0);
+    as->mov(x86::al, DR_B(REG(op)));
+    as->mov(x86::cl, DR_B(DN(op)));
+    as->and_(x86::cl, 63);
+    as->cmp(x86::cl, 0);
+    as->jne(lb);
+    as->mov(x86::dl, CC_X);
+    as->mov(CC_C, x86::dl);
+    as->test(x86::al, x86::al);
+    update_nz();
+    as->jmp(lb2);
+    as->bind(lb);
+    as->cmp(x86::cl, 31);
+    as->jg(lb3);
+    as->mov(x86::dl, CC_X);
+    as->shr(x86::dl, 1);
+    as->rcr(x86::al, x86::cl);
+    as->jmp(lb4);
+    as->bind(lb3);
+    as->sub(x86::cl, 32);
+    as->mov(x86::dl, CC_X);
+    as->shr(x86::dl, 1);
+    as->rcr(x86::al, 31);
+    as->rcr(x86::al, 1);
+    as->rcr(x86::al, x86::cl);
+    as->bind(lb4);
+    as->setc(CC_C);
+    as->setc(CC_X);
+    as->test(x86::al, x86::al);
+    update_nz();
+    as->mov(DR_B(REG(op)), x86::al);
+    as->bind(lb2);
+}
+
+void ror_b_r(uint16_t op) {
+    auto lb = as->newLabel();
+    auto lb2 = as->newLabel();
+    as->mov(CC_V, 0);
+    as->mov(x86::al, DR_B(REG(op)));
+    as->mov(x86::cl, DR_B(DN(op)));
+    as->and_(x86::cl, 63);
+    as->cmp(x86::cl, 0);
+    as->jne(lb);
+    as->mov(x86::dl, CC_X);
+    as->mov(CC_C, x86::dl);
+    as->test(x86::al, x86::al);
+    update_nz();
+    as->jmp(lb2);
+    as->bind(lb);
+    as->ror(x86::al, x86::cl);
+    as->setc(CC_C);
+    as->test(x86::al, x86::al);
+    update_nz();
+    as->mov(DR_B(REG(op)), x86::al);
+    as->bind(lb2);
+}
+
+void asr_w_i(uint16_t op) {
+    int cnt = DN(op) ? DN(op) : 8;
+    as->mov(CC_V, 0);
+    as->sar(DR_W(REG(op)), cnt);
+    as->setc(CC_C);
+    as->setc(CC_X);
+    update_nz();
+}
+
+void lsr_w_i(uint16_t op) {
+    int cnt = DN(op) ? DN(op) : 8;
+    as->mov(CC_V, 0);
+    as->shr(DR_W(REG(op)), cnt);
+    as->setc(CC_C);
+    as->setc(CC_X);
+    update_nz();
+}
+
+void roxr_w_i(uint16_t op) {
+    int cnt = DN(op) ? DN(op) : 8;
+    as->mov(CC_V, 0);
+    as->mov(x86::ax, DR_B(REG(op)));
+    as->mov(x86::dl, CC_X);
+    as->shr(x86::dl, 1);
+    as->rcr(x86::ax, cnt);
+    as->setc(CC_C);
+    as->setc(CC_X);
+    as->test(x86::ax, x86::ax);
+    update_nz();
+    as->mov(DR_W(REG(op)), x86::ax);
+}
+
+void ror_w_i(uint16_t op) {
+    int cnt = DN(op) ? DN(op) : 8;
+    as->mov(CC_V, 0);
+    as->mov(x86::ax, DR_W(REG(op)));
+    as->ror(x86::ax, cnt);
+    as->setc(CC_C);
+    as->test(x86::ax, x86::ax);
+    update_nz();
+    as->mov(DR_W(REG(op)), x86::ax);
+}
+
+void asr_w_r(uint16_t op) {
+    auto lb = as->newLabel();
+    auto lb2 = as->newLabel();
+    as->movsx(x86::rax, DR_W(REG(op)));
+    as->mov(x86::cl, DR_B(DN(op)));
+    as->and_(x86::cl, 63);
+    as->cmp(x86::cl, 0);
+    as->jne(lb);
+    as->mov(CC_C, 0);
+    as->test(x86::ax, x86::ax);
+    update_nz();
+    as->jmp(lb2);
+    as->bind(lb);
+
+    as->mov(CC_V, 0);
+    as->sar(x86::rax, x86::cl);
+    as->setc(CC_C);
+    as->setc(CC_X);
+    update_nz();
+    as->mov(DR_W(REG(op)), x86::ax);
+    as->bind(lb2);
+}
+
+void lsr_w_r(uint16_t op) {
+    auto lb = as->newLabel();
+    auto lb2 = as->newLabel();
+    as->movzx(x86::rax, DR_W(REG(op)));
+    as->mov(x86::cl, DR_B(DN(op)));
+    as->and_(x86::cl, 63);
+    as->cmp(x86::cl, 0);
+    as->jne(lb);
+    as->mov(CC_C, 0);
+    as->test(x86::ax, x86::ax);
+    update_nz();
+    as->jmp(lb2);
+    as->bind(lb);
+    as->mov(CC_V, 0);
+    as->shr(x86::rax, x86::cl);
+    as->setc(CC_C);
+    as->setc(CC_X);
+    update_nz();
+    as->mov(DR_W(REG(op)), x86::ax);
+    as->bind(lb2);
+}
+
+void roxr_w_r(uint16_t op) {
+    auto lb = as->newLabel();
+    auto lb2 = as->newLabel();
+    auto lb3 = as->newLabel();
+    auto lb4 = as->newLabel();
+    as->mov(CC_V, 0);
+    as->mov(x86::ax, DR_W(REG(op)));
+    as->mov(x86::cl, DR_B(DN(op)));
+    as->and_(x86::cl, 63);
+    as->cmp(x86::cl, 0);
+    as->jne(lb);
+    as->mov(x86::dl, CC_X);
+    as->mov(CC_C, x86::dl);
+    as->test(x86::ax, x86::ax);
+    update_nz();
+    as->jmp(lb2);
+    as->bind(lb);
+    as->cmp(x86::cl, 31);
+    as->jg(lb3);
+    as->mov(x86::dl, CC_X);
+    as->shr(x86::dl, 1);
+    as->rcr(x86::ax, x86::cl);
+    as->jmp(lb4);
+    as->bind(lb3);
+    as->sub(x86::cl, 32);
+    as->mov(x86::dl, CC_X);
+    as->shr(x86::dl, 1);
+    as->rcr(x86::ax, 31);
+    as->rcr(x86::ax, 1);
+    as->rcr(x86::ax, x86::cl);
+    as->bind(lb4);
+    as->setc(CC_C);
+    as->setc(CC_X);
+    as->test(x86::ax, x86::ax);
+    update_nz();
+    as->mov(DR_W(REG(op)), x86::ax);
+    as->bind(lb2);
+}
+
+void ror_w_r(uint16_t op) {
+    auto lb = as->newLabel();
+    auto lb2 = as->newLabel();
+    as->mov(CC_V, 0);
+    as->mov(x86::ax, DR_W(REG(op)));
+    as->mov(x86::cl, DR_B(DN(op)));
+    as->and_(x86::cl, 63);
+    as->cmp(x86::cl, 0);
+    as->jne(lb);
+    as->mov(x86::dl, CC_X);
+    as->mov(CC_C, x86::dl);
+    as->test(x86::ax, x86::ax);
+    update_nz();
+    as->jmp(lb2);
+    as->bind(lb);
+    as->ror(x86::ax, x86::cl);
+    as->setc(CC_C);
+    as->test(x86::ax, x86::ax);
+    update_nz();
+    as->mov(DR_W(REG(op)), x86::ax);
+    as->bind(lb2);
+}
+
+void asr_l_i(uint16_t op) {
+    int cnt = DN(op) ? DN(op) : 8;
+    as->mov(CC_V, 0);
+    as->sar(DR_L(REG(op)), cnt);
+    as->setc(CC_C);
+    as->setc(CC_X);
+    update_nz();
+}
+
+void lsr_l_i(uint16_t op) {
+    int cnt = DN(op) ? DN(op) : 8;
+    as->mov(CC_V, 0);
+    as->shr(DR_L(REG(op)), cnt);
+    as->setc(CC_C);
+    as->setc(CC_X);
+    update_nz();
+}
+
+void roxr_l_i(uint16_t op) {
+    int cnt = DN(op) ? DN(op) : 8;
+    as->mov(CC_V, 0);
+    as->mov(x86::eax, DR_L(REG(op)));
+    as->mov(x86::dl, CC_X);
+    as->shr(x86::dl, 1);
+    as->rcr(x86::eax, cnt);
+    as->setc(CC_C);
+    as->setc(CC_X);
+    as->test(x86::eax, x86::eax);
+    update_nz();
+    as->mov(DR_L(REG(op)), x86::eax);
+}
+
+void ror_l_i(uint16_t op) {
+    int cnt = DN(op) ? DN(op) : 8;
+    as->mov(CC_V, 0);
+    as->mov(x86::eax, DR_L(REG(op)));
+    as->ror(x86::eax, cnt);
+    as->setc(CC_C);
+    as->test(x86::eax, x86::eax);
+    update_nz();
+    as->mov(DR_L(REG(op)), x86::eax);
+}
+
+void asr_l_r(uint16_t op) {
+    auto lb = as->newLabel();
+    auto lb2 = as->newLabel();
+    as->movsxd(x86::rax, DR_L(REG(op)));
+    as->mov(x86::cl, DR_B(DN(op)));
+    as->and_(x86::cl, 63);
+    as->cmp(x86::cl, 0);
+    as->jne(lb);
+    as->mov(CC_C, 0);
+    as->test(x86::eax, x86::eax);
+    update_nz();
+    as->jmp(lb2);
+    as->bind(lb);
+
+    as->mov(CC_V, 0);
+    as->sar(x86::rax, x86::cl);
+    as->setc(CC_C);
+    as->setc(CC_X);
+    update_nz();
+    as->mov(DR_L(REG(op)), x86::eax);
+    as->bind(lb2);
+}
+
+void lsr_l_r(uint16_t op) {
+    auto lb = as->newLabel();
+    auto lb2 = as->newLabel();
+    as->mov(x86::eax, DR_L(REG(op)));
+    as->mov(x86::cl, DR_B(DN(op)));
+    as->and_(x86::cl, 63);
+    as->cmp(x86::cl, 0);
+    as->jne(lb);
+    as->mov(CC_C, 0);
+    as->test(x86::eax, x86::eax);
+    update_nz();
+    as->jmp(lb2);
+    as->bind(lb);
+    as->mov(CC_V, 0);
+    as->shr(x86::rax, x86::cl);
+    as->setc(CC_C);
+    as->setc(CC_X);
+    update_nz();
+    as->mov(DR_L(REG(op)), x86::eax);
+    as->bind(lb2);
+}
+
+void roxr_l_r(uint16_t op) {
+    auto lb = as->newLabel();
+    auto lb2 = as->newLabel();
+    auto lb3 = as->newLabel();
+    auto lb4 = as->newLabel();
+    as->mov(CC_V, 0);
+    as->mov(x86::eax, DR_L(REG(op)));
+    as->mov(x86::cl, DR_B(DN(op)));
+    as->and_(x86::cl, 63);
+    as->cmp(x86::cl, 0);
+    as->jne(lb);
+    as->mov(x86::dl, CC_X);
+    as->mov(CC_C, x86::dl);
+    as->test(x86::eax, x86::eax);
+    update_nz();
+    as->jmp(lb2);
+    as->bind(lb);
+    as->cmp(x86::cl, 31);
+    as->jg(lb3);
+    as->mov(x86::dl, CC_X);
+    as->shr(x86::dl, 1);
+    as->rcr(x86::eax, x86::cl);
+    as->jmp(lb4);
+    as->bind(lb3);
+    as->sub(x86::cl, 32);
+    as->mov(x86::dl, CC_X);
+    as->shr(x86::dl, 1);
+    as->rcr(x86::eax, 31);
+    as->rcr(x86::eax, 1);
+    as->rcr(x86::eax, x86::cl);
+    as->bind(lb4);
+    as->setc(CC_C);
+    as->setc(CC_X);
+    as->test(x86::eax, x86::eax);
+    update_nz();
+    as->mov(DR_L(REG(op)), x86::eax);
+    as->bind(lb2);
+}
+
+void ror_l_r(uint16_t op) {
+    auto lb = as->newLabel();
+    auto lb2 = as->newLabel();
+    auto lb3 = as->newLabel();
+    auto lb4 = as->newLabel();
+    as->mov(CC_V, 0);
+    as->mov(x86::eax, DR_L(REG(op)));
+    as->mov(x86::cl, DR_B(DN(op)));
+    as->and_(x86::cl, 63);
+    as->cmp(x86::cl, 0);
+    as->jne(lb);
+    as->mov(x86::dl, CC_X);
+    as->mov(CC_C, x86::dl);
+    as->test(x86::eax, x86::eax);
+    update_nz();
+    as->jmp(lb2);
+    as->bind(lb);
+    as->cmp(x86::cl, 32);
+    as->jne(lb3);
+    as->mov(x86::edx, x86::eax);
+    as->shl(x86::edx, 1);
+    as->jmp(lb4);
+    as->bind(lb3);
+    as->ror(x86::eax, x86::cl);
+    as->bind(lb4);
+    as->setc(CC_C);
+    as->test(x86::eax, x86::eax);
+    update_nz();
+    as->mov(DR_L(REG(op)), x86::eax);
+    as->bind(lb2);
+}
+
+void asr_ea(uint16_t op) {
+    as->mov(CC_V, 0);
+    ea_readW_jit(TYPE(op), REG(op));
+    as->sar(x86::ax, 1);
+    as->setc(CC_C);
+    as->setc(CC_X);
+    update_nz();
+    ea_writeW_jit(TYPE(op), REG(op), true);
+}
+
+void lsr_ea(uint16_t op) {
+    as->mov(CC_V, 0);
+    ea_readW_jit(TYPE(op), REG(op));
+    as->shr(x86::ax, 1);
+    as->setc(CC_C);
+    as->setc(CC_X);
+    update_nz();
+    ea_writeW_jit(TYPE(op), REG(op), true);
+}
+
+void roxr_ea(uint16_t op) {
+    as->mov(CC_V, 0);
+    ea_readW_jit(TYPE(op), REG(op));
+    as->mov(x86::dl, CC_X);
+    as->shr(x86::dl, 1);
+    as->rcr(x86::ax, 1);
+    as->setc(CC_C);
+    as->setc(CC_X);
+    as->test(x86::ax, x86::ax);
+    update_nz();
+    ea_writeW_jit(TYPE(op), REG(op), true);
+}
+
+void ror_ea(uint16_t op) {
+    as->mov(CC_V, 0);
+    ea_readW_jit(TYPE(op), REG(op));
+    as->ror(x86::ax, 1);
+    as->setc(CC_C);
+    as->test(x86::ax, x86::ax);
+    update_nz();
+    ea_writeW_jit(TYPE(op), REG(op), true);
+}
+
+void asl_b_i(uint16_t op) {
+    int cnt = DN(op) ? DN(op) : 8;
+    as->mov(x86::al, DR_B(REG(op)));
+    as->sal(DR_B(REG(op)), cnt);
+    as->setc(CC_C);
+    as->setc(CC_X);
+    update_nz();
+    as->mov(x86::dl, x86::al);
+    as->sar(x86::dl, 7);
+    if(cnt != 8) {
+        as->sar(x86::al, 7 - cnt);
+    }
+    as->cmp(x86::al, x86::dl);
+    as->setne(CC_V);
+}
+
+void lsl_b_i(uint16_t op) {
+    int cnt = DN(op) ? DN(op) : 8;
+    as->mov(CC_V, 0);
+    as->shl(DR_B(REG(op)), cnt);
+    as->setc(CC_C);
+    as->setc(CC_X);
+    update_nz();
+}
+
+void roxl_b_i(uint16_t op) {
+    int cnt = DN(op) ? DN(op) : 8;
+    as->mov(CC_V, 0);
+    as->mov(x86::al, DR_B(REG(op)));
+    as->mov(x86::dl, CC_X);
+    as->shr(x86::dl, 1);
+    as->rcl(x86::al, cnt);
+    as->setc(CC_C);
+    as->setc(CC_X);
+    as->test(x86::al, x86::al);
+    update_nz();
+    as->mov(DR_B(REG(op)), x86::al);
+}
+
+void rol_b_i(uint16_t op) {
+    int cnt = DN(op) ? DN(op) : 8;
+    as->mov(CC_V, 0);
+    as->mov(x86::al, DR_B(REG(op)));
+    as->rol(x86::al, cnt);
+    as->setc(CC_C);
+    as->test(x86::al, x86::al);
+    update_nz();
+    as->mov(DR_B(REG(op)), x86::al);
+}
+
+void asl_b_r(uint16_t op) {
+    auto lb = as->newLabel();
+    auto lb2 = as->newLabel();
+    auto lb3 = as->newLabel();
+    as->movsx(x86::rax, DR_B(REG(op)));
+    as->mov(x86::cl, DR_B(DN(op)));
+    as->and_(x86::cl, 63);
+    as->cmp(x86::cl, 0);
+    as->jne(lb);
+    as->mov(CC_C, 0);
+    as->test(x86::al, x86::al);
+    update_nz();
+    as->jmp(lb2);
+    as->bind(lb);
+
+    as->mov(x86::dx, 31);
+    as->cmp(x86::cl, x86::dl);
+    as->cmovg(x86::cx, x86::dx);
+
+    as->mov(x86::dl, x86::al);
+    as->sal(x86::al, x86::cl);
+    as->setc(CC_C);
+    as->setc(CC_X);
+    update_nz();
+    as->mov(DR_B(REG(op)), x86::al);
+
+    // overflow check
+    as->mov(x86::al, x86::dl);
+    as->sar(x86::dl, 7);
+    as->cmp(x86::cl, 7);
+    as->jg(lb3);
+    as->mov(x86::sil, 7);
+    as->sub(x86::sil, x86::cl);
+    as->mov(x86::cl, x86::sil);
+    as->sar(x86::al, x86::cl);
+    as->bind(lb3);
+    as->cmp(x86::al, x86::dl);
+    as->setne(CC_V);
+    as->bind(lb2);
+}
+
+void lsl_b_r(uint16_t op) {
+    auto lb = as->newLabel();
+    auto lb2 = as->newLabel();
+    as->mov(x86::al, DR_B(REG(op)));
+    as->mov(x86::cl, DR_B(DN(op)));
+    as->and_(x86::cl, 63);
+    as->cmp(x86::cl, 0);
+    as->jne(lb);
+    as->mov(CC_C, 0);
+    as->jmp(lb2);
+    as->bind(lb);
+    as->mov(CC_V, 0);
+
+    as->mov(x86::dx, 31);
+    as->cmp(x86::cl, x86::dl);
+    as->cmovg(x86::cx, x86::dx);
+
+    as->shl(x86::al, x86::cl);
+    as->mov(DR_B(REG(op)), x86::al);
+    as->setc(CC_C);
+    as->setc(CC_X);
+    as->bind(lb2);
+    as->test(x86::al, x86::al);
+    update_nz();
+}
+
+void roxl_b_r(uint16_t op) {
+    auto lb = as->newLabel();
+    auto lb2 = as->newLabel();
+    auto lb3 = as->newLabel();
+    auto lb4 = as->newLabel();
+    as->mov(CC_V, 0);
+    as->mov(x86::al, DR_B(REG(op)));
+    as->mov(x86::cl, DR_B(DN(op)));
+    as->and_(x86::cl, 63);
+    as->cmp(x86::cl, 0);
+    as->jne(lb);
+    as->mov(x86::dl, CC_X);
+    as->mov(CC_C, x86::dl);
+    as->test(x86::al, x86::al);
+    update_nz();
+    as->jmp(lb2);
+    as->bind(lb);
+    as->cmp(x86::cl, 31);
+    as->jg(lb3);
+    as->mov(x86::dl, CC_X);
+    as->shr(x86::dl, 1);
+    as->rcl(x86::al, x86::cl);
+    as->jmp(lb4);
+    as->bind(lb3);
+    as->sub(x86::cl, 32);
+    as->mov(x86::dl, CC_X);
+    as->shr(x86::dl, 1);
+    as->rcl(x86::al, 31);
+    as->rcl(x86::al, 1);
+    as->rcl(x86::al, x86::cl);
+    as->bind(lb4);
+    as->setc(CC_C);
+    as->setc(CC_X);
+    as->test(x86::al, x86::al);
+    update_nz();
+    as->mov(DR_B(REG(op)), x86::al);
+    as->bind(lb2);
+}
+
+void rol_b_r(uint16_t op) {
+    auto lb = as->newLabel();
+    auto lb2 = as->newLabel();
+    as->mov(CC_V, 0);
+    as->mov(x86::al, DR_B(REG(op)));
+    as->mov(x86::cl, DR_B(DN(op)));
+    as->and_(x86::cl, 63);
+    as->cmp(x86::cl, 0);
+    as->jne(lb);
+    as->mov(x86::dl, CC_X);
+    as->mov(CC_C, x86::dl);
+    as->test(x86::al, x86::al);
+    update_nz();
+    as->jmp(lb2);
+    as->bind(lb);
+    as->rol(x86::al, x86::cl);
+    as->setc(CC_C);
+    as->test(x86::al, x86::al);
+    update_nz();
+    as->mov(DR_B(REG(op)), x86::al);
+    as->bind(lb2);
+}
+
+void asl_w_i(uint16_t op) {
+    int cnt = DN(op) ? DN(op) : 8;
+    as->mov(x86::ax, DR_W(REG(op)));
+    as->sal(DR_W(REG(op)), cnt);
+    as->setc(CC_C);
+    as->setc(CC_X);
+    update_nz();
+    as->mov(x86::dx, x86::ax);
+    as->sar(x86::dx, 15);
+    as->sar(x86::ax, 15 - cnt);
+    as->cmp(x86::ax, x86::dx);
+    as->setne(CC_V);
+}
+
+void lsl_w_i(uint16_t op) {
+    int cnt = DN(op) ? DN(op) : 8;
+    as->mov(CC_V, 0);
+    as->shl(DR_W(REG(op)), cnt);
+    as->setc(CC_C);
+    as->setc(CC_X);
+    update_nz();
+}
+
+void roxl_w_i(uint16_t op) {
+    int cnt = DN(op) ? DN(op) : 8;
+    as->mov(CC_V, 0);
+    as->mov(x86::ax, DR_W(REG(op)));
+    as->mov(x86::dl, CC_X);
+    as->shr(x86::dl, 1);
+    as->rcl(x86::ax, cnt);
+    as->setc(CC_C);
+    as->setc(CC_X);
+    as->test(x86::ax, x86::ax);
+    update_nz();
+    as->mov(DR_W(REG(op)), x86::ax);
+}
+
+void rol_w_i(uint16_t op) {
+    int cnt = DN(op) ? DN(op) : 8;
+    as->mov(CC_V, 0);
+    as->mov(x86::ax, DR_W(REG(op)));
+    as->rol(x86::ax, cnt);
+    as->setc(CC_C);
+    as->test(x86::ax, x86::ax);
+    update_nz();
+    as->mov(DR_W(REG(op)), x86::ax);
+}
+
+void asl_w_r(uint16_t op) {
+    auto lb = as->newLabel();
+    auto lb2 = as->newLabel();
+    auto lb3 = as->newLabel();
+    as->mov(x86::ax, DR_W(REG(op)));
+    as->mov(x86::cl, DR_B(DN(op)));
+    as->and_(x86::cl, 63);
+    as->cmp(x86::cl, 0);
+    as->jne(lb);
+    as->mov(CC_C, 0);
+    as->test(x86::ax, x86::ax);
+    update_nz();
+    as->jmp(lb2);
+    as->bind(lb);
+
+    as->mov(x86::dx, x86::ax);
+    as->mov(x86::dil, x86::cl);
+    as->mov(x86::r8d, 31);
+    as->cmp(x86::cl, x86::r8b);
+    as->cmovg(x86::cx, x86::r8w);
+
+    as->sal(x86::ax, x86::cl);
+    as->setc(CC_C);
+    as->setc(CC_X);
+    update_nz();
+    as->mov(DR_W(REG(op)), x86::ax);
+
+    // overflow check
+    as->mov(x86::ax, x86::dx);
+    as->mov(x86::cl, x86::dil);
+    as->sar(x86::dx, 15);
+    as->cmp(x86::cl, 15);
+    as->jg(lb3);
+    as->mov(x86::si, 15);
+    as->sub(x86::si, x86::cx);
+    as->mov(x86::cx, x86::si);
+    as->sar(x86::ax, x86::cl);
+    as->bind(lb3);
+    as->cmp(x86::ax, x86::dx);
+    as->setne(CC_V);
+    as->bind(lb2);
+}
+
+void lsl_w_r(uint16_t op) {
+    auto lb = as->newLabel();
+    auto lb2 = as->newLabel();
+    as->mov(x86::ax, DR_W(REG(op)));
+    as->mov(x86::cl, DR_B(DN(op)));
+    as->and_(x86::cl, 63);
+    as->cmp(x86::cl, 0);
+    as->jne(lb);
+    as->mov(CC_C, 0);
+    as->jmp(lb2);
+    as->bind(lb);
+    as->mov(CC_V, 0);
+
+    as->mov(x86::dx, 31);
+    as->cmp(x86::cl, x86::dl);
+    as->cmovg(x86::cx, x86::dx);
+
+    as->shl(x86::ax, x86::cl);
+    as->mov(DR_W(REG(op)), x86::ax);
+    as->setc(CC_C);
+    as->setc(CC_X);
+    as->bind(lb2);
+    as->test(x86::ax, x86::ax);
+    update_nz();
+}
+
+void roxl_w_r(uint16_t op) {
+    auto lb = as->newLabel();
+    auto lb2 = as->newLabel();
+    auto lb3 = as->newLabel();
+    auto lb4 = as->newLabel();
+    as->mov(CC_V, 0);
+    as->mov(x86::ax, DR_W(REG(op)));
+    as->mov(x86::cl, DR_B(DN(op)));
+    as->and_(x86::cl, 63);
+    as->cmp(x86::cl, 0);
+    as->jne(lb);
+    as->mov(x86::dl, CC_X);
+    as->mov(CC_C, x86::dl);
+    as->test(x86::ax, x86::ax);
+    update_nz();
+    as->jmp(lb2);
+    as->bind(lb);
+    as->cmp(x86::cl, 31);
+    as->jg(lb3);
+    as->mov(x86::dl, CC_X);
+    as->shr(x86::dl, 1);
+    as->rcl(x86::ax, x86::cl);
+    as->jmp(lb4);
+    as->bind(lb3);
+    as->sub(x86::cl, 32);
+    as->mov(x86::dl, CC_X);
+    as->shr(x86::dl, 1);
+    as->rcl(x86::ax, 31);
+    as->rcl(x86::ax, 1);
+    as->rcl(x86::ax, x86::cl);
+    as->bind(lb4);
+    as->setc(CC_C);
+    as->setc(CC_X);
+    as->test(x86::ax, x86::ax);
+    update_nz();
+    as->mov(DR_W(REG(op)), x86::ax);
+    as->bind(lb2);
+}
+
+void rol_w_r(uint16_t op) {
+    auto lb = as->newLabel();
+    auto lb2 = as->newLabel();
+    as->mov(CC_V, 0);
+    as->mov(x86::ax, DR_W(REG(op)));
+    as->mov(x86::cl, DR_B(DN(op)));
+    as->and_(x86::cl, 63);
+    as->cmp(x86::cl, 0);
+    as->jne(lb);
+    as->mov(x86::dl, CC_X);
+    as->mov(CC_C, x86::dl);
+    as->test(x86::ax, x86::ax);
+    update_nz();
+    as->jmp(lb2);
+    as->bind(lb);
+    as->rol(x86::ax, x86::cl);
+    as->setc(CC_C);
+    as->test(x86::ax, x86::ax);
+    update_nz();
+    as->mov(DR_W(REG(op)), x86::ax);
+    as->bind(lb2);
+}
+
+void asl_l_i(uint16_t op) {
+    int cnt = DN(op) ? DN(op) : 8;
+    as->mov(x86::eax, DR_L(REG(op)));
+    as->sal(DR_L(REG(op)), cnt);
+    as->setc(CC_C);
+    as->setc(CC_X);
+    update_nz();
+    as->mov(x86::edx, x86::eax);
+    as->sar(x86::edx, 31);
+    as->sar(x86::eax, 31 - cnt);
+    as->cmp(x86::eax, x86::edx);
+    as->setne(CC_V);
+}
+
+void lsl_l_i(uint16_t op) {
+    int cnt = DN(op) ? DN(op) : 8;
+    as->mov(CC_V, 0);
+    as->shl(DR_L(REG(op)), cnt);
+    as->setc(CC_C);
+    as->setc(CC_X);
+    update_nz();
+}
+
+void roxl_l_i(uint16_t op) {
+    int cnt = DN(op) ? DN(op) : 8;
+    as->mov(CC_V, 0);
+    as->mov(x86::eax, DR_L(REG(op)));
+    as->mov(x86::dl, CC_X);
+    as->shr(x86::dl, 1);
+    as->rcl(x86::eax, cnt);
+    as->setc(CC_C);
+    as->setc(CC_X);
+    as->test(x86::eax, x86::eax);
+    update_nz();
+    as->mov(DR_L(REG(op)), x86::eax);
+}
+
+void rol_l_i(uint16_t op) {
+    int cnt = DN(op) ? DN(op) : 8;
+    as->mov(CC_V, 0);
+    as->mov(x86::eax, DR_L(REG(op)));
+    as->rol(x86::eax, cnt);
+    as->setc(CC_C);
+    as->test(x86::eax, x86::eax);
+    update_nz();
+    as->mov(DR_L(REG(op)), x86::eax);
+}
+
+void asl_l_r(uint16_t op) {
+    auto lb = as->newLabel();
+    auto lb2 = as->newLabel();
+    auto lb3 = as->newLabel();
+    auto lb4 = as->newLabel();
+    as->mov(x86::eax, DR_L(REG(op)));
+    as->mov(x86::edx, x86::eax);
+    as->mov(x86::cl, DR_B(DN(op)));
+    as->and_(x86::cl, 63);
+    as->cmp(x86::cl, 0);
+    as->jne(lb);
+    as->mov(CC_C, 0);
+    as->test(x86::eax, x86::eax);
+    update_nz();
+    as->jmp(lb2);
+    as->bind(lb);
+    as->mov(x86::dil, x86::cl);
+    as->cmp(x86::cl, 32);
+    as->jl(lb4);
+    as->sub(x86::cl, 32);
+    as->sal(x86::eax, 31);
+    as->sal(x86::eax, 1);
+    as->bind(lb4);
+    as->sal(x86::eax, x86::cl);
+    as->setc(CC_C);
+    as->setc(CC_X);
+    update_nz();
+    as->mov(DR_L(REG(op)), x86::eax);
+
+    // overflow check
+    as->mov(x86::eax, x86::edx);
+    as->mov(x86::cl, x86::dil);
+    as->sar(x86::edx, 31);
+    as->cmp(x86::cl, 31);
+    as->jg(lb3);
+    as->mov(x86::si, 31);
+    as->sub(x86::si, x86::cx);
+    as->mov(x86::cx, x86::si);
+    as->sar(x86::eax, x86::cl);
+    as->bind(lb3);
+    as->cmp(x86::eax, x86::edx);
+    as->setne(CC_V);
+    as->bind(lb2);
+}
+
+void lsl_l_r(uint16_t op) {
+    auto lb = as->newLabel();
+    auto lb2 = as->newLabel();
+    auto lb3 = as->newLabel();
+    as->mov(x86::eax, DR_L(REG(op)));
+    as->mov(x86::cl, DR_B(DN(op)));
+    as->and_(x86::cl, 63);
+    as->cmp(x86::cl, 0);
+    as->jne(lb);
+    as->mov(CC_C, 0);
+    as->jmp(lb2);
+    as->bind(lb);
+    as->mov(CC_V, 0);
+
+    as->cmp(x86::cl, 32);
+    as->jl(lb3);
+    as->sub(x86::cl, 32);
+    as->shl(x86::eax, 31);
+    as->shl(x86::eax, 1);
+    as->bind(lb3);
+    as->shl(x86::eax, x86::cl);
+
+    as->mov(DR_L(REG(op)), x86::eax);
+    as->setc(CC_C);
+    as->setc(CC_X);
+    as->bind(lb2);
+    as->test(x86::eax, x86::eax);
+    update_nz();
+}
+
+void roxl_l_r(uint16_t op) {
+    auto lb = as->newLabel();
+    auto lb2 = as->newLabel();
+    auto lb3 = as->newLabel();
+    auto lb4 = as->newLabel();
+    as->mov(CC_V, 0);
+    as->mov(x86::eax, DR_L(REG(op)));
+    as->mov(x86::cl, DR_B(DN(op)));
+    as->and_(x86::cl, 63);
+    as->cmp(x86::cl, 0);
+    as->jne(lb);
+    as->mov(x86::dl, CC_X);
+    as->mov(CC_C, x86::dl);
+    as->test(x86::eax, x86::eax);
+    update_nz();
+    as->jmp(lb2);
+    as->bind(lb);
+    as->cmp(x86::cl, 31);
+    as->jg(lb3);
+    as->mov(x86::dl, CC_X);
+    as->shr(x86::dl, 1);
+    as->rcl(x86::eax, x86::cl);
+    as->jmp(lb4);
+    as->bind(lb3);
+    as->sub(x86::cl, 32);
+    as->mov(x86::dl, CC_X);
+    as->shr(x86::dl, 1);
+    as->rcl(x86::eax, 31);
+    as->rcl(x86::eax, 1);
+    as->rcl(x86::eax, x86::cl);
+    as->bind(lb4);
+    as->setc(CC_C);
+    as->setc(CC_X);
+    as->test(x86::eax, x86::eax);
+    update_nz();
+    as->mov(DR_L(REG(op)), x86::eax);
+    as->bind(lb2);
+}
+
+void rol_l_r(uint16_t op) {
+    auto lb = as->newLabel();
+    auto lb2 = as->newLabel();
+    auto lb3 = as->newLabel();
+    auto lb4 = as->newLabel();
+    as->mov(CC_V, 0);
+    as->mov(x86::eax, DR_L(REG(op)));
+    as->mov(x86::cl, DR_B(DN(op)));
+    as->and_(x86::cl, 63);
+    as->cmp(x86::cl, 0);
+    as->jne(lb);
+    as->mov(x86::dl, CC_X);
+    as->mov(CC_C, x86::dl);
+    as->test(x86::eax, x86::eax);
+    update_nz();
+    as->jmp(lb2);
+    as->bind(lb);
+    as->cmp(x86::cl, 32);
+    as->jne(lb3);
+    as->mov(x86::edx, x86::eax);
+    as->shr(x86::edx, 1);
+    as->jmp(lb4);
+    as->bind(lb3);
+    as->rol(x86::eax, x86::cl);
+    as->bind(lb4);
+    as->setc(CC_C);
+    as->test(x86::eax, x86::eax);
+    update_nz();
+    as->mov(DR_L(REG(op)), x86::eax);
+    as->bind(lb2);
+}
+
+void asl_ea(uint16_t op) {
+    as->mov(CC_V, 0);
+    ea_readW_jit(TYPE(op), REG(op));
+    as->sal(x86::ax, 1);
+    as->seto(CC_V);
+    as->setc(CC_C);
+    as->setc(CC_X);
+    update_nz();
+    ea_writeW_jit(TYPE(op), REG(op), true);
+}
+
+void lsl_ea(uint16_t op) {
+    as->mov(CC_V, 0);
+    ea_readW_jit(TYPE(op), REG(op));
+    as->shl(x86::ax, 1);
+    as->setc(CC_C);
+    as->setc(CC_X);
+    update_nz();
+    ea_writeW_jit(TYPE(op), REG(op), true);
+}
+
+void roxl_ea(uint16_t op) {
+    as->mov(CC_V, 0);
+    ea_readW_jit(TYPE(op), REG(op));
+    as->mov(x86::dl, CC_X);
+    as->shr(x86::dl, 1);
+    as->rcl(x86::ax, 1);
+    as->setc(CC_C);
+    as->setc(CC_X);
+    as->test(x86::ax, x86::ax);
+    update_nz();
+    ea_writeW_jit(TYPE(op), REG(op), true);
+}
+
+void rol_ea(uint16_t op) {
+    as->mov(CC_V, 0);
+    ea_readW_jit(TYPE(op), REG(op));
+    as->rol(x86::ax, 1);
+    as->setc(CC_C);
+    as->test(x86::ax, x86::ax);
+    update_nz();
+    ea_writeW_jit(TYPE(op), REG(op), true);
+}
+int bf_common() {
+    uint16_t extw = FETCH();
+    update_pc();
+    int offset = extw >> 6 & 0x1f;
+    int width = extw & 0x1f;
+    if(extw & 1 << 11) {
+        as->mov(x86::r11d, DR_L(offset & 7));
+    } else {
+        as->mov(x86::r11d, offset);
+    }
+    if(extw & 1 << 5) {
+        as->mov(x86::r12d, DR_L(width & 7));
+        as->mov(x86::edx, 32);
+        as->test(x86::r12d, x86::r12d);
+        as->cmovz(x86::r12d, x86::edx);
+    } else {
+        as->mov(x86::r12d, width ? width : 32);
+    }
+    return extw >> 12 & 7;
+}
+
+void bftst_dn(uint16_t op) {
+    bf_common();
+    as->mov(x86::eax, DR_L(REG(op)));
+    as->and_(x86::r11d, 31);
+    as->mov(x86::cl, x86::r11b);
+    as->rol(x86::eax, x86::cl);
+    as->mov(x86::edx, -1);
+    as->mov(x86::cl, 32);
+    as->sub(x86::cl, x86::r12b);
+    as->sal(x86::edx, x86::cl);
+    as->and_(x86::eax, x86::edx);
+    update_nz();
+    as->mov(CC_V, 0);
+    as->mov(CC_C, 0);
+}
+void bftst_mem(uint16_t op) {
+    bf_common();
+    ea_getaddr_jit(TYPE(op), REG(op), 0);
+    as->mov(ARG2.r32(), x86::r11d);
+    as->mov(ARG3.r32(), x86::r12d);
+    as->call(BFTST_M);
+}
+void bfchg_dn(uint16_t op) {
+    bf_common();
+    as->mov(x86::eax, DR_L(REG(op)));
+    as->mov(x86::esi, x86::eax);
+    as->and_(x86::r11d, 31);
+    as->mov(x86::cl, x86::r11b);
+    as->rol(x86::eax, x86::cl);
+    as->mov(x86::edx, -1);
+    as->mov(x86::cl, 32);
+    as->sub(x86::cl, x86::r12b);
+    as->sal(x86::edx, x86::cl);
+    as->and_(x86::eax, x86::edx);
+    update_nz();
+    as->mov(CC_V, 0);
+    as->mov(CC_C, 0);
+    as->mov(x86::cl, x86::r11b);
+    as->ror(x86::edx, x86::cl);
+    as->xor_(x86::esi, x86::edx);
+    as->mov(DR_L(REG(op)), x86::esi);
+}
+void bfchg_mem(uint16_t op) {
+    bf_common();
+    ea_getaddr_jit(TYPE(op), REG(op), 0);
+    as->mov(ARG2.r32(), x86::r11d);
+    as->mov(ARG3.r32(), x86::r12d);
+    as->call(BFCHG_M);
+}
+void bfclr_dn(uint16_t op) {
+    bf_common();
+    as->mov(x86::eax, DR_L(REG(op)));
+    as->mov(x86::esi, x86::eax);
+    as->and_(x86::r11d, 31);
+    as->mov(x86::cl, x86::r11b);
+    as->rol(x86::eax, x86::cl);
+    as->mov(x86::edx, -1);
+    as->mov(x86::cl, 32);
+    as->sub(x86::cl, x86::r12b);
+    as->sal(x86::edx, x86::cl);
+    as->and_(x86::eax, x86::edx);
+    update_nz();
+    as->mov(CC_V, 0);
+    as->mov(CC_C, 0);
+    as->mov(x86::cl, x86::r11b);
+    as->ror(x86::edx, x86::cl);
+    as->not_(x86::edx);
+    as->and_(x86::esi, x86::edx);
+    as->mov(DR_L(REG(op)), x86::esi);
+}
+void bfclr_mem(uint16_t op) {
+    bf_common();
+    ea_getaddr_jit(TYPE(op), REG(op), 0);
+    as->mov(ARG2.r32(), x86::r11d);
+    as->mov(ARG3.r32(), x86::r12d);
+    as->call(BFCLR_M);
+}
+void bfset_dn(uint16_t op) {
+    bf_common();
+    as->mov(x86::eax, DR_L(REG(op)));
+    as->mov(x86::esi, x86::eax);
+    as->and_(x86::r11d, 31);
+    as->mov(x86::cl, x86::r11b);
+    as->rol(x86::eax, x86::cl);
+    as->mov(x86::edx, -1);
+    as->mov(x86::cl, 32);
+    as->sub(x86::cl, x86::r12b);
+    as->sal(x86::edx, x86::cl);
+    as->and_(x86::eax, x86::edx);
+    update_nz();
+    as->mov(CC_V, 0);
+    as->mov(CC_C, 0);
+    as->mov(x86::cl, x86::r11b);
+    as->ror(x86::edx, x86::cl);
+    as->or_(x86::esi, x86::edx);
+    as->mov(DR_L(REG(op)), x86::esi);
+}
+void bfset_mem(uint16_t op) {
+    bf_common();
+    ea_getaddr_jit(TYPE(op), REG(op), 0);
+    as->mov(ARG2.r32(), x86::r11d);
+    as->mov(ARG3.r32(), x86::r12d);
+    as->call(BFSET_M);
+}
+void bfextu_dn(uint16_t op) {
+    int dn = bf_common();
+    as->mov(x86::eax, DR_L(REG(op)));
+    as->and_(x86::r11d, 31);
+    as->mov(x86::cl, x86::r11b);
+    as->rol(x86::eax, x86::cl);
+    as->mov(x86::edx, -1);
+    as->mov(x86::cl, 32);
+    as->sub(x86::cl, x86::r12b);
+    as->sal(x86::edx, x86::cl);
+    as->and_(x86::eax, x86::edx);
+    update_nz();
+    as->mov(CC_V, 0);
+    as->mov(CC_C, 0);
+    as->shr(x86::eax, x86::cl);
+    as->mov(DR_L(dn), x86::eax);
+}
+void bfextu_mem(uint16_t op) {
+    int dn = bf_common();
+    ea_getaddr_jit(TYPE(op), REG(op), 0);
+    as->mov(ARG2.r32(), x86::r11d);
+    as->mov(ARG3.r32(), x86::r12d);
+    as->call(BFTST_M);
+    as->mov(x86::cl, 32);
+    as->sub(x86::cl, x86::r12b);
+    as->shr(x86::eax, x86::cl);
+    as->mov(DR_L(dn), x86::eax);
+}
+void bfexts_dn(uint16_t op) {
+    int dn = bf_common();
+    as->mov(x86::eax, DR_L(REG(op)));
+    as->and_(x86::r11d, 31);
+    as->mov(x86::cl, x86::r11b);
+    as->rol(x86::eax, x86::cl);
+    as->mov(x86::edx, -1);
+    as->mov(x86::cl, 32);
+    as->sub(x86::cl, x86::r12b);
+    as->sal(x86::edx, x86::cl);
+    as->and_(x86::eax, x86::edx);
+    update_nz();
+    as->mov(CC_V, 0);
+    as->mov(CC_C, 0);
+    as->sar(x86::eax, x86::cl);
+    as->mov(DR_L(dn), x86::eax);
+}
+void bfexts_mem(uint16_t op) {
+    int dn = bf_common();
+    ea_getaddr_jit(TYPE(op), REG(op), 0);
+    as->mov(ARG2.r32(), x86::r11d);
+    as->mov(ARG3.r32(), x86::r12d);
+    as->call(BFTST_M);
+    as->mov(x86::cl, 32);
+    as->sub(x86::cl, x86::r12b);
+    as->sar(x86::eax, x86::cl);
+    as->mov(DR_L(dn), x86::eax);
+}
+void bfffo_dn(uint16_t op) {
+    auto lb1 = as->newLabel();
+    auto lb2 = as->newLabel();
+    int dn = bf_common();
+    as->mov(x86::eax, DR_L(REG(op)));
+    as->mov(x86::esi, x86::r11d);
+    as->and_(x86::r11d, 31);
+    as->mov(x86::cl, x86::r11b);
+    as->rol(x86::eax, x86::cl);
+    as->mov(x86::edx, -1);
+    as->mov(x86::cl, 32);
+    as->sub(x86::cl, x86::r12b);
+    as->sal(x86::edx, x86::cl);
+    as->and_(x86::eax, x86::edx);
+    update_nz();
+    as->mov(CC_V, 0);
+    as->mov(CC_C, 0);
+    as->mov(DR_L(dn), x86::esi);
+    as->test(x86::eax, x86::eax);
+    as->jne(lb1);
+    as->mov(x86::edx, x86::r12d);
+    as->jmp(lb2);
+    as->bind(lb1);
+    as->bsr(x86::ecx, x86::eax);
+    as->mov(x86::edx, 31);
+    as->sub(x86::edx, x86::ecx);
+    as->bind(lb2);
+    as->add(DR_L(dn), x86::edx);
+}
+void bfffo_mem(uint16_t op) {
+    auto lb1 = as->newLabel();
+    auto lb2 = as->newLabel();
+    int dn = bf_common();
+    ea_getaddr_jit(TYPE(op), REG(op), 0);
+    as->mov(ARG2.r32(), x86::r11d);
+    as->mov(ARG3.r32(), x86::r12d);
+    as->call(BFTST_M);
+    as->mov(DR_L(dn), x86::r11d);
+    as->test(x86::eax, x86::eax);
+    as->jne(lb1);
+    as->mov(x86::edx, x86::r12d);
+    as->jmp(lb2);
+    as->bind(lb1);
+    as->bsr(x86::ecx, x86::eax);
+    as->mov(x86::edx, 31);
+    as->sub(x86::edx, x86::ecx);
+    as->bind(lb2);
+    as->add(DR_L(dn), x86::edx);
+}
+
+void bfins_dn(uint16_t op) {
+    int dn = bf_common();
+    as->mov(ARG1.r32(), DR_L(REG(op)));
+    as->mov(ARG2.r32(), x86::r11d);
+    as->mov(ARG3.r32(), x86::r12d);
+    as->mov(ARG4, DR_L(dn));
+    as->call(BFINS_D);
+    as->mov(DR_L(REG(op)), x86::eax);
+}
+void bfins_mem(uint16_t op) {
+    int dn = bf_common();
+    ea_getaddr_jit(TYPE(op), REG(op), 0);
+    as->mov(ARG2.r32(), x86::r11d);
+    as->mov(ARG3.r32(), x86::r12d);
+    as->mov(ARG4, DR_L(dn));
+    as->call(BFINS_M);
+}
+
+void fline_default(uint16_t) { as->call(FLINE); }
+
+void move16_inc_imm(uint16_t op) {
+    uint32_t imm = FETCH32();
+    update_pc();
+    as->mov(ARG1.r32(), AR_L(REG(op)));
+    as->mov(ARG2.r32(), imm);
+    as->call(MMU_Transfer16);
+    as->add(AR_L(REG(op)), 16);
+}
+
+void move16_imm_inc(uint16_t op) {
+    uint32_t imm = FETCH32();
+    update_pc();
+    as->mov(ARG1.r32(), imm);
+    as->mov(ARG2.r32(), AR_L(REG(op)));
+    as->call(MMU_Transfer16);
+    as->add(AR_L(REG(op)), 16);
+}
+
+void move16_base_imm(uint16_t op) {
+    uint32_t imm = FETCH32();
+    update_pc();
+    as->mov(ARG1.r32(), AR_L(REG(op)));
+    as->mov(ARG2.r32(), imm);
+    as->call(MMU_Transfer16);
+}
+
+void move16_imm_base(uint16_t op) {
+    uint32_t imm = FETCH32();
+    update_pc();
+    as->mov(ARG1.r32(), imm);
+    as->mov(ARG2.r32(), AR_L(REG(op)));
+    as->call(MMU_Transfer16);
+}
+
+void move16_inc_inc(uint16_t op) {
+    uint16_t extw = FETCH();
+    int ay = extw >> 12 & 7;
+    update_pc();
+    as->mov(ARG1.r32(), AR_L(REG(op)));
+    as->mov(ARG2.r32(), AR_L(ay));
+    as->call(MMU_Transfer16);
+    as->add(AR_L(REG(op)), 16);
+    as->add(AR_L(ay), 16);
+}
 
 #endif
 } // namespace JIT_OP

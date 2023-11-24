@@ -1104,7 +1104,7 @@ void cmp_l(uint16_t op) {
 }
 
 void cmpa_w(uint16_t op) {
-    CMP_L(static_cast<int16_t>(cpu.A[DN(op)] & 0xffff),
+    CMP_L(cpu.A[DN(op)],
           static_cast<int16_t>(ea_readW(TYPE(op), REG(op))));
 }
 
@@ -1388,16 +1388,7 @@ void ror_ea(uint16_t op) {
     ea_writeW(TYPE(op), REG(op), ROR_W(v, 1), true);
 }
 
-std::pair<int, int> get_bf_offset_width(uint16_t extw) {
-    int offset = extw >> 6 & 0x1f;
-    int width = extw & 0x1f;
-    int offset_v = (extw & 1 << 11) ? cpu.D[offset & 7] : offset;
-    int width_v = (extw & 1 << 5) ? (cpu.D[width & 7] & 31) : width;
-    if(width_v == 0) {
-        width_v = 32;
-    }
-    return std::make_pair(offset_v, width_v);
-}
+
 
 void asl_b_i(uint16_t op) {
     STORE_B(cpu.D[REG(op)], ASL_B(cpu.D[REG(op)], DN(op) ? DN(op) : 8));
@@ -1515,6 +1506,17 @@ void rol_ea(uint16_t op) {
     ea_writeW(TYPE(op), REG(op), ROL_W(v, 1), true);
 }
 
+std::pair<int, int> get_bf_offset_width(uint16_t extw) {
+    int offset = extw >> 6 & 0x1f;
+    int width = extw & 0x1f;
+    int offset_v = (extw & 1 << 11) ? cpu.D[offset & 7] : offset;
+    int width_v = (extw & 1 << 5) ? (cpu.D[width & 7] & 31) : width;
+    if(width_v == 0) {
+        width_v = 32;
+    }
+    return std::make_pair(offset_v, width_v);
+}
+
 void bftst_dn(uint16_t op) {
     uint16_t extw = FETCH();
     auto [offset_v, width_v] = get_bf_offset_width(extw);
@@ -1609,7 +1611,7 @@ void bfins_dn(uint16_t op) {
     uint16_t extw = FETCH();
     auto [offset_v, width_v] = get_bf_offset_width(extw);
     int dn = extw >> 12 & 7;
-    cpu.D[dn] = BFINS_D(cpu.D[REG(op)], offset_v, width_v, cpu.D[dn]);
+    cpu.D[REG(op)] = BFINS_D(cpu.D[REG(op)], offset_v, width_v, cpu.D[dn]);
 }
 
 void bfins_mem(uint16_t op) {

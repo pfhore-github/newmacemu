@@ -31,11 +31,11 @@ template <class T, class F> T jit_test_run(const F &e) {
 
     x86::Assembler a(&code);
     // X64 prlogue
-    a.emitProlog(frame);
+    as->emitProlog(frame);
     // save Base
-    a.mov(x86::rbx, &cpu);
+    as->mov(x86::rbx, &cpu);
     e(a);
-    a.emitEpilog(frame);
+    as->emitEpilog(frame);
     T (*f)();
     Error err = rt->add(&f, &code);
     BOOST_TEST(!err, DebugUtils::errorAsString(err));

@@ -3,7 +3,7 @@
 #include "asmjit/asmjit.h"
 #include "jit.hpp"
 #include <stdint.h>
-#define JIT_OP_(name_) void name_(asmjit::x86::Assembler &a, uint16_t op)
+#define JIT_OP_(name_) void name_(uint16_t op)
 namespace JIT_OP {
 JIT_OP_(jit_exit);
 JIT_OP_(ori_b);
@@ -394,5 +394,12 @@ JIT_OP_(bfffo_dn);
 JIT_OP_(bfffo_mem);
 JIT_OP_(bfins_dn);
 JIT_OP_(bfins_mem);
+
+JIT_OP_(fline_default);
+JIT_OP_(move16_inc_imm);
+JIT_OP_(move16_imm_inc);
+JIT_OP_(move16_base_imm);
+JIT_OP_(move16_imm_base);
+JIT_OP_(move16_inc_inc);
 }
 #endif

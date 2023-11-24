@@ -27,7 +27,7 @@ src/cpu/op.cc src/cpu/run.cc src/cpu/m68k_ea.cc src/cpu/bcd.cc src/cpu/arithmeti
 src/cpu/68040_mmu.cc src/cpu/branch.cc
 src/cpu/exception.cc src/cpu/op_move.cc src/cpu/68040_fpu.cc src/bus.cc src/memory.cc 
 src/cpu/jit/jit.cc src/cpu/jit/jit_ea.cc src/cpu/jit/jit_util.cc
-src/cpu/jit/jit_op.cc
+src/cpu/jit/jit_op.cc src/cpu/jit/jit_fpu.cc
 )
 set(SRC_CHIPS
 src/chip/via.cc
@@ -70,19 +70,26 @@ test/cpu/subi.cc test/cpu/addi.cc test/cpu/cmpi.cc
 test/cpu/cmp2.cc  test/cpu/chk2.cc test/cpu/chk.cc 
 test/cpu/btst.cc test/cpu/bchg.cc test/cpu/bclr.cc test/cpu/bset.cc 
 test/cpu/negx.cc test/cpu/clr.cc test/cpu/neg.cc  test/cpu/not.cc
-test/cpu/movep.cc 
+test/cpu/movep.cc test/cpu/move16.cc
 test/cpu/cas.cc test/cpu/cas2.cc 
-test/cpu/nbcd.cc test/cpu/sbcd.cc test/cpu/pack.cc test/cpu/unpk.cc
+test/cpu/nbcd.cc test/cpu/sbcd.cc test/cpu/pack.cc test/cpu/unpk.cc test/cpu/abcd.cc 
 test/cpu/tst.cc test/cpu/tas.cc 
-test/cpu/move.cc   test/cpu/movea.cc test/cpu/movem.cc 
+test/cpu/move.cc   test/cpu/movea.cc test/cpu/movem.cc test/cpu/exg.cc 
 test/cpu/link.cc  test/cpu/unlk.cc
 test/cpu/swap.cc  test/cpu/pea.cc test/cpu/ext.cc test/cpu/lea.cc 
 test/cpu/mulu.cc test/cpu/muls.cc  test/cpu/divu.cc test/cpu/divs.cc
 test/cpu/sub.cc test/cpu/suba.cc  test/cpu/subx.cc 
-test/cpu/or.cc 
+test/cpu/cmp.cc test/cpu/cmpa.cc test/cpu/cmpm.cc 
+test/cpu/or.cc test/cpu/eor.cc test/cpu/and.cc
+test/cpu/add.cc  test/cpu/adda.cc  test/cpu/addx.cc 
 
 test/cpu/addq.cc  test/cpu/subq.cc  test/cpu/moveq.cc
 test/cpu/scc.cc test/cpu/dbcc.cc test/cpu/bra.cc test/cpu/bsr.cc test/cpu/bcc.cc 
+
+test/cpu/asr.cc test/cpu/lsr.cc  test/cpu/roxr.cc test/cpu/ror.cc 
+test/cpu/asl.cc test/cpu/lsl.cc test/cpu/roxl.cc test/cpu/rol.cc 
+ test/cpu/bftst.cc test/cpu/bfchg.cc test/cpu/bfclr.cc  test/cpu/bfset.cc
+ test/cpu/bfextu.cc test/cpu/bfexts.cc test/cpu/bfffo.cc test/cpu/bfins.cc
 
 test/cpu/jsr.cc test/cpu/jmp.cc 
 test/cpu/bkpt.cc test/cpu/illegal.cc  test/cpu/trap.cc  test/cpu/trapv.cc test/cpu/reset.cc 
@@ -90,6 +97,7 @@ test/cpu/trapcc.cc
 test/cpu/nop.cc  test/cpu/stop.cc
 test/cpu/rte.cc test/cpu/rtd.cc test/cpu/rts.cc  test/cpu/rtr.cc 
 
+test/cpu/syscall.cc
 test/cpu/moves.cc
 test/cpu/movec.cc 
 )
@@ -97,25 +105,12 @@ add_executable(testcpu ${SRC_CPU} ${SRC_CHIPS}
 test/test_main.cc 
 ${CPU_TEST}
 #[[
-test/cpu/abcd.cc 
-
-test/cpu/add.cc test/cpu/adda.cctest/cpu/addx.cc 
-
-test/cpu/and.cc 
-test/cpu/cmp.cc test/cpu/cmpa.cc test/cpu/cmpm.cc 
-test/cpu/asl.cc test/cpu/asr.cc test/cpu/lsl.cc  test/cpu/lsr.cc 
-test/cpu/rol.cc test/cpu/ror.cc test/cpu/roxl.cc  test/cpu/roxr.cc
 
 
-test/cpu/bfchg.cc test/cpu/bfclr.cc test/cpu/bfexts.cc test/cpu/bfextu.cc test/cpu/bfffo.cc test/cpu/bfins.cc test/cpu/bfset.cc test/cpu/bftst.cc
 
 
-test/cpu/eor.cc 
-test/cpu/exg.cc 
 
-test/cpu/move16.cc
 
-test/cpu/syscall.cc
 test/fpu/common.cc
 test/fpu/fabs.cc test/fpu/fneg.cc  test/fpu/fsub.cc test/fpu/ftan.cc  test/fpu/ftanh.cc
 test/fpu/facos.cc test/fpu/fasin.cc  test/fpu/fatanh.cc  test/fpu/fsinh.cc  test/fpu/fcosh.cc

@@ -6,9 +6,19 @@
 #include <boost/test/unit_test.hpp>
 namespace bdata = boost::unit_test::data;
 BOOST_FIXTURE_TEST_SUITE(SYSCALL, Prepare)
-
+struct F {
+    F() {
+        // #A1234
+        TEST::SET_W(0, 0xA123);
+        TEST::SET_W(2, TEST_BREAK);
+       
+        jit_compile(0, 4);
+    }
+};
+BOOST_AUTO_TEST_SUITE(R, *boost::unit_test::fixture<F>())
 BOOST_AUTO_TEST_CASE(execute) {
-    TEST::SET_W(0, 0xA123);
-    BOOST_CHECK_THROW(run_test(), ALINE);
+    run_test(0);
+    BOOST_TEST(cpu.ex_n == 10);
 }
+BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE_END()

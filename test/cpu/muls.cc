@@ -9,8 +9,8 @@ namespace bdata = boost::unit_test::data;
 BOOST_FIXTURE_TEST_SUITE(MULS, Prepare)
 struct F {
     F() {
-        // MULS.W ...
-        TEST::SET_W(0, 0044112);
+        // MULS.W %D2, %D3
+        TEST::SET_W(0, 0140700 | 3 << 9 | 2);
         TEST::SET_W(2, TEST_BREAK);
 
         // MULS.L %D2, %D3
@@ -26,33 +26,31 @@ struct F {
     }
 };
 BOOST_AUTO_TEST_SUITE(R, *boost::unit_test::fixture<F>())
-#if 0
 BOOST_AUTO_TEST_SUITE(Word)
-BOOST_AUTO_TEST_CASE(value) { BOOST_TEST(MULS_W(-70, -30) == 2100); }
-
-BOOST_AUTO_TEST_CASE(N) {
-    MULS_W(-1, 1);
-    BOOST_TEST(cpu.N);
-}
-
-BOOST_AUTO_TEST_CASE(Z) {
-    MULS_W(-1, 0);
-    BOOST_TEST(cpu.Z);
-}
-
-BOOST_AUTO_TEST_CASE(operand) {
-    TEST::SET_W(0, 0140700 | 3 << 9 | 2);
+BOOST_AUTO_TEST_CASE(value) { 
     cpu.D[3] = -70;
     cpu.D[2] = -30;
-    run_test();
-    BOOST_TEST(cpu.PC == 2);
+    run_test(0);
     BOOST_TEST(cpu.D[3] == 2100);
     BOOST_TEST(!cpu.N);
     BOOST_TEST(!cpu.Z);
 }
 
+BOOST_AUTO_TEST_CASE(N) {
+    cpu.D[3] = -10;
+    cpu.D[2] = 2;
+    run_test(0);
+    BOOST_TEST(cpu.N);
+}
+
+BOOST_AUTO_TEST_CASE(Z) {
+    cpu.D[3] = 1;
+    cpu.D[2] = 0;
+    run_test(0);
+    BOOST_TEST(cpu.Z);
+}
+
 BOOST_AUTO_TEST_SUITE_END()
-#endif
 BOOST_AUTO_TEST_SUITE(Long)
 BOOST_AUTO_TEST_CASE(value) {
     cpu.D[3] = -2000;
@@ -115,7 +113,6 @@ BOOST_AUTO_TEST_CASE(Z) {
     run_test(10);
     BOOST_TEST(cpu.Z);
 }
-
 
 BOOST_AUTO_TEST_SUITE_END()
 

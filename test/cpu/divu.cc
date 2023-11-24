@@ -37,7 +37,7 @@ BOOST_AUTO_TEST_CASE(value) {
     cpu.D[3] = 40;
     cpu.D[2] = 3;
     run_test(0);
-    BOOST_TEST(cpu.D[3] == 1 << 16 | 13);
+    BOOST_TEST(cpu.D[3] == (1 << 16 | 13));
 }
 
 BOOST_AUTO_TEST_CASE(N) {

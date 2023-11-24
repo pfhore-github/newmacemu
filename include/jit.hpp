@@ -3,33 +3,20 @@
 #include <asmjit/asmjit.h>
 #include <memory>
 #include <vector>
-#ifdef WIN32
-#define ARG1L asmjit::x86::rcx
-#define ARG2L asmjit::x86::rdx
-#define ARG2L asmjit::x86::r8
-#define ARG1 asmjit::x86::ecx
-#define ARG2 asmjit::x86::edx
-#define ARG3L asmjit::x86::r8d
-#include <windows.h>
-#else
-#define ARG1L asmjit::x86::rdi
-#define ARG2L asmjit::x86::rsi
-#define ARG3L asmjit::x86::rdx
-#define ARG1 asmjit::x86::edi
-#define ARG2 asmjit::x86::esi
-#define ARG3 asmjit::x86::edx
-#endif
+using namespace asmjit;
+
 
 struct JitError {};
+extern std::unique_ptr<x86::Assembler> as; 
 
-void ea_getaddr_jit(asmjit::x86::Assembler &a, int type, int reg, int sz);
-void ea_readB_jit(asmjit::x86::Assembler &a, int type, int reg);
-void ea_readW_jit(asmjit::x86::Assembler &a, int type, int reg);
-void ea_readL_jit(asmjit::x86::Assembler &a, int type, int reg);
-void ea_writeB_jit(asmjit::x86::Assembler &a, int type, int reg, bool update);
-void ea_writeW_jit(asmjit::x86::Assembler &a, int type, int reg, bool update);
-void ea_writeL_jit(asmjit::x86::Assembler &a, int type, int reg, bool update);
-extern std::unique_ptr<asmjit::JitRuntime> rt;
+void ea_getaddr_jit(int type, int reg, int sz);
+void ea_readB_jit(int type, int reg);
+void ea_readW_jit(int type, int reg);
+void ea_readL_jit(int type, int reg);
+void ea_writeB_jit(int type, int reg, bool update);
+void ea_writeW_jit(int type, int reg, bool update);
+void ea_writeL_jit(int type, int reg, bool update);
+extern std::unique_ptr<JitRuntime> rt;
 void deregister_frame(struct jit_cache* p);
 struct jit_cache {
     void (*exec)(uint32_t addr);

@@ -8,8 +8,7 @@
 
 
 int32_t BF_D(uint32_t v, int offset, uint8_t width) {
-    offset &= 31;
-    return std::rotl(v, offset) & (-1 << (32 - width));
+    return std::rotl(v, offset&31) & (-1 << (32 - width));
 }
 
 int32_t BF_M(uint32_t addr, int offset, uint8_t width) {
@@ -33,18 +32,12 @@ int32_t BF_M(uint32_t addr, int offset, uint8_t width) {
 }
 
 int32_t BFTST_D(uint32_t v, int offset, int width) {
-    if( width == 0) {
-        width = 32;
-    }
     int32_t x = BF_D(v, offset, width);
     cpu.V = cpu.C = false;
     TEST_L(x);
     return x;
 }
 int32_t BFTST_M(uint32_t addr, int offset, int width) {
-    if( width == 0) {
-        width = 32;
-    }
     int32_t x = BF_M(addr, offset, width);
     cpu.V = cpu.C = false;
     TEST_L(x);
@@ -52,18 +45,12 @@ int32_t BFTST_M(uint32_t addr, int offset, int width) {
 }
 
 uint32_t BFCHG_D(uint32_t v, int offset, int width) {
-    if( width == 0) {
-        width = 32;
-    }
     BFTST_D(v, offset, width);
     uint32_t mask =
         std::rotr(static_cast<uint32_t>(-1 << (32 - width)), offset);
     return v ^ mask;
 }
 void BFCHG_M(uint32_t addr, int offset, int width) {
-    if( width == 0) {
-        width = 32;
-    }
     BFTST_M(addr, offset, width);
     addr += (offset >> 3);
     offset &= 7;
@@ -115,18 +102,12 @@ void BFCHG_M(uint32_t addr, int offset, int width) {
 }
 
 uint32_t BFCLR_D(uint32_t v, int offset, int width) {
-    if( width == 0) {
-        width = 32;
-    }
     BFTST_D(v, offset, width);
     uint32_t mask =
         std::rotr(static_cast<uint32_t>(-1 << (32 - width)), offset);
     return v & ~mask;
 }
 void BFCLR_M(uint32_t addr, int offset, int width) {
-    if( width == 0) {
-        width = 32;
-    }
     BFTST_M(addr, offset, width);
     addr += (offset >> 3);
     offset &= 7;
@@ -178,18 +159,12 @@ void BFCLR_M(uint32_t addr, int offset, int width) {
 }
 
 uint32_t BFSET_D(uint32_t v, int offset, int width) {
-    if( width == 0) {
-        width = 32;
-    }
     BFTST_D(v, offset, width);
     uint32_t mask =
         std::rotr(static_cast<uint32_t>(-1 << (32 - width)), offset);
     return v | mask;
 }
 void BFSET_M(uint32_t addr, int offset, int width) {
-    if( width == 0) {
-        width = 32;
-    }
     BFTST_M(addr, offset, width);
     addr += (offset >> 3);
     offset &= 7;
@@ -241,54 +216,33 @@ void BFSET_M(uint32_t addr, int offset, int width) {
 }
 
 uint32_t BFEXTU_D(uint32_t v, int offset, int width) {
-    if( width == 0) {
-        width = 32;
-    }
     uint32_t x = BFTST_D(v, offset, width);
     return x >> (32 - width);
 }
 uint32_t BFEXTU_M(uint32_t addr, int offset, int width) {
-    if( width == 0) {
-        width = 32;
-    }
     uint32_t x = BFTST_M(addr, offset, width);
     return x >> (32 - width);
 }
 
 int32_t BFEXTS_D(uint32_t v, int offset, int width) {
-    if( width == 0) {
-        width = 32;
-    }
     int32_t x = BFTST_D(v, offset, width);
     return x >> (32 - width);
 }
 int32_t BFEXTS_M(uint32_t addr, int offset, int width) {
-    if( width == 0) {
-        width = 32;
-    }
     int32_t x = BFTST_M(addr, offset, width);
     return x >> (32 - width);
 }
 
 int32_t BFFFO_D(uint32_t v, int offset, int width) {
-    if( width == 0) {
-        width = 32;
-    }
     uint32_t x = BFTST_D(v, offset, width);
     return offset + (x ? std::countl_zero(x) : width);
 }
 int32_t BFFFO_M(uint32_t addr, int offset, int width) {
-    if( width == 0) {
-        width = 32;
-    }
     uint32_t x = BFTST_M(addr, offset, width);
     return offset + (x ? std::countl_zero(x) : width);
 }
 
 uint32_t BFINS_D(uint32_t old, int offset, uint8_t width, uint32_t v) {
-    if( width == 0) {
-        width = 32;
-    }
     TEST_L(v << (32 - width));
     cpu.V = false;
     cpu.C = false;
@@ -301,9 +255,7 @@ uint32_t BFINS_D(uint32_t old, int offset, uint8_t width, uint32_t v) {
 }
 
 void BFINS_M(uint32_t addr, int offset, uint8_t width, uint32_t v) {
-    if( width == 0) {
-        width = 32;
-    }
+    TEST_L(v << (32 - width));
     addr += (offset >> 3);
     offset &= 7;
     int ln = width + offset;

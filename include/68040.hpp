@@ -5,10 +5,9 @@
 #include <atomic>
 #include <functional>
 #include <memory>
+#include <setjmp.h>
 #include <stdint.h>
 #include <unordered_map>
-#include <setjmp.h>
-
 
 enum class FPU_PREC {
     X,
@@ -20,7 +19,7 @@ struct FaultParam;
 struct Cpu {
     uint32_t D[8];
     uint32_t A[8];
-    uint32_t &R(int n) { return n < 8 ? D[n & 7] : A[n & 7]; }
+    uint32_t EA;
     uint32_t PC;
     // CCR
     bool X, N, Z, V, C;
@@ -76,13 +75,12 @@ struct Cpu {
 
     std::unordered_map<uint32_t, atc_entry> l_atc[2], g_atc[2];
     // internal
-	jmp_buf ex;
-	std::unique_ptr<FaultParam> faultParam;
-    uint32_t EA;
+    jmp_buf ex;
+    std::unique_ptr<FaultParam> faultParam;
     uint32_t oldpc;
-	uint32_t ex_addr;
-	volatile uint8_t ex_n;
-	
+    uint32_t ex_addr;
+    volatile uint8_t ex_n;
+
     bool in_exception;
     bool must_trace;
 
@@ -90,6 +88,7 @@ struct Cpu {
     std::atomic<bool> sleeping;
 
     std::atomic<int> inturrupt;
+    uint32_t &R(int n) { return n < 8 ? D[n & 7] : A[n & 7]; }
 };
 
 struct mmu_result {

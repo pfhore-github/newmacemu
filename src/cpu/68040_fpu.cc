@@ -616,7 +616,6 @@ void reset_fpu() {
 }
 
 void fmovecr(int opc, int fpn) {
-    fpu_prologue();
     switch(opc) {
     case 0:
         // PI
@@ -624,23 +623,23 @@ void fmovecr(int opc, int fpn) {
         break;
     case 0xB:
         // log10_2
-        mpfr_set_ui(cpu.fp_tmp, 2.0, cpu.FPCR.RND);
+        mpfr_set_ui(cpu.fp_tmp, 2, cpu.FPCR.RND);
         mpfr_log10(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
         break;
     case 0xC:
         // e
-        mpfr_set_ui(cpu.fp_tmp, 1.0, cpu.FPCR.RND);
+        mpfr_set_ui(cpu.fp_tmp, 1, cpu.FPCR.RND);
         mpfr_exp(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
         break;
     case 0xD:
         // log2_e
-        mpfr_set_ui(cpu.fp_tmp, 1.0, cpu.FPCR.RND);
+        mpfr_set_ui(cpu.fp_tmp, 1, cpu.FPCR.RND);
         mpfr_exp(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
         mpfr_log2(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
         break;
     case 0xE:
         // log10_e
-        mpfr_set_ui(cpu.fp_tmp, 1.0, cpu.FPCR.RND);
+        mpfr_set_ui(cpu.fp_tmp, 1, cpu.FPCR.RND);
         mpfr_exp(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
         mpfr_log10(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
         break;
@@ -650,7 +649,7 @@ void fmovecr(int opc, int fpn) {
         break;
     case 0x31:
         // ln(10)
-        mpfr_set_ui(cpu.fp_tmp, 10.0, cpu.FPCR.RND);
+        mpfr_set_ui(cpu.fp_tmp, 10, cpu.FPCR.RND);
         mpfr_log(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
         break;
     case 0x32:

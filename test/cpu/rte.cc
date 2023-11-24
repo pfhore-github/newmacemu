@@ -23,7 +23,7 @@ BOOST_AUTO_TEST_SUITE(R, *boost::unit_test::fixture<F>())
 BOOST_AUTO_TEST_CASE(user) {
     cpu.S = false;
 	run_test(0);
-	BOOST_TEST( cpu.ex_n == 8 );
+	BOOST_TEST( int(cpu.ex_n) == 8 );
 }
 BOOST_AUTO_TEST_SUITE(format)
 BOOST_AUTO_TEST_CASE(type0) {
