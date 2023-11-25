@@ -1,14 +1,13 @@
 #define BOOST_TEST_DYN_LINK
 #include "68040.hpp"
-#include "test.hpp"
 #include "inline.hpp"
+#include "test.hpp"
 #include <boost/test/data/monomorphic.hpp>
 #include <boost/test/data/test_case.hpp>
 #include <boost/test/unit_test.hpp>
 namespace bdata = boost::unit_test::data;
-BOOST_FIXTURE_TEST_SUITE(BFSET, Prepare)
-struct F {
-    F() {
+struct F_BFSET {
+    F_BFSET() {
         // BFSET %D2{8, 4}
         TEST::SET_W(0, 0167300 | 2);
         TEST::SET_W(2, 8 << 6 | 4);
@@ -51,7 +50,8 @@ struct F {
         jit_compile(0, 48);
     }
 };
-BOOST_AUTO_TEST_SUITE(R, *boost::unit_test::fixture<F>())
+BOOST_FIXTURE_TEST_SUITE(BFSET, Prepare, *boost::unit_test::fixture<F_BFSET>())
+
 BOOST_AUTO_TEST_SUITE(D)
 BOOST_AUTO_TEST_CASE(both_imm) {
     cpu.D[2] = 0x12345678;
@@ -198,7 +198,7 @@ BOOST_AUTO_TEST_CASE(byte2) {
 
 BOOST_AUTO_TEST_CASE(byte3) {
     TEST::SET_L(0x100, 0x12345678);
-	cpu.A[2] = 0x100;
+    cpu.A[2] = 0x100;
     cpu.D[3] = 4;
     cpu.D[5] = 16;
     run_test(42);
@@ -207,7 +207,7 @@ BOOST_AUTO_TEST_CASE(byte3) {
 
 BOOST_AUTO_TEST_CASE(byte4) {
     TEST::SET_L(0x100, 0x12345678);
-	cpu.A[2] = 0x100;
+    cpu.A[2] = 0x100;
     cpu.D[3] = 4;
     cpu.D[5] = 24;
     run_test(42);
@@ -217,7 +217,7 @@ BOOST_AUTO_TEST_CASE(byte4) {
 BOOST_AUTO_TEST_CASE(byte5) {
     TEST::SET_L(0x100, 0x12345678);
     RAM[0x104] = 0x9A;
-	cpu.A[2] = 0x100;
+    cpu.A[2] = 0x100;
     cpu.D[3] = 4;
     cpu.D[5] = 0;
     run_test(42);
@@ -227,13 +227,12 @@ BOOST_AUTO_TEST_CASE(byte5) {
 
 BOOST_AUTO_TEST_CASE(off_neg) {
     TEST::SET_L(0x100, 0x12345678);
-	cpu.A[2] = 0x104;
+    cpu.A[2] = 0x104;
     cpu.D[3] = -12;
     cpu.D[5] = 4;
     run_test(42);
     BOOST_TEST(TEST::GET_L(0x100) == 0x12345F78);
 }
 
-BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE_END()

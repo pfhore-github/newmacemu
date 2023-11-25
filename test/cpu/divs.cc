@@ -6,9 +6,8 @@
 #include <boost/test/data/test_case.hpp>
 #include <boost/test/unit_test.hpp>
 namespace bdata = boost::unit_test::data;
-BOOST_FIXTURE_TEST_SUITE(DIVS, Prepare)
-struct F {
-    F() {
+struct F_DIVS {
+    F_DIVS() {
         // DIVS.W %D3, %D2
         TEST::SET_W(0, 0100700 | 3 << 9 | 2);
         TEST::SET_W(2, TEST_BREAK);
@@ -28,9 +27,10 @@ struct F {
         TEST::SET_W(18, 0006000 | 3 << 12 | 4);
         TEST::SET_W(20, TEST_BREAK);
         jit_compile(0, 22);
-    }
-};
-BOOST_AUTO_TEST_SUITE(R, *boost::unit_test::fixture<F>())
+    }};
+BOOST_FIXTURE_TEST_SUITE(DIVS, Prepare, *boost::unit_test::fixture<F_DIVS>())
+
+
 BOOST_AUTO_TEST_SUITE(Word)
 
 BOOST_AUTO_TEST_CASE(value) {
@@ -170,6 +170,5 @@ BOOST_AUTO_TEST_CASE(Div0) {
     BOOST_TEST(cpu.ex_n == 5);
 }
 
-BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE_END()

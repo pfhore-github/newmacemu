@@ -13,6 +13,17 @@ extern std::unordered_map<uint32_t, Label> jumpMap;
 using jit_op = void (*)(uint16_t op);
 extern jit_op jit_compile_op[0x10000];
 void store_fpr(int fpn, FPU_PREC p = FPU_PREC::AUTO);
+
+void load_fpS(uint32_t v);
+void load_fpD(uint64_t v);
+void load_fpX(uint64_t frac, uint16_t exp);
+void load_fpP(uint32_t addr);
+
+void fpu_testex();
+bool test_NAN1();
+auto FP_N(int n) {
+    return x86::ptr(x86::rbx, offsetof(Cpu, FP) + sizeof(mpfr_t) * n);
+}
 namespace JIT_OP {
 #ifdef __x86_64__
 void jit_fpu_prologue() {
@@ -21,119 +32,971 @@ void jit_fpu_prologue() {
     as->mov(x86::dword_ptr(x86::rbx, offsetof(Cpu, FPIAR)), x86::eax);
 }
 void update_pc();
-constexpr auto FP_TMP() {
-    return x86::dword_ptr(x86::rbx, offsetof(Cpu, fp_tmp));
+constexpr auto FP_TMP = x86::qword_ptr(x86::rbx, offsetof(Cpu, fp_tmp));
+constexpr auto FP_RND = x86::dword_ptr(x86::rbx, offsetof(Cpu, FPCR.RND));
+static void jit_mpfr_set_ui(unsigned int i) {
+    as->lea(ARG1, FP_TMP);
+    as->mov(ARG2.r32(), i);
+    as->mov(ARG3.r32(), FP_RND);
+    as->call(mpfr_set_ui);
 }
-constexpr auto FP_RND() {
-    return x86::dword_ptr(x86::rbx, offsetof(Cpu, FPCR.RND));
+static void jit_mpfr_run(int (*p)(mpfr_ptr, mpfr_srcptr, mpfr_rnd_t)) {
+    as->lea(ARG1, FP_TMP);
+    as->lea(ARG2, FP_TMP);
+    as->mov(ARG3.r32(), FP_RND);
+    as->call(p);
 }
+
 void jit_fmovecr(int opc, int fpn) {
     switch(opc) {
     case 0:
         // PI
-        as->mov(ARG1.r32(), FP_TMP());
-        as->mov(ARG2.r32(), FP_RND());
+        as->lea(ARG1, FP_TMP);
+        as->mov(ARG2.r32(), FP_RND);
         as->call(mpfr_const_pi);
         break;
     case 0xB:
         // log10_2
-        as->mov(ARG1.r32(), FP_TMP());
-        as->mov(ARG2.r32(), FP_RND());
-        as->call(mpfr_const_pi);
-        as->mov(ARG1.r32(), FP_TMP());
-        as->mov(ARG2.r32(), 2);
-        as->mov(ARG3.r32(), FP_RND());
-        as->call(mpfr_log10);
+        jit_mpfr_set_ui(2);
+        jit_mpfr_run(mpfr_log10);
         break;
     case 0xC:
         // e
-        mpfr_set_ui(cpu.fp_tmp, 1.0, cpu.FPCR.RND);
-        mpfr_exp(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
+        jit_mpfr_set_ui(1);
+        jit_mpfr_run(mpfr_exp);
         break;
     case 0xD:
         // log2_e
-        mpfr_set_ui(cpu.fp_tmp, 1.0, cpu.FPCR.RND);
-        mpfr_exp(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
-        mpfr_log2(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
+        jit_mpfr_set_ui(1);
+        jit_mpfr_run(mpfr_exp);
+        jit_mpfr_run(mpfr_log2);
         break;
     case 0xE:
         // log10_e
-        mpfr_set_ui(cpu.fp_tmp, 1.0, cpu.FPCR.RND);
-        mpfr_exp(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
-        mpfr_log10(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
+        jit_mpfr_set_ui(1);
+        jit_mpfr_run(mpfr_exp);
+        jit_mpfr_run(mpfr_log10);
         break;
     case 0x30:
         // log2_e
-        mpfr_const_log2(cpu.fp_tmp, cpu.FPCR.RND);
+        as->lea(ARG1, FP_TMP);
+        as->mov(ARG2.r32(), FP_RND);
+        as->call(mpfr_const_log2);
         break;
     case 0x31:
         // ln(10)
-        mpfr_set_ui(cpu.fp_tmp, 10.0, cpu.FPCR.RND);
-        mpfr_log(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
+        jit_mpfr_set_ui(10);
+        jit_mpfr_run(mpfr_log);
         break;
     case 0x32:
         // 10^0
-        mpfr_ui_pow_ui(cpu.fp_tmp, 10, 0, cpu.FPCR.RND);
+        as->lea(ARG1, FP_TMP);
+        as->mov(ARG2.r32(), 10);
+        as->mov(ARG3.r32(), 0);
+        as->mov(ARG4.r32(), FP_RND);
+        as->call(mpfr_ui_pow_ui);
         break;
     case 0x33:
         // 10^1
-        mpfr_ui_pow_ui(cpu.fp_tmp, 10, 1, cpu.FPCR.RND);
+        as->lea(ARG1, FP_TMP);
+        as->mov(ARG2.r32(), 10);
+        as->mov(ARG3.r32(), 1);
+        as->mov(ARG4.r32(), FP_RND);
+        as->call(mpfr_ui_pow_ui);
         break;
     case 0x34:
         // 10^2
-        mpfr_ui_pow_ui(cpu.fp_tmp, 10, 2, cpu.FPCR.RND);
+        as->lea(ARG1, FP_TMP);
+        as->mov(ARG2.r32(), 10);
+        as->mov(ARG3.r32(), 2);
+        as->mov(ARG4.r32(), FP_RND);
+        as->call(mpfr_ui_pow_ui);
         break;
 
     case 0x35:
         // 10^4
-        mpfr_ui_pow_ui(cpu.fp_tmp, 10, 4, cpu.FPCR.RND);
+        as->lea(ARG1, FP_TMP);
+        as->mov(ARG2.r32(), 10);
+        as->mov(ARG3.r32(), 4);
+        as->mov(ARG4.r32(), FP_RND);
+        as->call(mpfr_ui_pow_ui);
         break;
     case 0x36:
         // 10^8
-        mpfr_ui_pow_ui(cpu.fp_tmp, 10, 8, cpu.FPCR.RND);
+        as->lea(ARG1, FP_TMP);
+        as->mov(ARG2.r32(), 10);
+        as->mov(ARG3.r32(), 8);
+        as->mov(ARG4.r32(), FP_RND);
+        as->call(mpfr_ui_pow_ui);
         break;
     case 0x37:
         // 10^16
-        mpfr_ui_pow_ui(cpu.fp_tmp, 10, 16, cpu.FPCR.RND);
+        as->lea(ARG1, FP_TMP);
+        as->mov(ARG2.r32(), 10);
+        as->mov(ARG3.r32(), 16);
+        as->mov(ARG4.r32(), FP_RND);
+        as->call(mpfr_ui_pow_ui);
         break;
     case 0x38:
         // 10^32
-        mpfr_ui_pow_ui(cpu.fp_tmp, 10, 32, cpu.FPCR.RND);
+        as->lea(ARG1, FP_TMP);
+        as->mov(ARG2.r32(), 10);
+        as->mov(ARG3.r32(), 32);
+        as->mov(ARG4.r32(), FP_RND);
+        as->call(mpfr_ui_pow_ui);
         break;
     case 0x39:
         // 10^64
-        mpfr_ui_pow_ui(cpu.fp_tmp, 10, 64, cpu.FPCR.RND);
+        as->lea(ARG1, FP_TMP);
+        as->mov(ARG2.r32(), 10);
+        as->mov(ARG3.r32(), 64);
+        as->mov(ARG4.r32(), FP_RND);
+        as->call(mpfr_ui_pow_ui);
         break;
     case 0x3A:
         // 10^128
-        mpfr_ui_pow_ui(cpu.fp_tmp, 10, 128, cpu.FPCR.RND);
+        as->lea(ARG1, FP_TMP);
+        as->mov(ARG2.r32(), 10);
+        as->mov(ARG3.r32(), 128);
+        as->mov(ARG4.r32(), FP_RND);
+        as->call(mpfr_ui_pow_ui);
         break;
     case 0x3B:
         // 10^256
-        mpfr_ui_pow_ui(cpu.fp_tmp, 10, 256, cpu.FPCR.RND);
+        as->lea(ARG1, FP_TMP);
+        as->mov(ARG2.r32(), 10);
+        as->mov(ARG3.r32(), 256);
+        as->mov(ARG4.r32(), FP_RND);
+        as->call(mpfr_ui_pow_ui);
         break;
     case 0x3C:
         // 10^512
-        mpfr_ui_pow_ui(cpu.fp_tmp, 10, 512, cpu.FPCR.RND);
+        as->lea(ARG1, FP_TMP);
+        as->mov(ARG2.r32(), 10);
+        as->mov(ARG3.r32(), 512);
+        as->mov(ARG4.r32(), FP_RND);
+        as->call(mpfr_ui_pow_ui);
         break;
     case 0x3D:
         // 10^1024
-        mpfr_ui_pow_ui(cpu.fp_tmp, 10, 1024, cpu.FPCR.RND);
+        as->lea(ARG1, FP_TMP);
+        as->mov(ARG2.r32(), 10);
+        as->mov(ARG3.r32(), 1024);
+        as->mov(ARG4.r32(), FP_RND);
+        as->call(mpfr_ui_pow_ui);
         break;
     case 0x3E:
         // 10^2048
-        mpfr_ui_pow_ui(cpu.fp_tmp, 10, 2048, cpu.FPCR.RND);
+        as->lea(ARG1, FP_TMP);
+        as->mov(ARG2.r32(), 10);
+        as->mov(ARG3.r32(), 2048);
+        as->mov(ARG4.r32(), FP_RND);
+        as->call(mpfr_ui_pow_ui);
         break;
     case 0x3F:
         // 10^4096
-        mpfr_ui_pow_ui(cpu.fp_tmp, 10, 4096, cpu.FPCR.RND);
+        as->lea(ARG1, FP_TMP);
+        as->mov(ARG2.r32(), 10);
+        as->mov(ARG3.r32(), 4096);
+        as->mov(ARG4.r32(), FP_RND);
+        as->call(mpfr_ui_pow_ui);
         break;
     case 0x0F:
     default:
-        mpfr_set_zero(cpu.fp_tmp, 1);
+        as->lea(ARG1, FP_TMP);
+        as->mov(ARG2.r32(), 1);
+        as->call(mpfr_set_zero);
+
         break;
     }
-    store_fpr(fpn);
+    as->mov(ARG1.r32(), fpn);
+    as->mov(ARG2.r32(), (int)FPU_PREC::AUTO);
+    as->call(store_fpr);
+}
+enum class FP_SIZE { LONG, SINGLE, EXT, PACKED, WORD, DOUBLE, BYTE, PACKED2 };
+
+void jit_loadFP(int type, int reg, bool rm, int src) {
+    if(rm) {
+        switch(FP_SIZE(src)) {
+        case FP_SIZE::LONG:
+            ea_readL_jit(type, reg);
+            as->lea(ARG1, FP_TMP);
+            as->movsxd(ARG2, x86::eax);
+            as->mov(ARG3.r32(), FP_RND);
+            as->call(mpfr_set_si);
+            break;
+        case FP_SIZE::SINGLE:
+            ea_readL_jit(type, reg);
+            as->mov(ARG1.r32(), x86::eax);
+            as->call(load_fpS);
+            break;
+        case FP_SIZE::EXT: {
+            if(type == 7 && reg == 4) {
+                // EXT imm
+                as->mov(x86::esi, c_pc);
+                as->mov(EA, x86::esi);
+                as->add(c_pc, 12);
+            } else {
+                ea_getaddr_jit(type, reg, 12);
+            }
+
+            jit_readW(EA);
+            as->mov(x86::r13w, x86::ax);
+
+            as->mov(x86::esi, EA);
+            as->add(x86::esi, 4);
+            jit_readL(x86::esi);
+            as->mov(x86::r14d, x86::eax);
+            as->ror(x86::r14, 32);
+
+            as->mov(x86::esi, EA);
+            as->add(x86::esi, 8);
+            jit_readL(x86::esi);
+            as->mov(x86::eax, x86::eax);
+            as->or_(x86::r14, x86::rax);
+
+            as->mov(ARG1, x86::r14);
+            as->mov(ARG2.r16(), x86::r13w);
+            as->call(load_fpX);
+            break;
+        }
+        case FP_SIZE::PACKED:
+            if(type == 7 && reg == 4) {
+                // EXT imm
+                as->mov(x86::esi, c_pc);
+                as->mov(EA, x86::esi);
+                as->add(c_pc, 12);
+            } else {
+                ea_getaddr_jit(type, reg, 12);
+            }
+            as->mov(ARG1.r32(), EA);
+            as->call(load_fpP);
+            break;
+        case FP_SIZE::WORD:
+            ea_readW_jit(type, reg);
+            as->lea(ARG1, FP_TMP);
+            as->movsx(ARG2, x86::ax);
+            as->mov(ARG3.r32(), FP_RND);
+            as->call(mpfr_set_si);
+            break;
+        case FP_SIZE::DOUBLE: {
+            if(type == 7 && reg == 4) {
+                // EXT imm
+                as->mov(x86::esi, c_pc);
+                as->mov(EA, x86::esi);
+                as->add(c_pc, 8);
+            } else {
+                ea_getaddr_jit(type, reg, 8);
+            }
+            as->mov(x86::r13w, x86::ax);
+
+            jit_readL(EA);
+            as->mov(x86::r14d, x86::eax);
+            as->ror(x86::r14, 32);
+
+            as->mov(x86::esi, EA);
+            as->add(x86::esi, 4);
+            jit_readL(x86::esi);
+
+            as->or_(x86::r14, x86::rax);
+            as->mov(ARG1, x86::r14);
+            as->call(load_fpD);
+
+            break;
+        }
+        case FP_SIZE::BYTE:
+            ea_readB_jit(type, reg);
+            as->lea(ARG1, FP_TMP);
+            as->movsx(ARG2, x86::al);
+            as->mov(ARG3.r32(), FP_RND);
+            as->call(mpfr_set_si);
+            break;
+        case FP_SIZE::PACKED2:
+            __builtin_unreachable();
+        }
+    } else {
+        as->lea(ARG1, FP_N(src));
+        as->lea(ARG2, FP_TMP);
+        as->call(mpfr_swap);
+        as->mov(x86::rax, x86::qword_ptr(x86::rbx, offsetof(Cpu, FP_nan) +
+                                                       sizeof(int64_t) * src));
+        as->xchg(x86::rax, x86::qword_ptr(x86::rbx, offsetof(Cpu, fp_tmp_nan)));
+        as->xchg(x86::rax, x86::qword_ptr(x86::rbx, offsetof(Cpu, FP_nan) +
+                                                        sizeof(int64_t) * src));
+    }
+}
+constexpr auto TMP_TV = x86::dword_ptr(x86::rbx, offsetof(Cpu, fp_tmp_tv));
+
+static void jit_test_nan1(Label &f) {
+    auto t = as->newLabel();
+    as->lea(x86::rsi, FP_TMP);
+    as->mov(x86::rax,
+            x86::qword_ptr(x86::rsi, offsetof(__mpfr_struct, _mpfr_exp)));
+    as->mov(x86::rdx, __MPFR_EXP_NAN);
+    as->cmp(x86::rax, x86::rdx);
+    as->jne(t);
+    as->mov(x86::byte_ptr(x86::rbx, offsetof(Cpu, FPSR.OPERR)), 1);
+    as->jmp(f);
+    as->bind(t);
+}
+constexpr uint64_t QNAN_DEFAULT = ~0LLU;
+
+static void jit_test_nan2(Label &f, int fpn) {
+    auto lb1 = as->newLabel();
+    auto lb2 = as->newLabel();
+    as->lea(x86::rsi, FP_N(fpn));
+    as->mov(x86::rax,
+            x86::qword_ptr(x86::rsi, offsetof(__mpfr_struct, _mpfr_exp)));
+    as->mov(x86::rdx, __MPFR_EXP_NAN);
+    as->cmp(x86::rax, x86::rdx);
+    as->sete(x86::cl);
+
+    as->lea(x86::rsi, FP_TMP);
+    as->mov(x86::rax,
+            x86::qword_ptr(x86::rsi, offsetof(__mpfr_struct, _mpfr_exp)));
+    as->mov(x86::rdx, __MPFR_EXP_NAN);
+    as->cmp(x86::rax, x86::rdx);
+    as->setne(x86::ch);
+    as->and_(x86::cl, x86::ch);
+
+    as->je(lb1);
+
+    as->lea(ARG1, FP_TMP);
+    as->call(mpfr_set_nan);
+    as->call(mpfr_set_nanflag);
+    as->mov(x86::rax, x86::qword_ptr(x86::rbx, offsetof(Cpu, FP_nan) +
+                                                   fpn * sizeof(uint64_t)));
+    as->mov(x86::qword_ptr(x86::rbx, offsetof(Cpu, fp_tmp_nan)), x86::rax);
+    as->jmp(f);
+
+    as->bind(lb1);
+    as->test(x86::ch, x86::ch);
+    as->jne(lb2);
+
+    as->lea(x86::rsi, FP_TMP);
+    as->mov(x86::byte_ptr(x86::rbx, offsetof(Cpu, FPSR.OPERR)), 1);
+    as->jmp(f);
+    as->bind(lb2);
+}
+
+void jit_set_nan() {
+    as->lea(ARG1, FP_TMP);
+    as->call(mpfr_set_nan);
+    as->call(mpfr_set_nanflag);
+    as->mov(x86::rax, QNAN_DEFAULT);
+    as->mov(FP_TMP, x86::rax);
+}
+
+static void jit_fmod(int dst, int (*f)(mpfr_t, long *, mpfr_srcptr, mpfr_srcptr,
+                                       mpfr_rnd_t)) {
+    long q;
+    cpu.fp_tmp_tv = f(cpu.fp_tmp, &q, cpu.fp_tmp, cpu.FP[dst], cpu.FPCR.RND);
+    cpu.FPSR.Quat = std::abs(q) & 0x7f;
+    cpu.FPSR.QuatSign = q < 0;
+}
+
+static int jit_fcmp_n(mpfr_ptr dst, mpfr_ptr tmp) {
+    if((mpfr_zero_p(dst) && mpfr_zero_p(tmp)) ||
+       (mpfr_inf_p(dst) && mpfr_inf_p(tmp))) {
+        return mpfr_signbit(dst);
+    } else {
+        return mpfr_less_p(dst, tmp);
+    }
+}
+void jit_fop_do(int opc, int dst) {
+    FPU_PREC prec = FPU_PREC::X;
+    auto isNan = as->newLabel();
+    switch(opc) {
+    case 0: // FMOVE
+        break;
+    case 1: // FINT
+        jit_test_nan1(isNan);
+        jit_mpfr_run(mpfr_rint);
+        as->mov(TMP_TV, x86::eax);
+        as->bind(isNan);
+        break;
+    case 2: // FSINH
+        jit_test_nan1(isNan);
+        jit_mpfr_run(mpfr_sinh);
+        as->mov(TMP_TV, x86::eax);
+        as->bind(isNan);
+        break;
+    case 3: // FINTRZ
+        jit_test_nan1(isNan);
+        as->lea(ARG1, FP_TMP);
+        as->lea(ARG2, FP_TMP);
+        as->call(mpfr_trunc);
+        as->mov(TMP_TV, x86::eax);
+        as->bind(isNan);
+        break;
+    case 4:
+        // FSQRT
+        jit_test_nan1(isNan);
+        jit_mpfr_run(mpfr_sqrt);
+        as->mov(TMP_TV, x86::eax);
+        as->bind(isNan);
+        break;
+    case 6:
+        // FLOGNP1
+        jit_test_nan1(isNan);
+        jit_mpfr_run(mpfr_log1p);
+        as->mov(TMP_TV, x86::eax);
+        as->bind(isNan);
+        break;
+    case 8:
+        // FETOXM1
+        jit_test_nan1(isNan);
+        jit_mpfr_run(mpfr_expm1);
+        as->mov(TMP_TV, x86::eax);
+        as->bind(isNan);
+        break;
+    case 9:
+        // FTANH
+        jit_test_nan1(isNan);
+        jit_mpfr_run(mpfr_tanh);
+        as->mov(TMP_TV, x86::eax);
+        as->bind(isNan);
+        break;
+    case 10:
+        // FATAN
+        jit_test_nan1(isNan);
+        jit_mpfr_run(mpfr_atan);
+        as->mov(TMP_TV, x86::eax);
+        as->bind(isNan);
+        break;
+    case 12:
+        // FASIN
+        jit_test_nan1(isNan);
+        jit_mpfr_run(mpfr_asin);
+        as->mov(TMP_TV, x86::eax);
+        as->bind(isNan);
+        break;
+    case 13:
+        // FATANH
+        jit_test_nan1(isNan);
+        jit_mpfr_run(mpfr_atanh);
+        as->mov(TMP_TV, x86::eax);
+        as->bind(isNan);
+        break;
+    case 14:
+        // FSIN
+        jit_test_nan1(isNan);
+        jit_mpfr_run(mpfr_sin);
+        as->mov(TMP_TV, x86::eax);
+        as->bind(isNan);
+        break;
+    case 15:
+        // FTAN
+        jit_test_nan1(isNan);
+        jit_mpfr_run(mpfr_tan);
+        as->mov(TMP_TV, x86::eax);
+        as->bind(isNan);
+        break;
+    case 16:
+        // FETOX
+        jit_test_nan1(isNan);
+        jit_mpfr_run(mpfr_exp);
+        as->mov(TMP_TV, x86::eax);
+        as->bind(isNan);
+        break;
+    case 17:
+        // FTWOTOX
+        jit_test_nan1(isNan);
+        jit_mpfr_run(mpfr_exp2);
+        as->mov(TMP_TV, x86::eax);
+        as->bind(isNan);
+        break;
+    case 18:
+        // FTENTOX
+        jit_test_nan1(isNan);
+        jit_mpfr_run(mpfr_exp10);
+        as->mov(TMP_TV, x86::eax);
+        as->bind(isNan);
+        break;
+    case 20:
+        // FLOGN
+        jit_test_nan1(isNan);
+        jit_mpfr_run(mpfr_log);
+        as->mov(TMP_TV, x86::eax);
+        as->bind(isNan);
+        break;
+    case 21:
+        // FLOG10
+        jit_test_nan1(isNan);
+        jit_mpfr_run(mpfr_log10);
+        as->mov(TMP_TV, x86::eax);
+        as->bind(isNan);
+        break;
+    case 22:
+        // FLOG2
+        jit_test_nan1(isNan);
+        jit_mpfr_run(mpfr_log2);
+        as->mov(TMP_TV, x86::eax);
+        as->bind(isNan);
+        break;
+    case 24:
+        // FABS
+        jit_test_nan1(isNan);
+        jit_mpfr_run(mpfr_abs);
+        as->mov(TMP_TV, x86::eax);
+        as->bind(isNan);
+        break;
+    case 25:
+        // FCOSH
+        jit_test_nan1(isNan);
+        jit_mpfr_run(mpfr_cosh);
+        as->mov(TMP_TV, x86::eax);
+        as->bind(isNan);
+        break;
+    case 26:
+        // FNEG
+        jit_test_nan1(isNan);
+        jit_mpfr_run(mpfr_neg);
+        as->mov(TMP_TV, x86::eax);
+        as->bind(isNan);
+        break;
+    case 28:
+        // FACOS
+        jit_test_nan1(isNan);
+        jit_mpfr_run(mpfr_acos);
+        as->mov(TMP_TV, x86::eax);
+        as->bind(isNan);
+        break;
+    case 29:
+        // FCOS
+        jit_test_nan1(isNan);
+        jit_mpfr_run(mpfr_cos);
+        as->mov(TMP_TV, x86::eax);
+        as->bind(isNan);
+        break;
+    case 30:
+        // FGETEXP
+        {
+            auto lb2 = as->newLabel();
+            jit_test_nan1(isNan);
+            as->lea(x86::rsi, FP_TMP);
+            as->mov(x86::rax, x86::qword_ptr(x86::rsi, offsetof(__mpfr_struct,
+                                                                _mpfr_exp)));
+            as->mov(x86::rdx, __MPFR_EXP_INF);
+            as->cmp(x86::rax, x86::rdx);
+            as->jne(lb2);
+            jit_set_nan();
+            as->jmp(isNan);
+            as->bind(lb2);
+            as->mov(x86::rdx, __MPFR_EXP_ZERO);
+            as->cmp(x86::rax, x86::rdx);
+            as->je(isNan);
+            as->lea(ARG1, x86::qword_ptr(x86::rsp, 16));
+            as->lea(ARG2, FP_TMP);
+            as->mov(ARG3.r32(), FP_RND);
+            as->call(mpfr_get_d_2exp);
+            as->dec(x86::qword_ptr(x86::rsp, 16));
+            // the result of mpfr_get_d_2exp  is
+            // [0.5, 1.0)
+            as->lea(ARG1, FP_TMP);
+            as->mov(ARG2, x86::qword_ptr(x86::rsp, 16));
+            as->mov(ARG3.r32(), FP_RND);
+            as->call(mpfr_set_si);
+            as->bind(isNan);
+            break;
+        }
+    case 31: {
+        // FGETMAN
+        auto lb2 = as->newLabel();
+        jit_test_nan1(isNan);
+        as->lea(x86::rsi, FP_TMP);
+        as->mov(x86::rax,
+                x86::qword_ptr(x86::rsi, offsetof(__mpfr_struct, _mpfr_exp)));
+        as->mov(x86::rdx, __MPFR_EXP_INF);
+        as->cmp(x86::rax, x86::rdx);
+        as->jne(lb2);
+        jit_set_nan();
+        as->jmp(isNan);
+        as->bind(lb2);
+        as->lea(ARG1, x86::qword_ptr(x86::rsp, 16));
+        as->lea(ARG2, FP_TMP);
+        as->lea(ARG3, FP_TMP);
+        as->mov(ARG4.r32(), FP_RND);
+        as->call(mpfr_frexp);
+        as->mov(TMP_TV, x86::eax);
+        // the result of mpfr_frexp  is
+        // [0.5, 1.0)
+        as->lea(ARG1, FP_TMP);
+        as->lea(ARG2, FP_TMP);
+        as->mov(ARG3.r32(), 2);
+        as->mov(ARG4.r32(), FP_RND);
+        as->call(mpfr_mul_si);
+        as->bind(isNan);
+        break;
+    }
+    case 32:
+        // FDIV
+        jit_test_nan2(isNan, dst);
+        as->lea(ARG1, FP_TMP);
+        as->lea(ARG2, FP_TMP);
+        as->lea(ARG3, FP_N(dst));
+        as->mov(ARG4.r32(), FP_RND);
+        as->call(mpfr_div);
+        as->mov(TMP_TV, x86::eax);
+        as->bind(isNan);
+        break;
+    case 33:
+        // FMOD
+        jit_test_nan2(isNan, dst);
+        as->mov(ARG1.r32(), dst);
+        as->mov(ARG2, (intptr_t)mpfr_fmodquo);
+        as->call(jit_fmod);
+        break;
+    case 34:
+        // FADD
+        jit_test_nan2(isNan, dst);
+        as->lea(ARG1, FP_TMP);
+        as->lea(ARG2, FP_TMP);
+        as->lea(ARG3, FP_N(dst));
+        as->mov(ARG4.r32(), FP_RND);
+        as->call(mpfr_add);
+        as->mov(TMP_TV, x86::eax);
+        as->bind(isNan);
+        break;
+    case 35:
+        // FMUL
+        jit_test_nan2(isNan, dst);
+        as->lea(ARG1, FP_TMP);
+        as->lea(ARG2, FP_TMP);
+        as->lea(ARG3, FP_N(dst));
+        as->mov(ARG4.r32(), FP_RND);
+        as->call(mpfr_mul);
+        as->mov(TMP_TV, x86::eax);
+        as->bind(isNan);
+        break;
+    case 36:
+        // FSGLDIV
+        jit_test_nan2(isNan, dst);
+        as->lea(ARG1, FP_TMP);
+        as->mov(ARG2.r32(), 23);
+        as->mov(ARG3.r32(), FP_RND);
+        as->call(mpfr_prec_round);
+        as->lea(ARG1, FP_N(dst));
+        as->mov(ARG2.r32(), 23);
+        as->mov(ARG3.r32(), FP_RND);
+        as->call(mpfr_prec_round);
+
+        as->lea(ARG1, FP_TMP);
+        as->lea(ARG2, FP_TMP);
+        as->lea(ARG3, FP_N(dst));
+        as->mov(ARG4.r32(), FP_RND);
+        as->call(mpfr_div);
+        as->mov(TMP_TV, x86::eax);
+        as->bind(isNan);
+
+        prec = FPU_PREC::S;
+        break;
+    case 37:
+        // FREM
+        jit_test_nan2(isNan, dst);
+        as->mov(ARG1.r32(), dst);
+        as->mov(ARG2, (intptr_t)mpfr_remquo);
+        as->call(jit_fmod);
+        break;
+    case 38: {
+        // FSCALE
+        auto lb = as->newLabel();
+        jit_test_nan2(isNan, dst);
+        as->lea(x86::rsi, FP_TMP);
+        as->mov(x86::rax,
+                x86::qword_ptr(x86::rsi, offsetof(__mpfr_struct, _mpfr_exp)));
+        as->mov(x86::rdx, __MPFR_EXP_INF);
+        as->cmp(x86::rax, x86::rdx);
+        as->jne(lb);
+        jit_set_nan();
+        as->jmp(isNan);
+        as->bind(lb);
+        as->lea(ARG1, FP_TMP);
+        as->mov(ARG2.r32(), FP_RND);
+        as->call(mpfr_get_si);
+        as->lea(ARG1, FP_TMP);
+        as->lea(ARG2, FP_N(dst));
+        as->mov(ARG3, x86::rax);
+        as->mov(ARG4.r32(), FP_RND);
+        as->call(mpfr_mul_2si);
+        as->mov(TMP_TV, x86::eax);
+        as->bind(isNan);
+        break;
+    }
+    case 39:
+        // FSGLMUL
+        jit_test_nan2(isNan, dst);
+        as->lea(ARG1, FP_TMP);
+        as->mov(ARG2.r32(), 23);
+        as->mov(ARG3.r32(), FP_RND);
+        as->call(mpfr_prec_round);
+        as->lea(ARG1, FP_N(dst));
+        as->mov(ARG2.r32(), 23);
+        as->mov(ARG3.r32(), FP_RND);
+        as->call(mpfr_prec_round);
+
+        as->lea(ARG1, FP_TMP);
+        as->lea(ARG2, FP_TMP);
+        as->lea(ARG3, FP_N(dst));
+        as->mov(ARG4.r32(), FP_RND);
+        as->call(mpfr_mul);
+        as->mov(TMP_TV, x86::eax);
+        as->bind(isNan);
+
+        prec = FPU_PREC::S;
+        break;
+    case 40:
+        // FSUB
+        jit_test_nan2(isNan, dst);
+        as->lea(ARG1, FP_TMP);
+        as->lea(ARG2, FP_TMP);
+        as->lea(ARG3, FP_N(dst));
+        as->mov(ARG4.r32(), FP_RND);
+        as->call(mpfr_sub);
+        as->mov(TMP_TV, x86::eax);
+        as->bind(isNan);
+        break;
+    case 48:
+    case 49:
+    case 50:
+    case 51:
+    case 52:
+    case 53:
+    case 54:
+    case 55: {
+        // FSINCOS
+        int fp_c = opc & 7;
+        jit_test_nan1(isNan);
+        if(fp_c == dst) {
+            as->lea(ARG1, FP_TMP);
+            as->lea(ARG2, FP_TMP);
+            as->mov(ARG3.r32(), FP_RND);
+            as->call(mpfr_sin);
+        } else {
+            as->lea(ARG1, FP_TMP);
+            as->lea(ARG2, FP_N(fp_c));
+            as->lea(ARG3, FP_TMP);
+            as->mov(ARG4.r32(), FP_RND);
+            as->call(mpfr_sin_cos);
+        }
+        as->mov(TMP_TV, x86::eax);
+        as->bind(isNan);
+        break;
+    }
+    case 56: {
+        // FCMP
+        auto lb = as->newLabel();
+        as->lea(x86::r14, FP_N(dst));
+        as->lea(x86::r15, FP_TMP);
+        as->mov(x86::rsi,
+                x86::qword_ptr(x86::r14, offsetof(__mpfr_struct, _mpfr_exp)));
+        as->mov(x86::rdi,
+                x86::qword_ptr(x86::r15, offsetof(__mpfr_struct, _mpfr_exp)));
+        as->mov(x86::rcx, __MPFR_EXP_NAN);
+        as->cmp(x86::rsi, x86::rcx);
+        as->sete(x86::al);
+        as->cmp(x86::rdi, x86::rcx);
+        as->sete(x86::ah);
+        as->or_(x86::al, x86::ah);
+        as->mov(x86::byte_ptr(x86::rbx, offsetof(Cpu, FPSR.CC_NAN)), x86::al);
+        as->jz(lb);
+        as->jmp(isNan);
+
+        as->bind(lb);
+
+        as->mov(ARG1, x86::r14);
+        as->mov(ARG2, x86::r15);
+        as->call(mpfr_equal_p);
+        as->mov(x86::byte_ptr(x86::rbx, offsetof(Cpu, FPSR.CC_Z)), x86::al);
+
+        as->mov(ARG1, x86::r14);
+        as->mov(ARG2, x86::r15);
+        as->call(jit_fcmp_n);
+        as->mov(x86::byte_ptr(x86::rbx, offsetof(Cpu, FPSR.CC_N)), x86::al);
+
+        as->bind(isNan);
+        as->call(fpu_testex);
+        return;
+    }
+    case 58:
+        // FTST
+        as->lea(x86::r15, FP_TMP);
+        as->mov(x86::rsi,
+                x86::qword_ptr(x86::r15, offsetof(__mpfr_struct, _mpfr_exp)));
+        as->mov(x86::rcx, __MPFR_EXP_NAN);
+        as->cmp(x86::rsi, x86::rcx);
+        as->sete(x86::byte_ptr(x86::rbx, offsetof(Cpu, FPSR.CC_NAN)));
+        as->mov(x86::rcx, __MPFR_EXP_INF);
+        as->cmp(x86::rsi, x86::rcx);
+        as->sete(x86::byte_ptr(x86::rbx, offsetof(Cpu, FPSR.CC_I)));
+        as->mov(x86::rcx, __MPFR_EXP_ZERO);
+        as->cmp(x86::rsi, x86::rcx);
+        as->sete(x86::byte_ptr(x86::rbx, offsetof(Cpu, FPSR.CC_Z)));
+        as->mov(x86::esi,
+                x86::dword_ptr(x86::r15, offsetof(__mpfr_struct, _mpfr_sign)));
+        as->cmp(x86::esi, 0);
+        as->setl(x86::byte_ptr(x86::rbx, offsetof(Cpu, FPSR.CC_N)));
+        as->call(fpu_testex);
+        return;
+    case 64:
+        // FSMOVE
+        prec = FPU_PREC::S;
+        break;
+    case 65:
+        // FSSQRT
+        jit_test_nan1(isNan);
+        jit_mpfr_run(mpfr_sqrt);
+        as->mov(TMP_TV, x86::eax);
+        as->bind(isNan);
+        prec = FPU_PREC::S;
+        break;
+    case 68:
+        // FDMOVE
+        prec = FPU_PREC::D;
+        break;
+    case 69:
+        // FDSQRT
+        jit_test_nan1(isNan);
+        jit_mpfr_run(mpfr_sqrt);
+        as->mov(TMP_TV, x86::eax);
+        as->bind(isNan);
+        prec = FPU_PREC::D;
+        break;
+    case 88:
+        // FSABS
+        jit_test_nan1(isNan);
+        jit_mpfr_run(mpfr_abs);
+        as->mov(TMP_TV, x86::eax);
+        as->bind(isNan);
+        prec = FPU_PREC::S;
+        break;
+    case 90:
+        // FSNEG
+        jit_test_nan1(isNan);
+        jit_mpfr_run(mpfr_neg);
+        as->mov(TMP_TV, x86::eax);
+        as->bind(isNan);
+        prec = FPU_PREC::S;
+        break;
+    case 92:
+        // FDABS
+        jit_test_nan1(isNan);
+        jit_mpfr_run(mpfr_abs);
+        as->mov(TMP_TV, x86::eax);
+        as->bind(isNan);
+        prec = FPU_PREC::D;
+        break;
+    case 94:
+        // FDNEG
+        jit_test_nan1(isNan);
+        jit_mpfr_run(mpfr_neg);
+        as->mov(TMP_TV, x86::eax);
+        as->bind(isNan);
+        prec = FPU_PREC::D;
+        break;
+    case 96:
+        // FSDIV
+        jit_test_nan2(isNan, dst);
+        as->lea(ARG1, FP_TMP);
+        as->lea(ARG2, FP_TMP);
+        as->lea(ARG3, FP_N(dst));
+        as->mov(ARG4.r32(), FP_RND);
+        as->call(mpfr_div);
+        as->mov(TMP_TV, x86::eax);
+        as->bind(isNan);
+        prec = FPU_PREC::S;
+        break;
+    case 98:
+        // FSADD
+        jit_test_nan2(isNan, dst);
+        as->lea(ARG1, FP_TMP);
+        as->lea(ARG2, FP_TMP);
+        as->lea(ARG3, FP_N(dst));
+        as->mov(ARG4.r32(), FP_RND);
+        as->call(mpfr_add);
+        as->mov(TMP_TV, x86::eax);
+        as->bind(isNan);
+        prec = FPU_PREC::S;
+        break;
+    case 99:
+        // FSMUL
+        jit_test_nan2(isNan, dst);
+        as->lea(ARG1, FP_TMP);
+        as->lea(ARG2, FP_TMP);
+        as->lea(ARG3, FP_N(dst));
+        as->mov(ARG4.r32(), FP_RND);
+        as->call(mpfr_mul);
+        as->mov(TMP_TV, x86::eax);
+        as->bind(isNan);
+        prec = FPU_PREC::S;
+        break;
+    case 100:
+        // FDDIV
+        jit_test_nan2(isNan, dst);
+        as->lea(ARG1, FP_TMP);
+        as->lea(ARG2, FP_TMP);
+        as->lea(ARG3, FP_N(dst));
+        as->mov(ARG4.r32(), FP_RND);
+        as->call(mpfr_div);
+        as->mov(TMP_TV, x86::eax);
+        as->bind(isNan);
+        prec = FPU_PREC::D;
+        break;
+    case 102:
+        // FDADD
+        jit_test_nan2(isNan, dst);
+        as->lea(ARG1, FP_TMP);
+        as->lea(ARG2, FP_TMP);
+        as->lea(ARG3, FP_N(dst));
+        as->mov(ARG4.r32(), FP_RND);
+        as->call(mpfr_add);
+        as->mov(TMP_TV, x86::eax);
+        as->bind(isNan);
+        prec = FPU_PREC::D;
+        break;
+    case 103:
+        // FDMUL
+        jit_test_nan2(isNan, dst);
+        as->lea(ARG1, FP_TMP);
+        as->lea(ARG2, FP_TMP);
+        as->lea(ARG3, FP_N(dst));
+        as->mov(ARG4.r32(), FP_RND);
+        as->call(mpfr_mul);
+        as->mov(TMP_TV, x86::eax);
+        as->bind(isNan);
+        prec = FPU_PREC::D;
+        break;
+
+    case 104:
+        // FSSUB
+        jit_test_nan2(isNan, dst);
+        as->lea(ARG1, FP_TMP);
+        as->lea(ARG2, FP_TMP);
+        as->lea(ARG3, FP_N(dst));
+        as->mov(ARG4.r32(), FP_RND);
+        as->call(mpfr_sub);
+        as->mov(TMP_TV, x86::eax);
+        as->bind(isNan);
+        prec = FPU_PREC::S;
+        break;
+    case 108:
+        // FDSUB
+        jit_test_nan2(isNan, dst);
+        as->lea(ARG1, FP_TMP);
+        as->lea(ARG2, FP_TMP);
+        as->lea(ARG3, FP_N(dst));
+        as->mov(ARG4.r32(), FP_RND);
+        as->call(mpfr_sub);
+        as->mov(TMP_TV, x86::eax);
+        as->bind(isNan);
+        prec = FPU_PREC::D;
+        break;
+    default:
+        as->call(FLINE);
+    }
+    as->mov(ARG1.r32(), dst);
+    as->mov(ARG2.r32(), int(prec));
+    as->call(store_fpr);
 }
 void fop(uint16_t op) {
     uint16_t extw = FETCH();
@@ -147,13 +1010,13 @@ void fop(uint16_t op) {
         if(!(extw & 1 << 13)) {
             if(rm && src == 7) {
                 // FMOVECR
-                jit_fmovecr( opc, dst);
+                jit_fmovecr(opc, dst);
                 return;
             }
-#if 0            
-            loadFP(TYPE(op), REG(op), rm, src);
-            fop_do(opc, dst);
+            jit_loadFP(TYPE(op), REG(op), rm, src);
+            jit_fop_do(opc, dst);
         } else {
+#if 0            
             // FMOVE to ea
             fpu_store(src, TYPE(op), REG(op), dst, opc);
 #endif
@@ -197,13 +1060,13 @@ void fop(uint16_t op) {
 } // namespace JIT_OP
 
 void init_jit_table_fpu() {
-#if 0
     for(int i = 0; i < 074; ++i) {
         jit_compile_op[0171000 | i] = JIT_OP::fop;
-        jit_compile_op[0171100 | i] = JIT_OP::fscc;
-        jit_compile_op[0171400 | i] = JIT_OP::fsave;
-        jit_compile_op[0171500 | i] = JIT_OP::frestore;
+        //        jit_compile_op[0171100 | i] = JIT_OP::fscc;
+        //        jit_compile_op[0171400 | i] = JIT_OP::fsave;
+        //        jit_compile_op[0171500 | i] = JIT_OP::frestore;
     }
+#if 0
     for(int k = 0; k < 8; ++k) {
         jit_compile_op[0171110 | k] = JIT_OP::fdbcc;
     }

@@ -2,14 +2,15 @@
 #include "68040.hpp"
 #include "memory.hpp"
 #include "test.hpp"
+#include <boost/test/debug.hpp>
 
 #include <boost/test/data/monomorphic.hpp>
 #include <boost/test/data/test_case.hpp>
 #include <boost/test/unit_test.hpp>
+#include <boost/test/unit_test.hpp>
 namespace bdata = boost::unit_test::data;
-BOOST_FIXTURE_TEST_SUITE(RTE, Prepare)
-struct F {
-    F() {
+struct F_RTE {
+    F_RTE() {
         // RTE
         TEST::SET_W(0, 0047163);
         TEST::SET_W(2, TEST_BREAK);
@@ -17,13 +18,14 @@ struct F {
         TEST::SET_W(0x40, TEST_BREAK);
         jit_compile(0, 4);
         jit_compile(0x40, 2);
-    }
-};
-BOOST_AUTO_TEST_SUITE(R, *boost::unit_test::fixture<F>())
+    }};
+BOOST_FIXTURE_TEST_SUITE(RTE, Prepare, *boost::unit_test::fixture<F_RTE>())
+
+
 BOOST_AUTO_TEST_CASE(user) {
     cpu.S = false;
 	run_test(0);
-	BOOST_TEST( int(cpu.ex_n) == 8 );
+	BOOST_TEST( cpu.ex_n == 8 );
 }
 BOOST_AUTO_TEST_SUITE(format)
 BOOST_AUTO_TEST_CASE(type0) {
@@ -665,6 +667,5 @@ BOOST_AUTO_TEST_CASE(trace) {
 }
 BOOST_AUTO_TEST_SUITE_END()
 #endif
-BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE_END()

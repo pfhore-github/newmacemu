@@ -29,8 +29,8 @@ extern const mpfr_rnd_t RND_MODES[4];
 
 void run_test(uint32_t pc);
 
-void qnan_test(uint16_t op);
-void snan_test(uint16_t op);
+void qnan_test(uint32_t pc);
+void snan_test(uint32_t pc);
 
 void test_rom(
     uint32_t from, uint32_t to,

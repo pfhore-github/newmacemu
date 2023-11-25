@@ -913,4 +913,3 @@ BOOST_DATA_TEST_CASE(F, bdata::xrange(2), is_nan) {
     BOOST_TEST(cpu.FPSR.BSUN == is_nan);
 }
 BOOST_AUTO_TEST_SUITE_END()
-BOOST_AUTO_TEST_SUITE_END()

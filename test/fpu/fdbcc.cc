@@ -14,7 +14,7 @@ BOOST_AUTO_TEST_CASE(Trace) {
     cpu.FPSR.CC_Z = true;
     cpu.T = 1;
     un_test(0);
-	BOOST_TEST(cpu.ex_n == 9 );
+    BOOST_TEST(cpu.ex_n == 9);
 }
 BOOST_AUTO_TEST_CASE(notDecement) {
     TEST::SET_W(0, 0171110 | 1);
@@ -1140,5 +1140,4 @@ BOOST_DATA_TEST_CASE(F, bdata::xrange(2), is_nan) {
     BOOST_TEST(cpu.PC == 0x14);
     BOOST_TEST(cpu.FPSR.BSUN == is_nan);
 }
-BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE_END()

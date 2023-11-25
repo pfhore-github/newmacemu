@@ -265,4 +265,3 @@ BOOST_AUTO_TEST_CASE(sys) {
     BOOST_TEST(cpu.g_atc[0].contains(2));
 }
 
-BOOST_AUTO_TEST_SUITE_END()

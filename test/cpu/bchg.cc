@@ -7,9 +7,8 @@
 #include <boost/test/data/test_case.hpp>
 #include <boost/test/unit_test.hpp>
 namespace bdata = boost::unit_test::data;
-BOOST_FIXTURE_TEST_SUITE(BCHG, Prepare)
-struct F {
-    F() {
+struct F_BCHG {
+    F_BCHG() {
         // BCHG.B #3, (%A2)
         TEST::SET_W(0, 0004120 | 2);
         TEST::SET_W(2, 3);
@@ -31,7 +30,8 @@ struct F {
         jit_compile(0, 20);
     }
 };
-BOOST_AUTO_TEST_SUITE(R, *boost::unit_test::fixture<F>())
+BOOST_FIXTURE_TEST_SUITE(BCHG, Prepare, *boost::unit_test::fixture<F_BCHG>())
+
 BOOST_AUTO_TEST_SUITE(Byte)
 
 BOOST_DATA_TEST_CASE(ByImm, bdata::xrange(2), z) {
@@ -42,7 +42,6 @@ BOOST_DATA_TEST_CASE(ByImm, bdata::xrange(2), z) {
     BOOST_TEST(RAM[0x100] == !z << 3);
 }
 
-
 BOOST_AUTO_TEST_CASE(ByReg) {
     cpu.D[4] = 3;
     RAM[0x100] = 0xff;
@@ -51,7 +50,6 @@ BOOST_AUTO_TEST_CASE(ByReg) {
     BOOST_TEST(!cpu.Z);
     BOOST_TEST(RAM[0x100] == 0xF7);
 }
-
 
 BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE(Long)
@@ -70,6 +68,5 @@ BOOST_AUTO_TEST_CASE(ByReg) {
     BOOST_TEST(cpu.D[2] == 0xFFEFFFFF);
 }
 
-BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE_END()

@@ -28,6 +28,7 @@ void initBus();
 void init_fpu();
 void jit_init();
 void init_emu() {
+#ifndef CI
     SDL_Init(SDL_INIT_EVERYTHING);
     at_quick_exit(SDL_Quit);
     SDLNet_Init();
@@ -36,6 +37,7 @@ void init_emu() {
                          SDL_WINDOWPOS_UNDEFINED, 640, 480,
                          0); // TODO: We should use GL shader?
     r = SDL_CreateRenderer(w, -1, SDL_RENDERER_ACCELERATED);
+#endif
     RAMSize = 64 * 1024 * 1024;
     RAM = new uint8_t[RAMSize];
     int fd = open("../quadra950.rom", O_RDONLY);

@@ -8,25 +8,33 @@
 #include <math.h>
 namespace bdata = boost::unit_test::data;
 
-BOOST_FIXTURE_TEST_SUITE(FLOG10, Prepare)
-BOOST_AUTO_TEST_CASE(qnan) { qnan_test(0b0010101); }
+struct F_FLOG10 {
+    F_FLOG10() {
+        // FLOG10.X %FP3, %FP2
+        TEST::SET_W(0, 0171000);
+        TEST::SET_W(2, 0b0010101 | 3 << 10 | 2 << 7);
+        TEST::SET_W(4, TEST_BREAK);
 
-BOOST_AUTO_TEST_CASE(snan) { snan_test(0b0010101); }
+        jit_compile(0, 6);
+    }
+};
+BOOST_FIXTURE_TEST_SUITE(FLOG10, Prepare,
+                         *boost::unit_test::fixture<F_FLOG10>())
+
+BOOST_AUTO_TEST_CASE(qnan) { qnan_test(0); }
+
+BOOST_AUTO_TEST_CASE(snan) { snan_test(0); }
 
 BOOST_AUTO_TEST_CASE(pinf) {
     TEST::SET_FP(3, INFINITY);
-    TEST::SET_W(0, 0171000);
-    TEST::SET_W(2, 0b0010101 | 3 << 10 | 2 << 7);
-    run_test();
+    run_test(0);
     BOOST_TEST(mpfr_inf_p(cpu.FP[2]));
     BOOST_TEST(!mpfr_signbit(cpu.FP[2]));
 }
 
 BOOST_AUTO_TEST_CASE(minf) {
     TEST::SET_FP(3, -INFINITY);
-    TEST::SET_W(0, 0171000);
-    TEST::SET_W(2, 0b0010101 | 3 << 10 | 2 << 7);
-    run_test();
+    run_test(0);
     BOOST_TEST(mpfr_nan_p(cpu.FP[2]));
     BOOST_TEST(cpu.FPSR.OPERR);
     BOOST_TEST(cpu.FPSR.EXC_IOP);
@@ -34,9 +42,7 @@ BOOST_AUTO_TEST_CASE(minf) {
 
 BOOST_DATA_TEST_CASE(zero, sg_v, sg) {
     TEST::SET_FP(3, copysign(0.0, sg));
-    TEST::SET_W(0, 0171000);
-    TEST::SET_W(2, 0b0010101 | 3 << 10 | 2 << 7);
-    run_test();
+    run_test(0);
     BOOST_TEST(mpfr_inf_p(cpu.FP[2]));
     BOOST_TEST(mpfr_signbit(cpu.FP[2]));
     BOOST_TEST(cpu.FPSR.DZ);
@@ -45,17 +51,13 @@ BOOST_DATA_TEST_CASE(zero, sg_v, sg) {
 
 BOOST_AUTO_TEST_CASE(normal) {
     TEST::SET_FP(3, 10.0);
-    TEST::SET_W(0, 0171000);
-    TEST::SET_W(2, 0b0010101 | 3 << 10 | 2 << 7);
-    run_test();
+    run_test(0);
     BOOST_TEST(TEST::GET_FP(2) == 1.0);
 }
 
 BOOST_AUTO_TEST_CASE(range) {
     TEST::SET_FP(3, -10.0);
-    TEST::SET_W(0, 0171000);
-    TEST::SET_W(2, 0b0010101 | 3 << 10 | 2 << 7);
-    run_test();
+    run_test(0);
     BOOST_TEST(mpfr_nan_p(cpu.FP[2]));
     BOOST_TEST(cpu.FPSR.OPERR);
     BOOST_TEST(cpu.FPSR.EXC_IOP);

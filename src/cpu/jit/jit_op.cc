@@ -15,13 +15,12 @@ bool movec_from_cr_impl(uint16_t extw, uint32_t *rn);
 bool movec_to_cr_impl(uint16_t extw, uint32_t rn);
 namespace JIT_OP {
 #ifdef __x86_64__
-constexpr auto c_pc = x86::dword_ptr(x86::rbx, offsetof(Cpu, PC));
 Label end_lbl;
 void update_pc() {
-    as->mov(x86::qword_ptr(x86::rsp, -8), x86::rsi);
+    as->mov(x86::qword_ptr(x86::rsp, 8), x86::rsi);
     as->mov(x86::esi, cpu.PC);
     as->mov(c_pc, x86::esi);
-    as->mov(x86::rsi, x86::qword_ptr(x86::rsp, -8));
+    as->mov(x86::rsi, x86::qword_ptr(x86::rsp, 8));
 }
 void update_nz() {
     as->setz(CC_Z);

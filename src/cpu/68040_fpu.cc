@@ -153,11 +153,11 @@ inline void WriteLL(uint32_t addr, uint64_t v) {
 }
 void load_fpS(uint32_t v) {
     uint16_t exp = v >> 23 & 0xff;
-    uint32_t frac = v & 0x7FFFFF;
+    uint64_t frac = v & 0x7FFFFF;
     // test NAN
     if(exp == 0xff && frac) {
         mpfr_set_nan(cpu.fp_tmp);
-        cpu.fp_tmp_nan = static_cast<uint64_t>(frac) << 41;
+        cpu.fp_tmp_nan = frac << 41;
     } else {
         auto f = std::bit_cast<float>(v);
         mpfr_set_flt(cpu.fp_tmp, f, cpu.FPCR.RND);
@@ -759,7 +759,7 @@ void loadFP(int type, int reg, bool rm, int src) {
             if(type == 7 && reg == 4) {
                 // EXT imm
                 cpu.EA = cpu.PC;
-                cpu.PC += 12;
+                cpu.PC += 8;
             } else {
                 cpu.EA = ea_getaddr(type, reg, 8);
             }

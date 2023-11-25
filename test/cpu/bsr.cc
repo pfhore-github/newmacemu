@@ -5,18 +5,18 @@
 #include <boost/test/data/test_case.hpp>
 #include <boost/test/unit_test.hpp>
 namespace bdata = boost::unit_test::data;
-BOOST_FIXTURE_TEST_SUITE(BSR, Prepare)
-struct F {
-    F() {
+struct F_BSR {
+    F_BSR() {
         // BSR #2
         TEST::SET_W(0, 0060400 | 2);
         TEST::SET_W(2, TEST_BREAK);
         TEST::SET_W(4, TEST_BREAK);
 
         jit_compile(0, 6);
-    }
-};
-BOOST_AUTO_TEST_SUITE(R, *boost::unit_test::fixture<F>())
+    }};
+BOOST_FIXTURE_TEST_SUITE(BSR, Prepare, *boost::unit_test::fixture<F_BSR>())
+
+
 
 BOOST_AUTO_TEST_CASE(traced) {
     cpu.A[7] = 0x404;
@@ -34,5 +34,4 @@ BOOST_AUTO_TEST_CASE(not_traced) {
 }
 
 
-BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE_END()

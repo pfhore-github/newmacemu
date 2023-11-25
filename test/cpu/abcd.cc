@@ -6,9 +6,8 @@
 #include <boost/test/data/test_case.hpp>
 #include <boost/test/unit_test.hpp>
 namespace bdata = boost::unit_test::data;
-BOOST_FIXTURE_TEST_SUITE(ABCD, Prepare)
-struct F {
-    F() {
+struct F_ABCD {
+    F_ABCD() {
         // ABCD %D1, %D3
         TEST::SET_W(0, 0140400 | 3 << 9 | 1);
         TEST::SET_W(2, TEST_BREAK);
@@ -20,7 +19,7 @@ struct F {
         jit_compile(0, 8);
     }
 };
-BOOST_AUTO_TEST_SUITE(R, *boost::unit_test::fixture<F>())
+BOOST_FIXTURE_TEST_SUITE(ABCD, Prepare, *boost::unit_test::fixture<F_ABCD>())
 BOOST_AUTO_TEST_SUITE(Reg)
 BOOST_DATA_TEST_CASE(value, bdata::xrange(2), old_x) {
     cpu.Z = true;
@@ -90,6 +89,5 @@ BOOST_AUTO_TEST_CASE(Z) {
     run_test(4);
     BOOST_TEST(cpu.Z);
 }
-BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE_END()

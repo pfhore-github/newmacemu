@@ -100,28 +100,30 @@ test/cpu/rte.cc test/cpu/rtd.cc test/cpu/rts.cc  test/cpu/rtr.cc
 test/cpu/syscall.cc
 test/cpu/moves.cc
 test/cpu/movec.cc 
+
+test/fpu/fmovecr.cc 
+test/fpu/fmove.cc test/fpu/fint.cc  test/fpu/fsinh.cc test/fpu/fintrz.cc 
+test/fpu/fsqrt.cc  test/fpu/flognp1.cc test/fpu/fetoxm1.cc  test/fpu/ftanh.cc 
+test/fpu/fatan.cc test/fpu/fasin.cc  test/fpu/fatanh.cc test/fpu/fsin.cc 
+ test/fpu/ftan.cc test/fpu/fetox.cc  test/fpu/ftwotox.cc test/fpu/ftentox.cc
+test/fpu/flogn.cc test/fpu/flog10.cc test/fpu/flog2.cc 
+test/fpu/fabs.cc test/fpu/fcosh.cc test/fpu/fneg.cc  test/fpu/facos.cc 
+test/fpu/fcos.cc test/fpu/fgetexp.cc test/fpu/fgetman.cc 
+test/fpu/fdiv.cc test/fpu/fmod.cc  test/fpu/fadd.cc test/fpu/fmul.cc 
+test/fpu/fsgldiv.cc test/fpu/frem.cc test/fpu/fscale.cc  test/fpu/fsglmul.cc
+test/fpu/fsub.cc test/fpu/fsincos.cc
+test/fpu/fcmp.cc test/fpu/ftst.cc
+test/fpu/common.cc
 )
 add_executable(testcpu ${SRC_CPU} ${SRC_CHIPS} 
 test/test_main.cc 
 ${CPU_TEST}
 #[[
 
+test/fpu/fbcc.cc test/fpu/fnop.cc test/fpu/fscc.cc test/fpu/fdbcc.cc
 
+test/fpu/fmovem.cc test/fpu/ftrapcc.cc
 
-
-
-
-test/fpu/common.cc
-test/fpu/fabs.cc test/fpu/fneg.cc  test/fpu/fsub.cc test/fpu/ftan.cc  test/fpu/ftanh.cc
-test/fpu/facos.cc test/fpu/fasin.cc  test/fpu/fatanh.cc  test/fpu/fsinh.cc  test/fpu/fcosh.cc
-test/fpu/fcos.cc test/fpu/fsin.cc test/fpu/fsincos.cc test/fpu/fatan.cc 
-test/fpu/fetox.cc test/fpu/fetoxm1.cc test/fpu/fgetexp.cc test/fpu/fgetman.cc test/fpu/fscale.cc test/fpu/ftentox.cc 
-test/fpu/flog10.cc test/fpu/flog2.cc  test/fpu/flogn.cc test/fpu/flognp1.cc
-test/fpu/fbcc.cc test/fpu/fnop.cc test/fpu/fscc.cc test/fpu/fcmp.cc test/fpu/fdbcc.cc
-test/fpu/fadd.cc test/fpu/fdiv.cc test/fpu/fmod.cc test/fpu/fmul.cc test/fpu/frem.cc
-test/fpu/fsgldiv.cc test/fpu/fsglmul.cc
-test/fpu/fmove.cc test/fpu/fmovecr.cc test/fpu/fmovem.cc test/fpu/ftrapcc.cc test/fpu/ftwotox.cc
-test/fpu/fint.cc test/fpu/fintrz.cc test/fpu/fsqrt.cc test/fpu/ftst.cc
 test/fpu/fpexcept.cc
 
 test/mmu/ittr.cc test/mmu/dttr.cc test/mmu/disabled.cc test/mmu/atc.cc test/mmu/psearch.cc

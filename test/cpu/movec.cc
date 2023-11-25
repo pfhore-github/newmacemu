@@ -7,9 +7,8 @@
 #include <fmt/core.h>
 
 namespace bdata = boost::unit_test::data;
-BOOST_FIXTURE_TEST_SUITE(MOVEC, Prepare)
-struct F {
-    F() {
+struct F_MOVEC {
+    F_MOVEC() {
         // MOVEC %SFC, %D3
         TEST::SET_W(0, 0047172);
         TEST::SET_W(2, 0 | 3 << 12);
@@ -161,9 +160,10 @@ struct F {
         TEST::SET_W(178, TEST_BREAK);
 
         jit_compile(0, 180);
-    }
-};
-BOOST_AUTO_TEST_SUITE(R, *boost::unit_test::fixture<F>())
+    }};
+BOOST_FIXTURE_TEST_SUITE(MOVEC, Prepare, *boost::unit_test::fixture<F_MOVEC>())
+
+
 BOOST_AUTO_TEST_SUITE(FROM)
 
 BOOST_AUTO_TEST_CASE(User) {
@@ -465,6 +465,5 @@ BOOST_AUTO_TEST_CASE(SRP) {
     BOOST_TEST(cpu.SRP == 0x5000);
 }
 
-BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE_END()

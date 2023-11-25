@@ -37,7 +37,7 @@ BOOST_AUTO_TEST_CASE(trace_postincr) {
     cpu.T = 1;
     STORE_MEMX(0x1000, 1.1);
     un_test(0);
-	BOOST_TEST(cpu.ex_n == 9 );
+    BOOST_TEST(cpu.ex_n == 9);
 }
 BOOST_AUTO_TEST_CASE(static_postincr) {
     TEST::SET_W(0, 0171030 | 3);
@@ -63,7 +63,7 @@ BOOST_AUTO_TEST_CASE(trace_addr) {
     cpu.T = 1;
     STORE_MEMX(0x1000, 1.1);
     un_test(0);
-	BOOST_TEST(cpu.ex_n == 9 );
+    BOOST_TEST(cpu.ex_n == 9);
 }
 BOOST_AUTO_TEST_CASE(static_addr) {
     TEST::SET_W(0, 0171020 | 3);
@@ -126,7 +126,7 @@ BOOST_AUTO_TEST_CASE(trace_predecr) {
     cpu.T = 1;
     TEST::SET_FP(0, 1.1);
     un_test(0);
-	BOOST_TEST(cpu.ex_n == 9 );
+    BOOST_TEST(cpu.ex_n == 9);
 }
 BOOST_AUTO_TEST_CASE(static_predecr) {
     TEST::SET_W(0, 0171040 | 3);
@@ -151,7 +151,7 @@ BOOST_AUTO_TEST_CASE(trace_addr) {
     cpu.T = 1;
     TEST::SET_FP(0, 1.1);
     un_test(0);
-	BOOST_TEST(cpu.ex_n == 9 );
+    BOOST_TEST(cpu.ex_n == 9);
 }
 BOOST_AUTO_TEST_CASE(static_addr) {
     TEST::SET_W(0, 0171020 | 3);
@@ -396,5 +396,4 @@ BOOST_AUTO_TEST_CASE(SR_IAR) {
 
     BOOST_TEST(cpu.A[3] == 0x1008);
 }
-BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE_END()

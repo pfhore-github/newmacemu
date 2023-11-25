@@ -201,4 +201,3 @@ BOOST_AUTO_TEST_CASE(Data) {
     auto v = ptest(0x01000, false, false, false);
     BOOST_TEST(!v.T);
 }
-BOOST_AUTO_TEST_SUITE_END()

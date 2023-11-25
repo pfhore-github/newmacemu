@@ -7,9 +7,8 @@
 #include <boost/test/unit_test.hpp>
 namespace bdata = boost::unit_test::data;
 
-BOOST_FIXTURE_TEST_SUITE(CMPI, Prepare)
-struct F {
-    F() {
+struct F_CMPI {
+    F_CMPI() {
         // CMPI.B #100, %D2 
         TEST::SET_W(0, 0006000 | 2);
         TEST::SET_W(2, 100);
@@ -26,9 +25,10 @@ struct F {
         TEST::SET_W(18, TEST_BREAK);
 
         jit_compile(0, 20);
-    }
-};
-BOOST_AUTO_TEST_SUITE(R, *boost::unit_test::fixture<F>())
+    }};
+BOOST_FIXTURE_TEST_SUITE(CMPI, Prepare, *boost::unit_test::fixture<F_CMPI>())
+
+
 BOOST_AUTO_TEST_SUITE(Byte)
 
 BOOST_AUTO_TEST_CASE(Z) {
@@ -101,6 +101,5 @@ BOOST_AUTO_TEST_CASE(V) {
     run_test(12);
     BOOST_TEST(cpu.V);
 }
-BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE_END()

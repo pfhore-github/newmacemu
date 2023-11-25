@@ -7,9 +7,8 @@
 #include <fmt/core.h>
 namespace bdata = boost::unit_test::data;
 
-BOOST_FIXTURE_TEST_SUITE(TRAPcc, Prepare)
-struct F {
-    F() {
+struct F_TRAPcc {
+    F_TRAPcc() {
         // TRAPF
         TEST::SET_W(0, 0050370 | 1 << 8 | 4);
         TEST::SET_W(2, TEST_BREAK);
@@ -29,9 +28,10 @@ struct F {
         TEST::SET_W(20, TEST_BREAK);
 
         jit_compile(0, 22);
-    }
-};
-BOOST_AUTO_TEST_SUITE(R, *boost::unit_test::fixture<F>())
+    }};
+BOOST_FIXTURE_TEST_SUITE(TRAPcc, Prepare, *boost::unit_test::fixture<F_TRAPcc>())
+
+
 BOOST_AUTO_TEST_CASE(noext) {
     run_test(0);
     BOOST_TEST(cpu.ex_n == 0);
@@ -54,5 +54,4 @@ BOOST_AUTO_TEST_CASE(T) {
     BOOST_TEST(cpu.ex_n == 7);
 }
 
-BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE_END()

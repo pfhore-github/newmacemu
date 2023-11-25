@@ -6,10 +6,8 @@
 #include <boost/test/data/test_case.hpp>
 #include <boost/test/unit_test.hpp>
 namespace bdata = boost::unit_test::data;
-BOOST_FIXTURE_TEST_SUITE(CAS2, Prepare)
-
-struct F {
-    F() {
+struct F_CAS2 {
+    F_CAS2() {
         // CAS2.W %D4:%D7, %D3:%D6, (%A2):(%A5)
         TEST::SET_W(0, 0006374);
         TEST::SET_W(2, 1 << 15 | 2 << 12 | 3 << 6 | 4);
@@ -25,7 +23,9 @@ struct F {
         jit_compile(0, 18);
     }
 };
-BOOST_AUTO_TEST_SUITE(R, *boost::unit_test::fixture<F>())
+BOOST_FIXTURE_TEST_SUITE(CAS2, Prepare, *boost::unit_test::fixture<F_CAS2>())
+
+
 BOOST_AUTO_TEST_SUITE(Word)
 
 BOOST_AUTO_TEST_CASE(T) {
@@ -130,6 +130,5 @@ BOOST_AUTO_TEST_CASE(traced) {
 	run_test(8);
 	BOOST_TEST(cpu.ex_n == 9 );
 }
-BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE_END()

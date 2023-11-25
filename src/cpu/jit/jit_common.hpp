@@ -14,13 +14,14 @@ constexpr auto CC_Z = byte_ptr(rbx, offsetof(Cpu, Z));
 constexpr auto CC_X = byte_ptr(rbx, offsetof(Cpu, X));
 constexpr auto CC_T = byte_ptr(rbx, offsetof(Cpu, T));
 constexpr auto CC_S = byte_ptr(rbx, offsetof(Cpu, S));
-inline auto DR_B(int n) { return byte_ptr(rbx, n * sizeof(uint32_t)); }
-inline auto DR_W(int n) { return word_ptr(rbx, n * sizeof(uint32_t)); }
-inline auto DR_L(int n) { return dword_ptr(rbx, n * sizeof(uint32_t)); }
-inline auto AR_B(int n) { return byte_ptr(rbx, (8 + n) * sizeof(uint32_t)); }
-inline auto AR_W(int n) { return word_ptr(rbx, (8 + n) * sizeof(uint32_t)); }
-inline auto AR_L(int n) { return dword_ptr(rbx, (8 + n) * sizeof(uint32_t)); }
-constexpr auto SP = dword_ptr(rbx, 15 * sizeof(uint32_t));
+constexpr auto DR_B(int n) { return byte_ptr(rbx, n * sizeof(uint32_t)); }
+constexpr auto DR_W(int n) { return word_ptr(rbx, n * sizeof(uint32_t)); }
+constexpr auto DR_L(int n) { return dword_ptr(rbx, n * sizeof(uint32_t)); }
+constexpr auto AR_B(int n) { return byte_ptr(rbx, (8 + n) * sizeof(uint32_t)); }
+constexpr auto AR_W(int n) { return word_ptr(rbx, (8 + n) * sizeof(uint32_t)); }
+constexpr auto AR_L(int n) { return dword_ptr(rbx, (8 + n) * sizeof(uint32_t)); }
+constexpr auto SP = AR_L(7);
+constexpr auto c_pc = dword_ptr(rbx, offsetof(Cpu, PC));
 void call_prolog();
 void call_epilog(bool restoreRax);
 #ifdef WIN32

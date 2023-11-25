@@ -6,18 +6,18 @@
 #include <boost/test/unit_test.hpp>
 namespace bdata = boost::unit_test::data;
 
-BOOST_FIXTURE_TEST_SUITE(Scc, Prepare)
-struct F {
-    F() {
+struct F_Scc {
+    F_Scc() {
         // Scc.B %D2
         for(int i = 0; i < 16; ++i) {
             TEST::SET_W(4*i, 0050300 | i << 8 | 4);
             TEST::SET_W(4*i+2, TEST_BREAK);
         }
         jit_compile(0, 64);
-    }
-};
-BOOST_AUTO_TEST_SUITE(R, *boost::unit_test::fixture<F>())
+    }};
+BOOST_FIXTURE_TEST_SUITE(Scc, Prepare, *boost::unit_test::fixture<F_Scc>())
+
+
 BOOST_AUTO_TEST_CASE(T) {
     run_test(0);
     BOOST_TEST(cpu.D[4] == 0xff);
@@ -293,6 +293,5 @@ BOOST_AUTO_TEST_CASE(F2) {
     run_test(60);
     BOOST_TEST(cpu.D[4] == 0);
 }
-BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE_END()

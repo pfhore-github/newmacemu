@@ -6,9 +6,8 @@
 #include <boost/test/data/test_case.hpp>
 #include <boost/test/unit_test.hpp>
 namespace bdata = boost::unit_test::data;
-BOOST_FIXTURE_TEST_SUITE(MULU, Prepare)
-struct F {
-    F() {
+struct F_MULU {
+    F_MULU() {
         // MULU.W %D2, %D3
         TEST::SET_W(0, 0140300 | 3 << 9 | 2);
         TEST::SET_W(2, TEST_BREAK);
@@ -23,9 +22,10 @@ struct F {
         TEST::SET_W(12, 0002000 | 3 << 12 | 4);
         TEST::SET_W(14, TEST_BREAK);
         jit_compile(0, 16);
-    }
-};
-BOOST_AUTO_TEST_SUITE(R, *boost::unit_test::fixture<F>())
+    }};
+BOOST_FIXTURE_TEST_SUITE(MULU, Prepare, *boost::unit_test::fixture<F_MULU>())
+
+
 BOOST_AUTO_TEST_SUITE(Word)
 BOOST_AUTO_TEST_CASE(value) { 
     cpu.D[3] = 70;
@@ -116,5 +116,4 @@ BOOST_AUTO_TEST_CASE(Z) {
 
 BOOST_AUTO_TEST_SUITE_END()
 
-BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE_END()

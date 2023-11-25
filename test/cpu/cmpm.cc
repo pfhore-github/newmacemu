@@ -5,9 +5,8 @@
 #include <boost/test/data/test_case.hpp>
 #include <boost/test/unit_test.hpp>
 namespace bdata = boost::unit_test::data;
-BOOST_FIXTURE_TEST_SUITE(CMPM, Prepare)
-struct F {
-    F() {
+struct F_CMPM {
+    F_CMPM() {
         // CMPM.B (%A1)+, (%A3)+
         TEST::SET_W(0, 0130410 | 3 << 9 | 1);
         TEST::SET_W(2, TEST_BREAK);
@@ -21,9 +20,10 @@ struct F {
         TEST::SET_W(10, TEST_BREAK);
 
         jit_compile(0, 12);
-    }
-};
-BOOST_AUTO_TEST_SUITE(R, *boost::unit_test::fixture<F>())
+    }};
+BOOST_FIXTURE_TEST_SUITE(CMPM, Prepare, *boost::unit_test::fixture<F_CMPM>())
+
+
 
 BOOST_AUTO_TEST_SUITE(Byte)
 BOOST_AUTO_TEST_CASE(Z) {
@@ -143,6 +143,5 @@ BOOST_AUTO_TEST_CASE(C) {
     run_test(8);
     BOOST_TEST(cpu.C);
 }
-BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE_END()

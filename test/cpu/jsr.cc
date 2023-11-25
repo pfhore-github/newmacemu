@@ -6,10 +6,8 @@
 #include <boost/test/data/test_case.hpp>
 #include <boost/test/unit_test.hpp>
 namespace bdata = boost::unit_test::data;
-BOOST_FIXTURE_TEST_SUITE(JSR, Prepare)
-
-struct F {
-    F() {
+struct F_JSR {
+    F_JSR() {
         // JSR (%A3)
         TEST::SET_W(0, 0047220 | 3);
         TEST::SET_W(2, TEST_BREAK);
@@ -20,7 +18,9 @@ struct F {
         jit_compile(0x30, 2);
     }
 };
-BOOST_AUTO_TEST_SUITE(R, *boost::unit_test::fixture<F>())
+
+BOOST_FIXTURE_TEST_SUITE(JSR, Prepare, *boost::unit_test::fixture<F_JSR>())
+
 
 BOOST_AUTO_TEST_CASE(execute) {
     cpu.A[3] = 0x30;
@@ -40,5 +40,4 @@ BOOST_AUTO_TEST_CASE(traced) {
 	run_test(0);
 	BOOST_TEST(cpu.ex_n == 9 );
 }
-BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE_END()

@@ -10,9 +10,8 @@ auto& operator<<(std::ostream& os, TT t) {
     static const char* c[] = { "NORMAL", "MOVE16", "ALT", "ACK" };
     return os << c[int(t)]; 
 }
-BOOST_FIXTURE_TEST_SUITE(MOVES, Prepare)
-struct F {
-    F() {
+struct F_MOVES {
+    F_MOVES() {
         // MOVES.B (%A2), %D3
         TEST::SET_W(0, 0007022);
         TEST::SET_W(2, 3 << 12);
@@ -44,9 +43,10 @@ struct F {
         TEST::SET_W(34, TEST_BREAK);
 
         jit_compile(0, 36);
-    }
-};
-BOOST_AUTO_TEST_SUITE(R, *boost::unit_test::fixture<F>())
+    }};
+BOOST_FIXTURE_TEST_SUITE(MOVES, Prepare, *boost::unit_test::fixture<F_MOVES>())
+
+
 BOOST_AUTO_TEST_SUITE(Load)
 BOOST_AUTO_TEST_SUITE(Byte)
 BOOST_AUTO_TEST_CASE(NG) {
@@ -195,7 +195,6 @@ BOOST_AUTO_TEST_CASE(traced) {
 	BOOST_TEST( cpu.ex_n == 9 );
 }
 
-BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE_END()
