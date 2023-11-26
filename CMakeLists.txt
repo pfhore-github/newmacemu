@@ -113,6 +113,8 @@ test/fpu/fdiv.cc test/fpu/fmod.cc  test/fpu/fadd.cc test/fpu/fmul.cc
 test/fpu/fsgldiv.cc test/fpu/frem.cc test/fpu/fscale.cc  test/fpu/fsglmul.cc
 test/fpu/fsub.cc test/fpu/fsincos.cc
 test/fpu/fcmp.cc test/fpu/ftst.cc
+test/fpu/fmovem.cc 
+test/fpu/fscc.cc 
 test/fpu/common.cc
 )
 add_executable(testcpu ${SRC_CPU} ${SRC_CHIPS} 
@@ -120,9 +122,9 @@ test/test_main.cc
 ${CPU_TEST}
 #[[
 
-test/fpu/fbcc.cc test/fpu/fnop.cc test/fpu/fscc.cc test/fpu/fdbcc.cc
+test/fpu/fbcc.cc test/fpu/fnop.cctest/fpu/fdbcc.cc
 
-test/fpu/fmovem.cc test/fpu/ftrapcc.cc
+test/fpu/ftrapcc.cc
 
 test/fpu/fpexcept.cc
 

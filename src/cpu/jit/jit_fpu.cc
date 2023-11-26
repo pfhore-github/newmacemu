@@ -19,12 +19,28 @@ void load_fpD(uint64_t v);
 void load_fpX(uint64_t frac, uint16_t exp);
 void load_fpP(uint32_t addr);
 
+int32_t fpu_storeL();
+int16_t fpu_storeW();
+int8_t fpu_storeB();
+uint32_t store_fpS();
+uint64_t store_fpD();
+std::tuple<uint64_t, uint16_t> store_fpX(int i);
+void store_fpP(uint32_t addr, int k);
+
 void fpu_testex();
 bool test_NAN1();
 auto FP_N(int n) {
     return x86::ptr(x86::rbx, offsetof(Cpu, FP) + sizeof(mpfr_t) * n);
 }
+void Set_FPCR(uint16_t v);
+void Set_FPSR(uint32_t v);
+uint16_t Get_FPCR();
+uint32_t Get_FPSR();
+uint32_t fmovem_from_reg(uint32_t base, uint8_t regs);
+uint32_t fmovem_from_reg_rev(uint32_t base, uint8_t regs);
+uint32_t fmovem_to_reg(uint32_t base, uint8_t regs);
 namespace JIT_OP {
+void jit_trace_branch();
 #ifdef __x86_64__
 void jit_fpu_prologue() {
     as->call(mpfr_clear_flags);
@@ -998,6 +1014,156 @@ void jit_fop_do(int opc, int dst) {
     as->mov(ARG2.r32(), int(prec));
     as->call(store_fpr);
 }
+
+void jit_store_fpX(uint32_t addr, int fpn) {
+    auto [frac, exp] = store_fpX(fpn);
+    WriteW(addr, exp);
+    WriteL(addr + 4, frac >> 32);
+    WriteL(addr + 8, frac);
+}
+void jit_fpu_store(int t, int type, int reg, int fpn, int k) {
+    as->lea(ARG1, FP_TMP);
+    as->lea(ARG2, FP_N(fpn));
+    as->mov(ARG3.r32(), FP_RND);
+    as->call(mpfr_set);
+
+    as->mov(x86::rax, x86::qword_ptr(x86::rbx, offsetof(Cpu, FP_nan) +
+                                                   sizeof(uint64_t) * fpn));
+    as->mov(x86::qword_ptr(x86::rbx, offsetof(Cpu, fp_tmp_nan)), x86::rax);
+
+    switch(FP_SIZE{t}) {
+    case FP_SIZE::LONG:
+        as->call(fpu_storeL);
+        ea_writeL_jit(type, reg, false);
+        break;
+    case FP_SIZE::SINGLE:
+        as->call(store_fpS);
+        ea_writeL_jit(type, reg, false);
+        break;
+    case FP_SIZE::EXT: {
+        ea_getaddr_jit(type, reg, 12);
+        as->mov(ARG2.r32(), fpn);
+        as->call(jit_store_fpX);
+        break;
+    }
+    case FP_SIZE::PACKED: {
+        ea_getaddr_jit(type, reg, 12);
+        as->mov(ARG2.r32(), static_cast<int8_t>(k << 1) >> 1);
+        as->call(store_fpP);
+        break;
+    }
+    case FP_SIZE::WORD:
+        as->call(fpu_storeW);
+        ea_writeW_jit(type, reg, false);
+        break;
+    case FP_SIZE::DOUBLE:
+        ea_getaddr_jit(type, reg, 8);
+        as->call(store_fpD);
+        as->mov(x86::r13, x86::rax);
+        as->mov(ARG2, x86::r13);
+        as->ror(ARG2, 32);
+        jit_writeL(EA, ARG2.r32());
+        as->mov(x86::esi, EA);
+        as->add(x86::esi, 4);
+        jit_writeL(x86::esi, x86::r13d);
+        break;
+    case FP_SIZE::BYTE:
+        as->call(fpu_storeB);
+        ea_writeB_jit(type, reg, false);
+        break;
+    case FP_SIZE::PACKED2:
+        ea_getaddr_jit(type, reg, 12);
+        as->movsx(ARG2.r32(), DR_B(k >> 4));
+        as->call(store_fpP);
+        break;
+    default:
+        __builtin_unreachable();
+    }
+    as->call(fpu_testex);
+}
+
+void jit_fmove_to_fpcc(int type, int reg, unsigned int regs) {
+    switch(regs) {
+    case 0: // NONE
+        break;
+    case 1: // IR
+        ea_readL_jit(type, reg);
+        as->mov(x86::dword_ptr(x86::rbx, offsetof(Cpu, FPIAR)), x86::eax);
+        break;
+    case 2: // FPSR
+        ea_readL_jit(type, reg);
+        as->mov(ARG1.r32(), x86::eax);
+        as->call(Set_FPSR);
+        break;
+    case 4: // FPCR
+        ea_readL_jit(type, reg);
+        as->mov(ARG1.r16(), x86::ax);
+        as->call(Set_FPCR);
+        break;
+    default:
+        ea_getaddr_jit(type, reg, 4 * std::popcount(regs));
+        as->mov(x86::r12d, EA);
+        if(regs & 4) {
+            jit_readL(x86::r12d);
+            as->mov(ARG1.r16(), x86::ax);
+            as->call(Set_FPCR);
+            as->add(x86::r12d, 4);
+        }
+        if(regs & 2) {
+            jit_readL(x86::r12d);
+            as->mov(ARG1.r32(), x86::eax);
+            as->call(Set_FPSR);
+            as->add(x86::r12d, 4);
+        }
+        if(regs & 1) {
+            jit_readL(x86::r12d);
+            as->mov(x86::dword_ptr(x86::rbx, offsetof(Cpu, FPIAR)), x86::eax);
+        }
+        break;
+    }
+    jit_trace_branch();
+}
+
+void jit_fmove_from_fpcc(int type, int reg, unsigned int regs) {
+    switch(regs) {
+    case 0: // NONE
+        break;
+    case 1: // IR
+        as->mov(x86::eax, x86::dword_ptr(x86::rbx, offsetof(Cpu, FPIAR)));
+        ea_writeL_jit(type, reg, false);
+        break;
+    case 2: // FPSR
+        as->call(Get_FPSR);
+        ea_writeL_jit(type, reg, false);
+        break;
+    case 4: // FPCR
+        as->call(Get_FPCR);
+        as->movzx(x86::eax, x86::ax);
+        ea_writeL_jit(type, reg, false);
+        break;
+    default:
+        ea_getaddr_jit(type, reg, 4 * std::popcount(regs));
+        as->mov(x86::r12d, EA);
+        if(regs & 4) {
+            as->call(Get_FPCR);
+            as->movzx(x86::eax, x86::ax);
+            jit_writeL(x86::r12d, x86::eax);
+            as->add(x86::r12d, 4);
+        }
+        if(regs & 2) {
+            as->call(Get_FPSR);
+            jit_writeL(x86::r12d, x86::eax);
+            as->add(x86::r12d, 4);
+        }
+        if(regs & 1) {
+            jit_writeL(x86::r12d,
+                       x86::dword_ptr(x86::rbx, offsetof(Cpu, FPIAR)));
+        }
+        break;
+    }
+    jit_trace_branch();
+}
+
 void fop(uint16_t op) {
     uint16_t extw = FETCH();
     bool rm = extw & 1 << 14;
@@ -1016,45 +1182,198 @@ void fop(uint16_t op) {
             jit_loadFP(TYPE(op), REG(op), rm, src);
             jit_fop_do(opc, dst);
         } else {
-#if 0            
             // FMOVE to ea
-            fpu_store(src, TYPE(op), REG(op), dst, opc);
-#endif
+            jit_fpu_store(src, TYPE(op), REG(op), dst, opc);
         }
     } else {
-#if 0
         switch(extw >> 13 & 3) {
         case 0:
             // FMOVE(M) to FPcc
-            fmove_to_fpcc(TYPE(op), REG(op), src);
+            jit_fmove_to_fpcc(TYPE(op), REG(op), src);
             break;
         case 1:
-            fmove_from_fpcc(TYPE(op), REG(op), src);
+            jit_fmove_from_fpcc(TYPE(op), REG(op), src);
             break;
-        case 2: {
-            uint8_t reglist =
-                extw & 1 << 11 ? cpu.D[extw >> 4 & 7] : extw & 0xff;
+        case 2:
+            if(extw & 1 << 11) {
+                as->mov(x86::r13b, DR_B(extw >> 4 & 7));
+            } else {
+                as->mov(x86::r13b, extw & 0xff);
+            }
             if(TYPE(op) == 3) {
-                cpu.A[REG(op)] = fmovem_to_reg(cpu.A[REG(op)], reglist);
+                as->mov(ARG1.r32(), AR_L(REG(op)));
+                as->mov(ARG2.r8(), x86::r13b);
+                as->call(fmovem_to_reg);
+                as->mov(AR_L(REG(op)), x86::eax);
             } else {
-                fmovem_to_reg(ea_getaddr(TYPE(op), REG(op), 0), reglist);
+                ea_getaddr_jit(TYPE(op), REG(op), 0);
+                as->mov(ARG2.r8(), x86::r13b);
+                as->call(fmovem_to_reg);
             }
-            TRACE_BRANCH();
+            jit_trace_branch();
+            break;
+        case 3:
+            if(extw & 1 << 11) {
+                as->mov(x86::r13b, DR_B(extw >> 4 & 7));
+            } else {
+                as->mov(x86::r13b, extw & 0xff);
+            }
+            if(!(extw & 1 << 12) && TYPE(op) == 4) {
+                as->mov(ARG1.r32(), AR_L(REG(op)));
+                as->mov(ARG2.r8(), x86::r13b);
+                as->call(fmovem_from_reg_rev);
+                as->mov(AR_L(REG(op)), x86::eax);
+            } else {
+                ea_getaddr_jit(TYPE(op), REG(op), 0);
+                as->mov(ARG2.r8(), x86::r13b);
+                as->call(fmovem_from_reg);
+            }
+            jit_trace_branch();
             break;
         }
-        case 3: {
-            uint8_t reglist =
-                extw & 1 << 11 ? cpu.D[extw >> 4 & 7] : extw & 0xff;
-            if(!(extw & 1 << 12) && TYPE(op) == 4) {
-                cpu.A[REG(op)] = fmovem_from_reg_rev(cpu.A[REG(op)], reglist);
-            } else {
-                fmovem_from_reg(ea_getaddr(TYPE(op), REG(op), 0), reglist);
-            }
-            TRACE_BRANCH();
-        }
-        }
-#endif
     }
+}
+
+void jit_test_Fcc(uint8_t v) {
+    switch(v) {
+    // (S)F
+    case 0B0000:
+        as->xor_(x86::al, x86::al);
+        break;
+    // (S)T
+    case 0B1111:
+        as->mov(x86::al, 1);
+        break;
+    case 0B0001:
+        // (S)EQ
+        as->mov(x86::al, x86::byte_ptr(x86::rbx, offsetof(Cpu, FPSR.CC_Z)));
+        as->test(x86::al, x86::al);
+        break;
+    case 0B1110:
+        // (S)NE
+        as->mov(x86::al, x86::byte_ptr(x86::rbx, offsetof(Cpu, FPSR.CC_Z)));
+        as->test(x86::al, x86::al);
+        as->sete(x86::al);
+        break;
+    case 0B0010:
+        // (O)GT
+        as->mov(x86::al, x86::byte_ptr(x86::rbx, offsetof(Cpu, FPSR.CC_NAN)));
+        as->or_(x86::al, x86::byte_ptr(x86::rbx, offsetof(Cpu, FPSR.CC_Z)));
+        as->or_(x86::al, x86::byte_ptr(x86::rbx, offsetof(Cpu, FPSR.CC_N)));
+        as->sete(x86::al);
+        break;
+    case 0B1101:
+        // NGT/ULE
+        as->mov(x86::al, x86::byte_ptr(x86::rbx, offsetof(Cpu, FPSR.CC_NAN)));
+        as->or_(x86::al, x86::byte_ptr(x86::rbx, offsetof(Cpu, FPSR.CC_Z)));
+        as->or_(x86::al, x86::byte_ptr(x86::rbx, offsetof(Cpu, FPSR.CC_N)));
+        break;
+    case 0B0011:
+        // (O)GE
+        as->mov(x86::al, x86::byte_ptr(x86::rbx, offsetof(Cpu, FPSR.CC_Z)));
+        as->mov(x86::dl, x86::byte_ptr(x86::rbx, offsetof(Cpu, FPSR.CC_NAN)));
+        as->or_(x86::dl, x86::byte_ptr(x86::rbx, offsetof(Cpu, FPSR.CC_N)));
+        as->sete(x86::dl);
+        as->or_(x86::al, x86::dl);
+        break;
+    case 0B1100:
+        // NGE/ULT
+        as->mov(x86::al, x86::byte_ptr(x86::rbx, offsetof(Cpu, FPSR.CC_NAN)));
+        as->mov(x86::dl, x86::byte_ptr(x86::rbx, offsetof(Cpu, FPSR.CC_N)));
+        as->mov(x86::cl, x86::byte_ptr(x86::rbx, offsetof(Cpu, FPSR.CC_Z)));
+        as->test(x86::cl, x86::cl);
+        as->sete(x86::cl);
+        as->and_(x86::cl, x86::dl);
+        as->or_(x86::al, x86::cl);
+        break;
+    case 0B0100:
+        // (O)LT
+        as->mov(x86::al, x86::byte_ptr(x86::rbx, offsetof(Cpu, FPSR.CC_N)));
+        as->mov(x86::dl, x86::byte_ptr(x86::rbx, offsetof(Cpu, FPSR.CC_NAN)));
+        as->or_(x86::dl, x86::byte_ptr(x86::rbx, offsetof(Cpu, FPSR.CC_Z)));
+        as->sete(x86::dl);
+        as->and_(x86::al, x86::dl);
+        break;
+    case 0B1011:
+        // NLT/UGE
+        as->mov(x86::al, x86::byte_ptr(x86::rbx, offsetof(Cpu, FPSR.CC_NAN)));
+        as->mov(x86::dl, x86::byte_ptr(x86::rbx, offsetof(Cpu, FPSR.CC_Z)));
+        as->mov(x86::cl, x86::byte_ptr(x86::rbx, offsetof(Cpu, FPSR.CC_N)));
+        as->test(x86::cl, x86::cl);
+        as->sete(x86::cl);
+        as->and_(x86::dl, x86::cl);
+        as->or_(x86::al, x86::dl);
+        break;
+    case 0B0101:
+        // (O)LE
+        as->mov(x86::al, x86::byte_ptr(x86::rbx, offsetof(Cpu, FPSR.CC_Z)));
+        as->mov(x86::dl, x86::byte_ptr(x86::rbx, offsetof(Cpu, FPSR.CC_N)));
+        as->mov(x86::cl, x86::byte_ptr(x86::rbx, offsetof(Cpu, FPSR.CC_NAN)));
+        as->test(x86::cl, x86::cl);
+        as->sete(x86::cl);
+        as->and_(x86::dl, x86::cl);
+        as->or_(x86::al, x86::dl);
+        break;
+    case 0B1010:
+        // NLE/UGT
+        as->mov(x86::al, x86::byte_ptr(x86::rbx, offsetof(Cpu, FPSR.CC_NAN)));
+        as->mov(x86::dl, x86::byte_ptr(x86::rbx, offsetof(Cpu, FPSR.CC_Z)));
+        as->mov(x86::cl, x86::byte_ptr(x86::rbx, offsetof(Cpu, FPSR.CC_N)));
+        as->test(x86::cl, x86::cl);
+        as->sete(x86::cl);
+        as->and_(x86::dl, x86::cl);
+        as->or_(x86::al, x86::dl);
+        break;
+    case 0B0110:
+        // O(GL)
+        as->mov(x86::al, x86::byte_ptr(x86::rbx, offsetof(Cpu, FPSR.CC_NAN)));
+        as->mov(x86::dl, x86::byte_ptr(x86::rbx, offsetof(Cpu, FPSR.CC_Z)));
+        as->or_(x86::al, x86::dl);
+        as->sete(x86::al);
+        break;
+    case 0B1001:
+        // NGL/UEQ
+        as->mov(x86::al, x86::byte_ptr(x86::rbx, offsetof(Cpu, FPSR.CC_NAN)));
+        as->mov(x86::dl, x86::byte_ptr(x86::rbx, offsetof(Cpu, FPSR.CC_Z)));
+        as->or_(x86::al, x86::dl);
+        break;
+    case 0B0111:
+        // GLE/OR
+        as->mov(x86::al, x86::byte_ptr(x86::rbx, offsetof(Cpu, FPSR.CC_NAN)));
+        as->test(x86::al, x86::al);
+        as->sete(x86::al);
+        break;
+    case 0B1000:
+        // NGL/UN
+        as->mov(x86::al, x86::byte_ptr(x86::rbx, offsetof(Cpu, FPSR.CC_NAN)));
+        break;
+    }
+    return;
+}
+
+void jit_test_bsun() {
+    auto lb = as->newLabel();
+    as->mov(x86::al, x86::byte_ptr(x86::rbx, offsetof(Cpu, FPSR.CC_NAN)));
+    as->test(x86::al, x86::al);
+    as->je(lb);
+    as->mov(x86::byte_ptr(x86::rbx, offsetof(Cpu, FPSR.BSUN)), 1);
+    as->mov(x86::al, x86::byte_ptr(x86::rbx, offsetof(Cpu, FPCR.BSUN)));
+    as->test(x86::al, x86::al);
+    as->je(lb);
+    as->call(FP_EX_BSUN);
+    as->bind(lb);
+}
+
+void fscc(uint16_t op) {
+    uint16_t extw = FETCH();
+    if(extw & 1 << 4) {
+        jit_test_bsun();
+    }
+    jit_test_Fcc(extw & 0xf);
+    as->neg(x86::al);
+    as->sbb(x86::dl, x86::dl);
+    as->mov(x86::al, x86::dl);
+    ea_writeB_jit(TYPE(op), REG(op), false);
 }
 #endif
 } // namespace JIT_OP
@@ -1062,7 +1381,7 @@ void fop(uint16_t op) {
 void init_jit_table_fpu() {
     for(int i = 0; i < 074; ++i) {
         jit_compile_op[0171000 | i] = JIT_OP::fop;
-        //        jit_compile_op[0171100 | i] = JIT_OP::fscc;
+        jit_compile_op[0171100 | i] = JIT_OP::fscc;
         //        jit_compile_op[0171400 | i] = JIT_OP::fsave;
         //        jit_compile_op[0171500 | i] = JIT_OP::frestore;
     }

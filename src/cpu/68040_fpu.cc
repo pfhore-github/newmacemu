@@ -281,7 +281,7 @@ uint16_t Get_FPCR() {
 static mpfr_rnd_t MPFR_RNDs[] = {MPFR_RNDN, MPFR_RNDZ, MPFR_RNDD, MPFR_RNDU};
 static FPU_PREC MPFR_PRECs[] = {FPU_PREC::X, FPU_PREC::S, FPU_PREC::D,
                                 FPU_PREC::X};
-static void Set_FPCR(uint16_t v) {
+void Set_FPCR(uint16_t v) {
     cpu.FPCR.RND = MPFR_RNDs[v >> 4 & 3];
     cpu.FPCR.PREC = MPFR_PRECs[v >> 6 & 3];
     cpu.FPCR.INEX1 = v & 1 << 8;
@@ -355,7 +355,7 @@ bool test_Fcc(uint8_t v) {
         // O(GL)
         return !(cpu.FPSR.CC_NAN || cpu.FPSR.CC_Z);
     case 0B1001:
-        // MGL/UEQ
+        // NGL/UEQ
         return (cpu.FPSR.CC_NAN || cpu.FPSR.CC_Z);
     case 0B0111:
         // GLE/OR
@@ -366,7 +366,7 @@ bool test_Fcc(uint8_t v) {
     }
     return false;
 }
-static void Set_FPSR(uint32_t v) {
+void Set_FPSR(uint32_t v) {
     cpu.FPSR.CC_N = v & 1 << 27;
     cpu.FPSR.CC_Z = v & 1 << 26;
     cpu.FPSR.CC_I = v & 1 << 25;
