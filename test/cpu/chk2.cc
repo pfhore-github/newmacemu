@@ -80,7 +80,7 @@ BOOST_AUTO_TEST_CASE(Under) {
     cpu.A[2] = 0x100;
     cpu.D[3] = 20;
 	run_test(0);
-    BOOST_TEST(cpu.ex_n == 6);
+    BOOST_TEST(cpu.ex_n == EXCAPTION_NUMBER::CHK_FAIL);
     BOOST_TEST(cpu.C);
 }
 
@@ -90,7 +90,7 @@ BOOST_AUTO_TEST_CASE(Over) {
     cpu.A[2] = 0x100;
     cpu.D[3] = 250;
 	run_test(0);
-    BOOST_TEST(cpu.ex_n == 6);
+    BOOST_TEST(cpu.ex_n == EXCAPTION_NUMBER::CHK_FAIL);
     BOOST_TEST(cpu.C);
 }
 BOOST_AUTO_TEST_SUITE_END()
@@ -130,7 +130,7 @@ BOOST_AUTO_TEST_CASE(Under) {
     cpu.A[2] = 0x100;
     cpu.A[3] = -100;
 	run_test(6);
-    BOOST_TEST(cpu.ex_n == 6);
+    BOOST_TEST(cpu.ex_n == EXCAPTION_NUMBER::CHK_FAIL);
     BOOST_TEST(cpu.C);
 }
 
@@ -140,7 +140,7 @@ BOOST_AUTO_TEST_CASE(Over) {
     cpu.A[2] = 0x100;
     cpu.A[3] = 100;
 	run_test(6);
-    BOOST_TEST(cpu.ex_n == 6);
+    BOOST_TEST(cpu.ex_n == EXCAPTION_NUMBER::CHK_FAIL);
     BOOST_TEST(cpu.C);
 }
 BOOST_AUTO_TEST_SUITE_END()
@@ -182,7 +182,7 @@ BOOST_AUTO_TEST_CASE(Under) {
     cpu.A[2] = 0x100;
     cpu.D[3] = 2000;
 	run_test(12);
-    BOOST_TEST(cpu.ex_n == 6);
+    BOOST_TEST(cpu.ex_n == EXCAPTION_NUMBER::CHK_FAIL);
     BOOST_TEST(cpu.C);
 }
 
@@ -192,7 +192,7 @@ BOOST_AUTO_TEST_CASE(Over) {
     cpu.A[2] = 0x100;
     cpu.D[3] = 250000;
 	run_test(12);
-    BOOST_TEST(cpu.ex_n == 6);
+    BOOST_TEST(cpu.ex_n == EXCAPTION_NUMBER::CHK_FAIL);
     BOOST_TEST(cpu.C);
 }
 BOOST_AUTO_TEST_SUITE_END()
@@ -232,7 +232,7 @@ BOOST_AUTO_TEST_CASE(Under) {
     cpu.A[2] = 0x100;
     cpu.A[3] = -1000;
 	run_test(18);
-    BOOST_TEST(cpu.ex_n == 6);
+    BOOST_TEST(cpu.ex_n == EXCAPTION_NUMBER::CHK_FAIL);
     BOOST_TEST(cpu.C);
 }
 
@@ -242,7 +242,7 @@ BOOST_AUTO_TEST_CASE(Over) {
     cpu.A[2] = 0x100;
     cpu.A[3] = 2600;
 	run_test(18);
-    BOOST_TEST(cpu.ex_n == 6);
+    BOOST_TEST(cpu.ex_n == EXCAPTION_NUMBER::CHK_FAIL);
     BOOST_TEST(cpu.C);
 }
 BOOST_AUTO_TEST_SUITE_END()
@@ -285,7 +285,7 @@ BOOST_AUTO_TEST_CASE(Under) {
     cpu.A[2] = 0x100;
     cpu.D[3] = 200000;
 	run_test(24);
-    BOOST_TEST(cpu.ex_n == 6);
+    BOOST_TEST(cpu.ex_n == EXCAPTION_NUMBER::CHK_FAIL);
     BOOST_TEST(cpu.C);
 }
 
@@ -295,7 +295,7 @@ BOOST_AUTO_TEST_CASE(Over) {
     cpu.A[2] = 0x1000;
     cpu.D[3] = 25000000;
 	run_test(24);
-    BOOST_TEST(cpu.ex_n == 6);
+    BOOST_TEST(cpu.ex_n == EXCAPTION_NUMBER::CHK_FAIL);
     BOOST_TEST(cpu.C);
 }
 BOOST_AUTO_TEST_SUITE_END()
@@ -335,7 +335,7 @@ BOOST_AUTO_TEST_CASE(Under) {
     cpu.A[2] = 0x100;
     cpu.A[3] = -100000;
 	run_test(30);
-    BOOST_TEST(cpu.ex_n == 6);
+    BOOST_TEST(cpu.ex_n == EXCAPTION_NUMBER::CHK_FAIL);
     BOOST_TEST(cpu.C);
 }
 
@@ -345,7 +345,7 @@ BOOST_AUTO_TEST_CASE(Over) {
     cpu.A[2] = 0x100;
     cpu.A[3] = 260000;
 	run_test(30);
-    BOOST_TEST(cpu.ex_n == 6);
+    BOOST_TEST(cpu.ex_n == EXCAPTION_NUMBER::CHK_FAIL);
     BOOST_TEST(cpu.C);
 }
 BOOST_AUTO_TEST_SUITE_END()

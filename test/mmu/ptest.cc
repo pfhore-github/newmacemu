@@ -92,7 +92,7 @@ BOOST_AUTO_TEST_CASE(traced) {
     cpu.DFC = 1;
     TEST::SET_W(0, 0172552);
     un_test(0);
-	BOOST_TEST(cpu.ex_n == 9 );
+	BOOST_TEST(cpu.ex_n == EXCAPTION_NUMBER::TRACE );
 }
 BOOST_AUTO_TEST_CASE(user_data) {
     cpu.TCR_E = true;
@@ -179,7 +179,7 @@ BOOST_AUTO_TEST_CASE(traced) {
     cpu.DFC = 1;
     TEST::SET_W(0, 0172512);
     un_test(0);
-	BOOST_TEST(cpu.ex_n == 9 );
+	BOOST_TEST(cpu.ex_n == EXCAPTION_NUMBER::TRACE );
 }
 
 BOOST_AUTO_TEST_CASE(user_data) {

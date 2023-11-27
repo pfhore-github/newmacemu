@@ -19,7 +19,7 @@ BOOST_AUTO_TEST_CASE(traced) {
     cpu.A[3] = 0x1 << 12;
     TEST::SET_W(0, 0172403);
     un_test(0);
-	BOOST_TEST(cpu.ex_n == 9 );
+	BOOST_TEST(cpu.ex_n == EXCAPTION_NUMBER::TRACE );
 }
 
 BOOST_AUTO_TEST_CASE(user) {
@@ -83,7 +83,7 @@ BOOST_AUTO_TEST_CASE(traced) {
     cpu.A[3] = 0x1 << 12;
     TEST::SET_W(0, 0172413);
     un_test(0);
-	BOOST_TEST(cpu.ex_n == 9 );
+	BOOST_TEST(cpu.ex_n == EXCAPTION_NUMBER::TRACE );
 }
 
 BOOST_AUTO_TEST_CASE(user) {
@@ -151,7 +151,7 @@ BOOST_AUTO_TEST_CASE(traced) {
     cpu.A[3] = 0x1 << 12;
     TEST::SET_W(0, 0172423);
     un_test(0);
-	BOOST_TEST(cpu.ex_n == 9 );
+	BOOST_TEST(cpu.ex_n == EXCAPTION_NUMBER::TRACE );
 }
 
 BOOST_AUTO_TEST_CASE(user) {
@@ -217,7 +217,7 @@ BOOST_AUTO_TEST_CASE(traced) {
     cpu.A[3] = 0x1 << 12;
     TEST::SET_W(0, 0172433);
     un_test(0);
-	BOOST_TEST(cpu.ex_n == 9 );
+	BOOST_TEST(cpu.ex_n == EXCAPTION_NUMBER::TRACE );
 }
 
 BOOST_AUTO_TEST_CASE(user) {

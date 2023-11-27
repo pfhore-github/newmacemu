@@ -21,7 +21,7 @@ BOOST_FIXTURE_TEST_SUITE(RESET, Prepare, *boost::unit_test::fixture<F_RESET>())
 BOOST_AUTO_TEST_CASE(user) {
     cpu.S = false;
 	run_test(0);
-	BOOST_TEST( cpu.ex_n == 8 );
+	BOOST_TEST( cpu.ex_n == EXCAPTION_NUMBER::PRIV_ERR );
 }
 
 BOOST_AUTO_TEST_CASE(sys) {

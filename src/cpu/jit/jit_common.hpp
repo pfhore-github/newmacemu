@@ -22,6 +22,10 @@ constexpr auto AR_W(int n) { return word_ptr(rbx, (8 + n) * sizeof(uint32_t)); }
 constexpr auto AR_L(int n) { return dword_ptr(rbx, (8 + n) * sizeof(uint32_t)); }
 constexpr auto SP = AR_L(7);
 constexpr auto c_pc = dword_ptr(rbx, offsetof(Cpu, PC));
+#define CPU_BYTE(name_) x86::byte_ptr(x86::rbx, offsetof(Cpu, name_))
+#define CPU_WORD(name_) x86::word_ptr(x86::rbx, offsetof(Cpu, name_))
+#define CPU_LONG(name_) x86::dword_ptr(x86::rbx, offsetof(Cpu, name_))
+#define CPU_DLONG(name_) x86::qword_ptr(x86::rbx, offsetof(Cpu, name_))
 void call_prolog();
 void call_epilog(bool restoreRax);
 #ifdef WIN32
@@ -86,6 +90,44 @@ template <class Adr, class Val> void jit_writeL(const Adr &adr, const Val &v) {
         as->mov(ARG2.r32(), v);
     }
     as->call(WriteL);
+}
+enum class COND {
+    TRUE, FALSE, EQ, NE, LE, LT, GE, GT
+};
+template<class T> void jit_if(COND cc, T t) {
+    auto ENDIF = as->newLabel();
+    switch(cc) {
+        case COND::TRUE: as->jz(ENDIF); break;
+        case COND::FALSE: as->jnz(ENDIF); break;
+        case COND::EQ: as->jne(ENDIF); break;
+        case COND::NE: as->je(ENDIF); break;
+        case COND::LE: as->jg(ENDIF); break;
+        case COND::LT: as->jge(ENDIF); break;
+        case COND::GE: as->jl(ENDIF); break;
+        case COND::GT: as->jle(ENDIF); break;
+    }
+    t();
+    as->bind(ENDIF);
+}
+
+template<class T, class F> void jit_if(COND cc, T t, F f) {
+    auto ELSE = as->newLabel();
+    auto ENDIF = as->newLabel();
+     switch(cc) {
+        case COND::TRUE: as->jz(ELSE); break;
+        case COND::FALSE: as->jnz(ELSE); break;
+        case COND::EQ: as->jne(ELSE); break;
+        case COND::NE: as->je(ELSE); break;
+        case COND::LE: as->jg(ELSE); break;
+        case COND::LT: as->jge(ELSE); break;
+        case COND::GE: as->jl(ELSE); break;
+        case COND::GT: as->jle(ELSE); break;
+    }
+    t();
+    as->jmp(ENDIF);
+    as->bind(ELSE);
+    f();
+    as->bind(ENDIF);
 }
 #endif
 #endif

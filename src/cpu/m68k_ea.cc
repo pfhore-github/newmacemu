@@ -98,18 +98,19 @@ uint32_t ea_getaddr(int type, int reg, int sz) {
     ILLEGAL_OP();
 }
 
-uint8_t ea_readB(int type, int reg) {
+uint8_t ea_readB(int type, int reg, bool lk) {
     if(type == 0) {
         return cpu.D[reg];
     } else if(type == 7 && reg == 4) {
         return FETCH();
     } else {
         cpu.EA = ea_getaddr(type, reg, 1);
+        cpu.bus_lock = lk;
         return ReadB(cpu.EA);
     }
 }
 
-uint32_t ea_readW(int type, int reg) {
+uint32_t ea_readW(int type, int reg, bool lk) {
     if(type == 0) {
         return cpu.D[reg] & 0xffff;
     } else if(type == 1) {
@@ -118,11 +119,12 @@ uint32_t ea_readW(int type, int reg) {
         return FETCH();
     } else {
         cpu.EA = ea_getaddr(type, reg, 2);
+        cpu.bus_lock = lk;
         return ReadW(cpu.EA);
     }
 }
 
-uint32_t ea_readL(int type, int reg) {
+uint32_t ea_readL(int type, int reg, bool lk) {
     if(type == 0) {
         return cpu.D[reg];
     } else if(type == 1) {
@@ -131,43 +133,47 @@ uint32_t ea_readL(int type, int reg) {
         return FETCH32();
     } else {
         cpu.EA = ea_getaddr(type, reg, 4);
+        cpu.bus_lock = lk;
         return ReadL(cpu.EA);
     }
 }
 
-void ea_writeB(int type, int reg, uint8_t v, bool update) {
+void ea_writeB(int type, int reg, uint8_t v) {
     if(type == 0) {
         STORE_B(cpu.D[reg], v);
     } else {
-        if(!update) {
+        if(!cpu.bus_lock) {
             cpu.EA = ea_getaddr(type, reg, 1);
         }
         WriteB(cpu.EA, v);
+        cpu.bus_lock = false;
     }
 }
 
-void ea_writeW(int type, int reg, uint16_t v, bool update) {
+void ea_writeW(int type, int reg, uint16_t v) {
     if(type == 0) {
         STORE_W(cpu.D[reg], v);
     } else if(type == 1) {
         cpu.A[reg] = static_cast<int16_t>(v);
     } else {
-        if(!update) {
+        if(!cpu.bus_lock) {
             cpu.EA = ea_getaddr(type, reg, 2);
         }
         WriteW(cpu.EA, v);
+        cpu.bus_lock = false;
     }
 }
 
-void ea_writeL(int type, int reg, uint32_t v, bool update) {
+void ea_writeL(int type, int reg, uint32_t v) {
     if(type == 0) {
         STORE_L(cpu.D[reg], v);
     } else if(type == 1) {
         cpu.A[reg] = v;
     } else {
-        if(!update) {
+        if(!cpu.bus_lock) {
             cpu.EA = ea_getaddr(type, reg, 4);
         }
         WriteL(cpu.EA, v);
+        cpu.bus_lock = false;
     }
 }

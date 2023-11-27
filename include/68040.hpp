@@ -15,7 +15,6 @@ enum class FPU_PREC {
     D,
     AUTO,
 };
-struct FaultParam;
 struct Cpu {
     uint32_t D[8];
     uint32_t A[8];
@@ -76,10 +75,11 @@ struct Cpu {
     std::unordered_map<uint32_t, atc_entry> l_atc[2], g_atc[2];
     // internal
     jmp_buf ex;
-    std::unique_ptr<FaultParam> faultParam;
+    uint16_t fault_SSW;
     uint32_t oldpc;
     uint32_t ex_addr;
-    volatile uint8_t ex_n;
+    volatile EXCAPTION_NUMBER ex_n;
+    bool bus_lock;
 
     bool in_exception;
     bool must_trace;
@@ -111,12 +111,12 @@ struct mmu_result {
 // Mac 68K has no multi CPU, so doesn't support multi CPU!
 extern Cpu cpu;
 uint32_t ea_getaddr(int type, int reg, int sz);
-uint8_t ea_readB(int type, int reg);
-uint32_t ea_readW(int type, int reg);
-uint32_t ea_readL(int type, int reg);
-void ea_writeB(int type, int reg, uint8_t v, bool update);
-void ea_writeW(int type, int reg, uint16_t v, bool update);
-void ea_writeL(int type, int reg, uint32_t v, bool update);
+uint8_t ea_readB(int type, int reg, bool lk = false);
+uint32_t ea_readW(int type, int reg, bool lk = false);
+uint32_t ea_readL(int type, int reg, bool lk = false);
+void ea_writeB(int type, int reg, uint8_t v);
+void ea_writeW(int type, int reg, uint16_t v);
+void ea_writeL(int type, int reg, uint32_t v);
 using run_t = void (*)(uint16_t op);
 
 inline void PRIV_CHECK() {

@@ -24,13 +24,13 @@ BOOST_FIXTURE_TEST_SUITE(STOP, Prepare, *boost::unit_test::fixture<F_STOP>())
 BOOST_AUTO_TEST_CASE(user) {
     cpu.S = false;
     run_test(0);
-    BOOST_TEST(cpu.ex_n == 8);
+    BOOST_TEST(cpu.ex_n == EXCAPTION_NUMBER::PRIV_ERR);
 }
 std::atomic<bool> running = true;
 BOOST_AUTO_TEST_CASE(sys) {
     cpu.S = true;
     running = true;
-    std::thread tx([]() { do_irq(7); });
+    std::thread tx([] { do_irq(7); });
     run_test(0);
     tx.join();
     BOOST_TEST(GetCCR() == 0xf);

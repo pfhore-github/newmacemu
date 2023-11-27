@@ -26,6 +26,7 @@ void cpu_thread() {
 			}
 		} else {
 			handle_exception(cpu.ex_n);
+            cpu.bus_lock = false;
 		}
 	}
 }

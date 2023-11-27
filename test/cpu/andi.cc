@@ -128,7 +128,7 @@ BOOST_AUTO_TEST_SUITE(SR)
 BOOST_AUTO_TEST_CASE(NG) {
     cpu.S = false;
 	run_test(46);
-	BOOST_TEST( cpu.ex_n == 8 );
+	BOOST_TEST( cpu.ex_n == EXCAPTION_NUMBER::PRIV_ERR );
 }
 
 BOOST_AUTO_TEST_CASE(OK) {
@@ -141,7 +141,7 @@ BOOST_AUTO_TEST_CASE(Traced) {
     cpu.S = true;
     cpu.T = 1;
 	run_test(46);
-	BOOST_TEST(cpu.ex_n == 9 );
+	BOOST_TEST(cpu.ex_n == EXCAPTION_NUMBER::TRACE );
 }
 BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE_END()

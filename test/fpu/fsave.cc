@@ -5,20 +5,36 @@
 #include <boost/test/data/test_case.hpp>
 #include <boost/test/unit_test.hpp>
 namespace bdata = boost::unit_test::data;
-BOOST_FIXTURE_TEST_SUITE(FSAVE, Prepare)
+struct F_FSAVE {
+    F_FSAVE() {
+        // FSAVE (%A2)
+        TEST::SET_W(0, 0171422);
+        TEST::SET_W(2, TEST_BREAK);
+
+        jit_compile(0, 4);
+    }
+};
+BOOST_FIXTURE_TEST_SUITE(FSAVE, Prepare, *boost::unit_test::fixture<F_FSAVE>())
+
 BOOST_AUTO_TEST_CASE(err) {
     cpu.S = false;
-    TEST::SET_W(0, 0171420);
-    BOOST_TEST(run_test() == 8);
+    cpu.A[2] = 0x100;
+    run_test(0);
+    BOOST_TEST(cpu.ex_n == EXCAPTION_NUMBER::PRIV_ERR);
 }
 
+BOOST_AUTO_TEST_CASE(traced) {
+    cpu.S = true;
+    cpu.T = 1;
+    cpu.A[2] = 0x100;
+    run_test(0);
+    BOOST_TEST(cpu.ex_n == EXCAPTION_NUMBER::TRACE);
+}
 BOOST_AUTO_TEST_CASE(normal) {
     cpu.S = true;
-    cpu.A[2] = 0x1000;
-    TEST::SET_W(0, 0171422);
-    run_test();
-    BOOST_TEST(cpu.PC == 2);
-    BOOST_TEST(TEST::GET_L(0x1000) == 0x41000000);
+    cpu.A[2] = 0x100;
+    run_test(0);
+    BOOST_TEST(TEST::GET_L(0x100) == 0x41000000);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

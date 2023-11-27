@@ -1205,10 +1205,10 @@ void fpu_store(int t, int type, int reg, int fpn, int k) {
 
     switch(FP_SIZE{t}) {
     case FP_SIZE::LONG:
-        ea_writeL(type, reg, fpu_storeL(), false);
+        ea_writeL(type, reg, fpu_storeL());
         break;
     case FP_SIZE::SINGLE:
-        ea_writeL(type, reg, store_fpS(), false);
+        ea_writeL(type, reg, store_fpS());
         break;
     case FP_SIZE::EXT: {
         cpu.EA = ea_getaddr(type, reg, 12);
@@ -1223,14 +1223,14 @@ void fpu_store(int t, int type, int reg, int fpn, int k) {
         break;
     }
     case FP_SIZE::WORD:
-        ea_writeW(type, reg, fpu_storeW(), false);
+        ea_writeW(type, reg, fpu_storeW());
         break;
     case FP_SIZE::DOUBLE:
         cpu.EA = ea_getaddr(type, reg, 8);
         WriteLL(cpu.EA, store_fpD());
         break;
     case FP_SIZE::BYTE:
-        ea_writeB(type, reg, fpu_storeB(), false);
+        ea_writeB(type, reg, fpu_storeB());
         break;
     case FP_SIZE::PACKED2:
         cpu.EA = ea_getaddr(type, reg, 12);
@@ -1279,13 +1279,13 @@ void fmove_from_fpcc(int type, int reg, unsigned int regs) {
     case 0: // NONE
         break;
     case 1: // IR
-        ea_writeL(type, reg, cpu.FPIAR, false);
+        ea_writeL(type, reg, cpu.FPIAR);
         break;
     case 2: // FPSR
-        ea_writeL(type, reg, Get_FPSR(), false);
+        ea_writeL(type, reg, Get_FPSR());
         break;
     case 4: // FPCR
-        ea_writeL(type, reg, Get_FPCR(), false);
+        ea_writeL(type, reg, Get_FPCR());
         break;
     default: {
         uint32_t v = cpu.EA = ea_getaddr(type, reg, 4 * std::popcount(regs));
@@ -1364,7 +1364,7 @@ void fscc(uint16_t op) {
     if(extw & 1 << 4) {
         test_bsun();
     }
-    ea_writeB(TYPE(op), REG(op), test_Fcc(extw & 0xf) ? 0xff : 0, false);
+    ea_writeB(TYPE(op), REG(op), test_Fcc(extw & 0xf) ? 0xff : 0);
 }
 void fdbcc(uint16_t op) {
     uint16_t extw = FETCH();
@@ -1424,7 +1424,7 @@ void fbcc_l(uint16_t op) {
 void fsave(uint16_t op) {
     PRIV_CHECK();
     // always save idle
-    ea_writeL(TYPE(op), REG(op), 0x41000000, false);
+    ea_writeL(TYPE(op), REG(op), 0x41000000);
     TRACE_BRANCH();
 }
 
@@ -1456,7 +1456,6 @@ void frestore(uint16_t op) {
         cpu.EA = ea_getaddr(TYPE(op), REG(op), 0);
         auto first = do_frestore_common();
         if(!first) {
-            reset_fpu();
             return;
         }
         // only check format

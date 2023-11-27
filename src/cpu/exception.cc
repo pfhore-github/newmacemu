@@ -38,7 +38,7 @@ void EXCEPTION3(int n, uint16_t sr) {
     JUMP(ReadL(cpu.VBR + (n << 2)));
 }
 
-void handle_exception(int n) {
+void handle_exception(EXCAPTION_NUMBER n) {
     if(cpu.in_exception) {
         double_fault();
     }
@@ -48,26 +48,19 @@ void handle_exception(int n) {
     LoadSP();
     cpu.T = 0;
     switch(n) {
-    case 0:
-    case 1:
+    case EXCAPTION_NUMBER::NO_ERR:
+    case EXCAPTION_NUMBER::RESET:
         break;
-    case 2:
-        // ACCESS FAULT
+    case EXCAPTION_NUMBER::AFAULT:
         cpu.A[7] -= 4 * 9;
         PUSH32(cpu.ex_addr);
         cpu.A[7] -= 2 * 3;
         if(cpu.must_trace) {
-            cpu.faultParam->CT = true;
+            cpu.fault_SSW |= SSW_CT;
         }
         // SSW
-        PUSH16(cpu.faultParam->CP << 15 | cpu.faultParam->CU << 14 |
-               cpu.faultParam->CT << 13 | cpu.faultParam->CM << 12 |
-               cpu.faultParam->MA << 11 | cpu.faultParam->ATC << 10 |
-               cpu.faultParam->LK << 9 | cpu.faultParam->RW << 8 |
-               int(cpu.faultParam->size) << 5 | int(cpu.faultParam->tt) << 3 |
-               int(cpu.faultParam->tm));
-        if(cpu.faultParam->CP || cpu.faultParam->CU || cpu.faultParam->CT ||
-           cpu.faultParam->CM) {
+        PUSH16(cpu.fault_SSW);
+        if(cpu.fault_SSW & (SSW_CP | SSW_CU | SSW_CT | SSW_CM)) {
             PUSH32(cpu.EA);
         } else {
             PUSH32(0);
@@ -78,117 +71,122 @@ void handle_exception(int n) {
         JUMP(ReadL(cpu.VBR + (2 << 2)));
 
         // reset mid flag
-		cpu.faultParam.reset();
+        cpu.fault_SSW = 0;
 
         break;
-    case 3:
-        // ADDRESS ERROR
-        EXCEPTION2(3, cpu.oldpc, cpu.ex_addr, sr);
+    case EXCAPTION_NUMBER::ADDR_ERR:
+        EXCEPTION2(3, cpu.ex_addr& ~1, cpu.oldpc, sr);
         break;
-    case 4:  // ILLEGAL OP
-    case 8:  // PRIV ERROR
-    case 10: // ALINE
-    case 11: // FLINE
-    case 14: // FORMAT_ERROR
-        EXCEPTION0(n, cpu.oldpc, sr);
+    case EXCAPTION_NUMBER::ILLEGAL_OP:  
+    case EXCAPTION_NUMBER::PRIV_ERR:  
+    case EXCAPTION_NUMBER::ALINE:
+    case EXCAPTION_NUMBER::FLINE: 
+    case EXCAPTION_NUMBER::FORMAT_ERR:
+        EXCEPTION0(int(n), cpu.oldpc, sr);
         break;
-    case 32: // TRAP#x
-    case 33:
-    case 34:
-    case 35:
-    case 36:
-    case 37:
-    case 38:
-    case 39:
-    case 40:
-    case 41:
-    case 42:
-    case 43:
-    case 44:
-    case 45:
-    case 46:
-    case 47:
-        EXCEPTION0(n, cpu.PC, sr);
+    case EXCAPTION_NUMBER::TRAP0: // TRAP#x
+    case EXCAPTION_NUMBER::TRAP1:
+    case EXCAPTION_NUMBER::TRAP2:
+    case EXCAPTION_NUMBER::TRAP3:
+    case EXCAPTION_NUMBER::TRAP4:
+    case EXCAPTION_NUMBER::TRAP5:
+    case EXCAPTION_NUMBER::TRAP6:
+    case EXCAPTION_NUMBER::TRAP7:
+    case EXCAPTION_NUMBER::TRAP8:
+    case EXCAPTION_NUMBER::TRAP9:
+    case EXCAPTION_NUMBER::TRAP10:
+    case EXCAPTION_NUMBER::TRAP11:
+    case EXCAPTION_NUMBER::TRAP12:
+    case EXCAPTION_NUMBER::TRAP13:
+    case EXCAPTION_NUMBER::TRAP14:
+    case EXCAPTION_NUMBER::TRAP15:
+        EXCEPTION0(int(n), cpu.PC, sr);
         break;
-    case 5: // DIV0
-    case 6: // CHK
-    case 7: // TRAPX
-    case 9: // TRACE
-        EXCEPTION2(n, cpu.PC, cpu.oldpc, sr);
+    case EXCAPTION_NUMBER::DIV0: 
+    case EXCAPTION_NUMBER::CHK_FAIL: 
+    case EXCAPTION_NUMBER::TRAPx: 
+    case EXCAPTION_NUMBER::TRACE:
+        EXCEPTION2(int(n), cpu.oldpc, cpu.PC, sr);
         break;
-    case 48: // FP_BSUN
-    case 49: // FP_EX_INEX
-    case 50: // FP_DIV0
-    case 51: // FP_UNFL
-    case 52: // FP_OPERR
-    case 53: // FP_OVFL
-    case 54: // FP_SNAN
-    case 55: // FP_EX_UNIMPL_TYPE
-        EXCEPTION3(n, cpu.oldpc);
+    case EXCAPTION_NUMBER::FP_UNORDER:
+    case EXCAPTION_NUMBER::FP_INEX: 
+    case EXCAPTION_NUMBER::FP_DIV0:
+    case EXCAPTION_NUMBER::FP_UNFL:
+    case EXCAPTION_NUMBER::FP_OPERR:
+    case EXCAPTION_NUMBER::FP_OVFL: 
+    case EXCAPTION_NUMBER::FP_SNAN:
+    case EXCAPTION_NUMBER::FP_UNIMPL_TYPE: 
+        EXCEPTION3(int(n), cpu.oldpc);
         break;
-    case 24: // IRQ 0
-    case 25: // IRQ 1
-    case 26: // IRQ 2
-    case 27: // IRQ 3
-    case 28: // IRQ 4
-    case 29: // IRQ 5
-    case 30: // IRQ 6
-    case 31: // IRQ 7
-        cpu.I = n - 24;
-        PUSH16(n << 2);
+    case EXCAPTION_NUMBER::UNDEF_IRQ: 
+    case EXCAPTION_NUMBER::UNKNOWN_IRQ: 
+    case EXCAPTION_NUMBER::IRQ_LV1:
+    case EXCAPTION_NUMBER::IRQ_LV2:
+    case EXCAPTION_NUMBER::IRQ_LV3:
+    case EXCAPTION_NUMBER::IRQ_LV4:
+    case EXCAPTION_NUMBER::IRQ_LV5:
+    case EXCAPTION_NUMBER::IRQ_LV6:
+    case EXCAPTION_NUMBER::IRQ_LV7:
+        cpu.I = int(n) - 24;
+        PUSH16(int(n) << 2);
         PUSH32(cpu.PC);
         PUSH16(sr);
         if(cpu.M) {
             cpu.M = false;
             LoadSP();
-            PUSH32(0x01 << 12 | (n << 2));
+            PUSH32(0x01 << 12 | (int(n) << 2));
             PUSH32(cpu.PC);
             PUSH16(sr);
         }
-        JUMP(ReadL(cpu.VBR + (n << 2)));
+        JUMP(ReadL(cpu.VBR + (int(n) << 2)));
         break;
     }
 }
-[[noreturn]] static inline void RAISE(int n) {
+[[noreturn]] static inline void RAISE(EXCAPTION_NUMBER n) {
     cpu.ex_n = n;
     longjmp(cpu.ex, 1);
 }
 void ACCESS_FAULT(uint32_t a, SIZ sz, bool rw,  TM m) {
     cpu.ex_addr = a;
-    cpu.faultParam->CM = cpu.movem_run;
-    cpu.faultParam->RW = rw;
-    cpu.faultParam->size = sz;
-    cpu.faultParam->tm = m;
-    RAISE(2);
+    if( cpu.movem_run) {
+        cpu.fault_SSW |= SSW_CM;
+    }
+    cpu.fault_SSW |= cpu.bus_lock << 9;
+    cpu.fault_SSW |= rw << 8;
+    cpu.fault_SSW = (cpu.fault_SSW &~ (3 << 5)) | int(sz) << 5;
+    if( (cpu.fault_SSW & TT_MASK) != TT_ALT) {
+        cpu.fault_SSW = (cpu.fault_SSW &~ 7) | int(m);
+    }
+    RAISE(EXCAPTION_NUMBER::AFAULT);
 }
 void ADDRESS_ERROR(uint32_t addr) {
-    cpu.ex_addr = addr & ~1;
-    RAISE(3);
+    cpu.ex_addr = addr ;
+    RAISE(EXCAPTION_NUMBER::ADDR_ERR);
 }
 
-void ILLEGAL_OP() { RAISE(4); }
+void ILLEGAL_OP() { RAISE(EXCAPTION_NUMBER::ILLEGAL_OP); }
 
-void DIV0_ERROR() { RAISE(5); }
-void CHK_ERROR() { RAISE(6); }
+void DIV0_ERROR() { RAISE(EXCAPTION_NUMBER::DIV0); }
+void CHK_ERROR() { RAISE(EXCAPTION_NUMBER::CHK_FAIL); }
 
-void TRAPX_ERROR() { RAISE(7); }
+void TRAPX_ERROR() { RAISE(EXCAPTION_NUMBER::TRAPx); }
 
-void PRIV_ERROR() { RAISE(8); }
-void TRACE() { RAISE(9); }
+void PRIV_ERROR() { RAISE(EXCAPTION_NUMBER::PRIV_ERR); }
+void TRACE() { RAISE(EXCAPTION_NUMBER::TRACE); }
 
-void ALINE() { RAISE(10); }
-void FLINE() { RAISE(11); }
-void FORMAT_ERROR() { RAISE(14); }
-void TRAP_ERROR(int n) { RAISE(32 + n); }
-void FP_EX_BSUN() { RAISE(48); }
-void FP_EX_INEX() { RAISE(49); }
-void FP_EX_DIV0() { RAISE(50); }
-void FP_EX_UNFL() { RAISE(51); }
-void FP_EX_OPERR() { RAISE(52); }
-void FP_EX_OVFL() { RAISE(53); }
-void FP_EX_SNAN() { RAISE(54); }
-void FP_EX_UNIMPL_TYPE() { RAISE(55); }
-void IRQ(int n) { RAISE(24 + n); }
+void ALINE() { RAISE(EXCAPTION_NUMBER::ALINE); }
+void FLINE() { RAISE(EXCAPTION_NUMBER::FLINE); }
+void FORMAT_ERROR() { RAISE(EXCAPTION_NUMBER::FORMAT_ERR); }
+void TRAP_ERROR(int n) { RAISE(EXCAPTION_NUMBER(int(EXCAPTION_NUMBER::TRAP0) + n)); }
+void FP_EX_BSUN() { RAISE(EXCAPTION_NUMBER::FP_UNORDER); }
+void FP_EX_INEX() { RAISE(EXCAPTION_NUMBER::FP_INEX); }
+void FP_EX_DIV0() { RAISE(EXCAPTION_NUMBER::FP_DIV0); }
+void FP_EX_UNFL() { RAISE(EXCAPTION_NUMBER::FP_UNFL); }
+void FP_EX_OPERR() { RAISE(EXCAPTION_NUMBER::FP_OPERR); }
+void FP_EX_OVFL() { RAISE(EXCAPTION_NUMBER::FP_OVFL); }
+void FP_EX_SNAN() { RAISE(EXCAPTION_NUMBER::FP_SNAN); }
+void FP_EX_UNIMPL_TYPE() { RAISE(EXCAPTION_NUMBER::FP_UNIMPL_TYPE); }
+void IRQ(int n) { RAISE(EXCAPTION_NUMBER(int(EXCAPTION_NUMBER::UNKNOWN_IRQ) + n)); }
 
 void do_rte() {
     uint16_t sr = POP16();

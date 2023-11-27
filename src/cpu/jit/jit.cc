@@ -547,5 +547,6 @@ void jit_run(uint32_t pc) {
         (*e->exec)((pc - e->begin) >> 1);
     } else {
         handle_exception(cpu.ex_n);
+        cpu.bus_lock = false;
     }
 }

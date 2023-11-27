@@ -74,7 +74,7 @@ BOOST_AUTO_TEST_CASE(traced) {
     TEST::SET_W(0x110, 0x3333);
     cpu.T = 1;
 	run_test(0);
-	BOOST_TEST(cpu.ex_n == 9 );
+	BOOST_TEST(cpu.ex_n == EXCAPTION_NUMBER::TRACE );
 }
 
 BOOST_AUTO_TEST_SUITE_END()
@@ -128,7 +128,7 @@ BOOST_AUTO_TEST_CASE(traced) {
     TEST::SET_L(0x110, 0x33333333);
     cpu.T = 1;
 	run_test(8);
-	BOOST_TEST(cpu.ex_n == 9 );
+	BOOST_TEST(cpu.ex_n == EXCAPTION_NUMBER::TRACE );
 }
 BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE_END()

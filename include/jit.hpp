@@ -10,9 +10,9 @@ struct JitError {};
 extern std::unique_ptr<x86::Assembler> as; 
 
 void ea_getaddr_jit(int type, int reg, int sz);
-void ea_readB_jit(int type, int reg);
-void ea_readW_jit(int type, int reg);
-void ea_readL_jit(int type, int reg);
+void ea_readB_jit(int type, int reg, bool lk = false);
+void ea_readW_jit(int type, int reg, bool lk = false);
+void ea_readL_jit(int type, int reg, bool lk = false);
 void ea_writeB_jit(int type, int reg, bool update);
 void ea_writeW_jit(int type, int reg, bool update);
 void ea_writeL_jit(int type, int reg, bool update);

@@ -33,7 +33,7 @@ BOOST_AUTO_TEST_CASE(traced) {
     cpu.T = 1;
     cpu.C = false;
     run_test(8);
-    BOOST_TEST(cpu.ex_n == 9);
+    BOOST_TEST(cpu.ex_n == EXCAPTION_NUMBER::TRACE);
 }
 
 BOOST_AUTO_TEST_CASE(trace_not_taken) {

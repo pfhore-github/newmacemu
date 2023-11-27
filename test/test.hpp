@@ -10,6 +10,7 @@
 #include <string.h>
 #include <utility>
 #include <vector>
+#include <iosfwd>
 void reset_fpu();
 constexpr uint32_t TEST_BREAK = 0044117;
 struct Prepare {
@@ -47,4 +48,8 @@ struct DummyIO_B {
     uint8_t read(uint32_t addr);
     void write(uint32_t addr, uint8_t v);
 };
+
+inline std::ostream& operator<<(std::ostream& os, EXCAPTION_NUMBER e) {
+    return os << int(e);
+}
 #endif

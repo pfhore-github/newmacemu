@@ -36,7 +36,7 @@ std::optional<uint16_t> ReadWImpl(uint32_t addr) {
         if(!vx1) {
             return {};
         }
-        cpu.faultParam->MA = true;
+        cpu.fault_SSW |= SSW_MA;
         auto vx2 = ReadBImpl(addr + 1);
         if(!vx2) {
             return {};
@@ -82,7 +82,7 @@ uint32_t ReadL(uint32_t addr) {
             if(!vx1) {
                 goto FAULT;
             }
-            cpu.faultParam->MA = true;
+            cpu.fault_SSW |= SSW_MA;
             auto vx2 = ReadWImpl(addr + 2);
             if(!vx2) {
                 goto FAULT;
@@ -124,11 +124,11 @@ FAULT:
 }
 
 bool WriteWImpl(uint32_t addr, uint16_t w) {
-    if(addr & 1)  [[unlikely]] {
+    if(addr & 1) [[unlikely]] {
         if(!WriteBImpl(addr, w >> 8)) {
             return false;
         }
-        cpu.faultParam->MA = true;
+        cpu.fault_SSW |= SSW_MA;
         return WriteBImpl(addr + 1, w);
     }
     auto paddr = ptest_and_check(addr, false, true);
@@ -152,11 +152,11 @@ FAULT:
 }
 void WriteL(uint32_t addr, uint32_t l) {
     try {
-        if(addr & 2)  [[unlikely]] {
+        if(addr & 2) [[unlikely]] {
             if(!WriteWImpl(addr, l >> 16)) {
                 goto FAULT;
             }
-            cpu.faultParam->MA = true;
+            cpu.fault_SSW |= SSW_MA;
             if(!WriteWImpl(addr + 2, l)) {
                 goto FAULT;
             }
@@ -174,7 +174,7 @@ void WriteL(uint32_t addr, uint32_t l) {
 FAULT:
     ACCESS_FAULT(addr, SIZ::L, false, GetTMData());
 }
-uint8_t *doBus16(uint32_t addr) ;
+uint8_t *doBus16(uint32_t addr);
 void Read16(uint32_t addr, uint8_t *to) {
     try {
         auto paddr = ptest_and_check(addr, false, false);
@@ -187,7 +187,7 @@ void Read16(uint32_t addr, uint8_t *to) {
         goto FAULT;
     }
 FAULT:
-    cpu.faultParam->tt = TT::MOVE16;
+    cpu.fault_SSW = (cpu.fault_SSW &~ TT_MASK) | TT_MOVE16;
     ACCESS_FAULT(addr, SIZ::LN, true, TM::USER_DATA);
 }
 
@@ -203,6 +203,6 @@ void Write16(uint32_t addr, const uint8_t *from) {
         goto FAULT;
     }
 FAULT:
-    cpu.faultParam->tt = TT::MOVE16;
+    cpu.fault_SSW = (cpu.fault_SSW &~ TT_MASK) | TT_MOVE16;
     ACCESS_FAULT(addr, SIZ::LN, false, TM::USER_DATA);
 }

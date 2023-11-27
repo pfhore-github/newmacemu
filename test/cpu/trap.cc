@@ -20,6 +20,6 @@ BOOST_FIXTURE_TEST_SUITE(TRAP, Prepare, *boost::unit_test::fixture<F_TRAP>())
 
 BOOST_DATA_TEST_CASE(execute, bdata::xrange(16), v) {
 	run_test(4*v);
-    BOOST_TEST(cpu.ex_n == 32 + v );
+    BOOST_TEST(cpu.ex_n == EXCAPTION_NUMBER(int(EXCAPTION_NUMBER::TRAP0) + v ));
 }
 BOOST_AUTO_TEST_SUITE_END()

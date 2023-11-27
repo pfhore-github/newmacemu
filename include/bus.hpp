@@ -1,6 +1,5 @@
 #ifndef BUS_HPP_
 #define BUS_HPP_ 1
-#include <optional>
 #include <stdint.h>
 
 uint8_t BusReadB(uint32_t addr);

@@ -62,17 +62,17 @@ void test_exit(uint16_t) { testing = false; }
 #endif
 void ori_b(uint16_t op) {
     uint8_t v = FETCH();
-    ea_writeB(TYPE(op), REG(op), OR_B(ea_readB(TYPE(op), REG(op)), v), true);
+    ea_writeB(TYPE(op), REG(op), OR_B(ea_readB(TYPE(op), REG(op), true), v));
 }
 
 void ori_w(uint16_t op) {
     uint16_t v = FETCH();
-    ea_writeW(TYPE(op), REG(op), OR_W(ea_readW(TYPE(op), REG(op)), v), true);
+    ea_writeW(TYPE(op), REG(op), OR_W(ea_readW(TYPE(op), REG(op), true), v));
 }
 
 void ori_l(uint16_t op) {
     uint32_t v = FETCH32();
-    ea_writeL(TYPE(op), REG(op), OR_L(ea_readL(TYPE(op), REG(op)), v), true);
+    ea_writeL(TYPE(op), REG(op), OR_L(ea_readL(TYPE(op), REG(op), true), v));
 }
 
 void ori_b_ccr(uint16_t) {
@@ -89,17 +89,17 @@ void ori_w_sr(uint16_t) {
 
 void andi_b(uint16_t op) {
     uint8_t v = FETCH();
-    ea_writeB(TYPE(op), REG(op), AND_B(ea_readB(TYPE(op), REG(op)), v), true);
+    ea_writeB(TYPE(op), REG(op), AND_B(ea_readB(TYPE(op), REG(op), true), v));
 }
 
 void andi_w(uint16_t op) {
     uint16_t v = FETCH();
-    ea_writeW(TYPE(op), REG(op), AND_W(ea_readW(TYPE(op), REG(op)), v), true);
+    ea_writeW(TYPE(op), REG(op), AND_W(ea_readW(TYPE(op), REG(op), true), v));
 }
 
 void andi_l(uint16_t op) {
     uint32_t v = FETCH32();
-    ea_writeL(TYPE(op), REG(op), AND_L(ea_readL(TYPE(op), REG(op)), v), true);
+    ea_writeL(TYPE(op), REG(op), AND_L(ea_readL(TYPE(op), REG(op), true), v));
 }
 
 void andi_b_ccr(uint16_t) {
@@ -116,17 +116,17 @@ void andi_w_sr(uint16_t) {
 
 void eori_b(uint16_t op) {
     uint8_t v = FETCH();
-    ea_writeB(TYPE(op), REG(op), XOR_B(ea_readB(TYPE(op), REG(op)), v), true);
+    ea_writeB(TYPE(op), REG(op), XOR_B(ea_readB(TYPE(op), REG(op),true), v));
 }
 
 void eori_w(uint16_t op) {
     uint16_t v = FETCH();
-    ea_writeW(TYPE(op), REG(op), XOR_W(ea_readW(TYPE(op), REG(op)), v), true);
+    ea_writeW(TYPE(op), REG(op), XOR_W(ea_readW(TYPE(op), REG(op),true), v));
 }
 
 void eori_l(uint16_t op) {
     uint32_t v = FETCH32();
-    ea_writeL(TYPE(op), REG(op), XOR_L(ea_readL(TYPE(op), REG(op)), v), true);
+    ea_writeL(TYPE(op), REG(op), XOR_L(ea_readL(TYPE(op), REG(op),true), v));
 }
 
 void eori_b_ccr(uint16_t) {
@@ -143,32 +143,32 @@ void eori_w_sr(uint16_t) {
 
 void subi_b(uint16_t op) {
     uint8_t v = FETCH();
-    ea_writeB(TYPE(op), REG(op), SUB_B(ea_readB(TYPE(op), REG(op)), v), true);
+    ea_writeB(TYPE(op), REG(op), SUB_B(ea_readB(TYPE(op), REG(op),true), v));
 }
 
 void subi_w(uint16_t op) {
     uint16_t v = FETCH();
-    ea_writeW(TYPE(op), REG(op), SUB_W(ea_readW(TYPE(op), REG(op)), v), true);
+    ea_writeW(TYPE(op), REG(op), SUB_W(ea_readW(TYPE(op), REG(op),true), v));
 }
 
 void subi_l(uint16_t op) {
     uint32_t v = FETCH32();
-    ea_writeL(TYPE(op), REG(op), SUB_L(ea_readL(TYPE(op), REG(op)), v), true);
+    ea_writeL(TYPE(op), REG(op), SUB_L(ea_readL(TYPE(op), REG(op),true), v));
 }
 
 void addi_b(uint16_t op) {
     uint8_t v = FETCH();
-    ea_writeB(TYPE(op), REG(op), ADD_B(ea_readB(TYPE(op), REG(op)), v), true);
+    ea_writeB(TYPE(op), REG(op), ADD_B(ea_readB(TYPE(op), REG(op),true), v));
 }
 
 void addi_w(uint16_t op) {
     uint16_t v = FETCH();
-    ea_writeW(TYPE(op), REG(op), ADD_W(ea_readW(TYPE(op), REG(op)), v), true);
+    ea_writeW(TYPE(op), REG(op), ADD_W(ea_readW(TYPE(op), REG(op),true), v));
 }
 
 void addi_l(uint16_t op) {
     uint32_t v = FETCH32();
-    ea_writeL(TYPE(op), REG(op), ADD_L(ea_readL(TYPE(op), REG(op)), v), true);
+    ea_writeL(TYPE(op), REG(op), ADD_L(ea_readL(TYPE(op), REG(op),true), v));
 }
 
 void cmpi_b(uint16_t op) {
@@ -404,10 +404,12 @@ void moves_b(uint16_t op) {
     uint16_t extw = FETCH();
     int rn = extw >> 12 & 15;
     cpu.EA = ea_getaddr(TYPE(op), REG(op), 1);
-    cpu.faultParam->tt = TT::ALT;
+    cpu.fault_SSW = (cpu.fault_SSW &~ TT_MASK) | TT_ALT; 
     if(extw & 1 << 11) {
+        cpu.fault_SSW = (cpu.fault_SSW &~ 7) | cpu.DFC; 
         WriteB(cpu.EA, cpu.R(rn));
     } else {
+        cpu.fault_SSW = (cpu.fault_SSW &~ 7) | cpu.SFC; 
         STORE_B(cpu.R(rn), ReadB(cpu.EA));
     }
     TRACE_BRANCH();
@@ -418,10 +420,12 @@ void moves_w(uint16_t op) {
     uint16_t extw = FETCH();
     int rn = extw >> 12 & 15;
     cpu.EA = ea_getaddr(TYPE(op), REG(op), 2);
-    cpu.faultParam->tt = TT::ALT;
+    cpu.fault_SSW = (cpu.fault_SSW &~ TT_MASK) | TT_ALT; 
     if(extw & 1 << 11) {
+        cpu.fault_SSW = (cpu.fault_SSW &~ 7) | cpu.DFC; 
         WriteW(cpu.EA, cpu.R(rn));
     } else {
+        cpu.fault_SSW = (cpu.fault_SSW &~ 7) | cpu.SFC; 
         STORE_W(cpu.R(rn), ReadW(cpu.EA));
     }
     TRACE_BRANCH();
@@ -432,10 +436,12 @@ void moves_l(uint16_t op) {
     uint16_t extw = FETCH();
     int rn = extw >> 12 & 15;
     cpu.EA = ea_getaddr(TYPE(op), REG(op), 4);
-    cpu.faultParam->tt = TT::ALT;
+    cpu.fault_SSW = (cpu.fault_SSW &~ TT_MASK) | TT_ALT; 
     if(extw & 1 << 11) {
+        cpu.fault_SSW = (cpu.fault_SSW &~ 7) | cpu.DFC; 
         WriteL(cpu.EA, cpu.R(rn));
     } else {
+        cpu.fault_SSW = (cpu.fault_SSW &~ 7) | cpu.SFC; 
         STORE_L(cpu.R(rn), ReadL(cpu.EA));
     }
     TRACE_BRANCH();
@@ -446,7 +452,7 @@ void move_b(uint16_t op) {
     uint8_t v = ea_readB(TYPE(op), REG(op));
     TEST_B(v);
     cpu.V = cpu.C = false;
-    ea_writeB(dst_type, DN(op), v, false);
+    ea_writeB(dst_type, DN(op), v);
 }
 
 void move_w(uint16_t op) {
@@ -454,7 +460,7 @@ void move_w(uint16_t op) {
     uint16_t v = ea_readW(TYPE(op), REG(op));
     TEST_W(v);
     cpu.V = cpu.C = false;
-    ea_writeW(dst_type, DN(op), v, false);
+    ea_writeW(dst_type, DN(op), v);
 }
 
 void move_l(uint16_t op) {
@@ -462,7 +468,7 @@ void move_l(uint16_t op) {
     uint32_t v = ea_readL(TYPE(op), REG(op));
     TEST_L(v);
     cpu.V = cpu.C = false;
-    ea_writeL(dst_type, DN(op), v, false);
+    ea_writeL(dst_type, DN(op), v);
 }
 
 void movea_w(uint16_t op) {
@@ -477,11 +483,11 @@ void movea_l(uint16_t op) {
 
 void move_from_sr(uint16_t op) {
     PRIV_CHECK();
-    ea_writeW(TYPE(op), REG(op), GetSR(), false);
+    ea_writeW(TYPE(op), REG(op), GetSR());
 }
 
 void move_from_ccr(uint16_t op) {
-    ea_writeW(TYPE(op), REG(op), GetCCR(), false);
+    ea_writeW(TYPE(op), REG(op), GetCCR());
 }
 
 void move_to_ccr(uint16_t op) {
@@ -495,71 +501,71 @@ void move_to_sr(uint16_t op) {
 }
 
 void negx_b(uint16_t op) {
-    uint8_t v = ea_readB(TYPE(op), REG(op));
-    ea_writeB(TYPE(op), REG(op), NEGX_B(v, cpu.X), true);
+    uint8_t v = ea_readB(TYPE(op), REG(op), true);
+    ea_writeB(TYPE(op), REG(op), NEGX_B(v, cpu.X));
 }
 
 void negx_w(uint16_t op) {
-    uint16_t v = ea_readW(TYPE(op), REG(op));
-    ea_writeW(TYPE(op), REG(op), NEGX_W(v, cpu.X), true);
+    uint16_t v = ea_readW(TYPE(op), REG(op), true);
+    ea_writeW(TYPE(op), REG(op), NEGX_W(v, cpu.X));
 }
 
 void negx_l(uint16_t op) {
-    uint32_t v = ea_readL(TYPE(op), REG(op));
-    ea_writeL(TYPE(op), REG(op), NEGX_L(v, cpu.X), true);
+    uint32_t v = ea_readL(TYPE(op), REG(op), true);
+    ea_writeL(TYPE(op), REG(op), NEGX_L(v, cpu.X));
 }
 
 void clr_b(uint16_t op) {
     cpu.N = cpu.V = cpu.C = false;
     cpu.Z = true;
-    ea_writeB(TYPE(op), REG(op), 0, false);
+    ea_writeB(TYPE(op), REG(op), 0);
 }
 
 void clr_w(uint16_t op) {
     cpu.N = cpu.V = cpu.C = false;
     cpu.Z = true;
-    ea_writeW(TYPE(op), REG(op), 0, false);
+    ea_writeW(TYPE(op), REG(op), 0);
 }
 
 void clr_l(uint16_t op) {
     cpu.N = cpu.V = cpu.C = false;
     cpu.Z = true;
-    ea_writeL(TYPE(op), REG(op), 0, false);
+    ea_writeL(TYPE(op), REG(op), 0);
 }
 
 void neg_b(uint16_t op) {
-    uint8_t v = ea_readB(TYPE(op), REG(op));
-    ea_writeB(TYPE(op), REG(op), NEG_B(v), true);
+    uint8_t v = ea_readB(TYPE(op), REG(op), true);
+    ea_writeB(TYPE(op), REG(op), NEG_B(v));
 }
 
 void neg_w(uint16_t op) {
-    uint16_t v = ea_readW(TYPE(op), REG(op));
-    ea_writeW(TYPE(op), REG(op), NEG_W(v), true);
+    uint16_t v = ea_readW(TYPE(op), REG(op), true);
+    ea_writeW(TYPE(op), REG(op), NEG_W(v));
 }
 
 void neg_l(uint16_t op) {
-    uint32_t v = ea_readL(TYPE(op), REG(op));
-    ea_writeL(TYPE(op), REG(op), NEG_L(v), true);
+    uint32_t v = ea_readL(TYPE(op), REG(op), true);
+    ea_writeL(TYPE(op), REG(op), NEG_L(v));
 }
 
 void not_b(uint16_t op) {
-    uint8_t v = ea_readB(TYPE(op), REG(op));
-    ea_writeB(TYPE(op), REG(op), NOT_B(v), true);
+    uint8_t v = ea_readB(TYPE(op), REG(op), true);
+    ea_writeB(TYPE(op), REG(op), NOT_B(v));
 }
 
 void not_w(uint16_t op) {
-    uint16_t v = ea_readW(TYPE(op), REG(op));
-    ea_writeW(TYPE(op), REG(op), NOT_W(v), true);
+    uint16_t v = ea_readW(TYPE(op), REG(op), true);
+    ea_writeW(TYPE(op), REG(op), NOT_W(v));
 }
 
 void not_l(uint16_t op) {
-    uint32_t v = ea_readL(TYPE(op), REG(op));
-    ea_writeL(TYPE(op), REG(op), NOT_L(v), true);
+    uint32_t v = ea_readL(TYPE(op), REG(op), true);
+    ea_writeL(TYPE(op), REG(op), NOT_L(v));
 }
 
 void nbcd(uint16_t op) {
-    uint8_t b = ea_readB(TYPE(op), REG(op));
-    ea_writeB(TYPE(op), REG(op), do_nbcd(b, cpu.X), true);
+    uint8_t b = ea_readB(TYPE(op), REG(op), true);
+    ea_writeB(TYPE(op), REG(op), do_nbcd(b, cpu.X));
 }
 
 void link_l(uint16_t op) {
@@ -623,9 +629,9 @@ void tst_l(uint16_t op) {
 }
 
 void tas(uint16_t op) {
-    uint8_t v = ea_readB(TYPE(op), REG(op));
+    uint8_t v = ea_readB(TYPE(op), REG(op), true);
     TEST_B(v);
-    ea_writeB(TYPE(op), REG(op), v | 0x80, true);
+    ea_writeB(TYPE(op), REG(op), v | 0x80);
 }
 
 void illegal(uint16_t) { ILLEGAL_OP(); }
@@ -813,33 +819,33 @@ void lea(uint16_t op) {
 }
 
 void addq_b(uint16_t op) {
-    uint8_t v = ea_readB(TYPE(op), REG(op));
-    ea_writeB(TYPE(op), REG(op), ADD_B(v, DN(op) ? DN(op) : 8), true);
+    uint8_t v = ea_readB(TYPE(op), REG(op), true);
+    ea_writeB(TYPE(op), REG(op), ADD_B(v, DN(op) ? DN(op) : 8));
 }
 
 void addq_w(uint16_t op) {
-    uint16_t v = ea_readW(TYPE(op), REG(op));
-    ea_writeW(TYPE(op), REG(op), ADD_W(v, DN(op) ? DN(op) : 8), true);
+    uint16_t v = ea_readW(TYPE(op), REG(op), true);
+    ea_writeW(TYPE(op), REG(op), ADD_W(v, DN(op) ? DN(op) : 8));
 }
 
 void addq_l(uint16_t op) {
-    uint32_t v = ea_readL(TYPE(op), REG(op));
-    ea_writeL(TYPE(op), REG(op), ADD_L(v, DN(op) ? DN(op) : 8), true);
+    uint32_t v = ea_readL(TYPE(op), REG(op), true);
+    ea_writeL(TYPE(op), REG(op), ADD_L(v, DN(op) ? DN(op) : 8));
 }
 
 void subq_b(uint16_t op) {
-    uint8_t v = ea_readB(TYPE(op), REG(op));
-    ea_writeB(TYPE(op), REG(op), SUB_B(v, DN(op) ? DN(op) : 8), true);
+    uint8_t v = ea_readB(TYPE(op), REG(op), true);
+    ea_writeB(TYPE(op), REG(op), SUB_B(v, DN(op) ? DN(op) : 8));
 }
 
 void subq_w(uint16_t op) {
-    uint16_t v = ea_readW(TYPE(op), REG(op));
-    ea_writeW(TYPE(op), REG(op), SUB_W(v, DN(op) ? DN(op) : 8), true);
+    uint16_t v = ea_readW(TYPE(op), REG(op), true);
+    ea_writeW(TYPE(op), REG(op), SUB_W(v, DN(op) ? DN(op) : 8));
 }
 
 void subq_l(uint16_t op) {
-    uint32_t v = ea_readL(TYPE(op), REG(op));
-    ea_writeL(TYPE(op), REG(op), SUB_L(v, DN(op) ? DN(op) : 8), true);
+    uint32_t v = ea_readL(TYPE(op), REG(op), true);
+    ea_writeL(TYPE(op), REG(op), SUB_L(v, DN(op) ? DN(op) : 8));
 }
 
 void addq_an(uint16_t op) { cpu.A[REG(op)] += DN(op) ? DN(op) : 8; }
@@ -888,7 +894,7 @@ bool testCC(int cc) {
 
 void scc_ea(uint16_t op) {
     int cc = op >> 8 & 0xf;
-    ea_writeB(TYPE(op), REG(op), testCC(cc) ? 0xff : 0, false);
+    ea_writeB(TYPE(op), REG(op), testCC(cc) ? 0xff : 0);
 }
 
 void dbcc(uint16_t op) {
@@ -972,8 +978,8 @@ void sbcd_m(uint16_t op) {
 }
 
 void or_b_to_ea(uint16_t op) {
-    uint8_t v = ea_readB(TYPE(op), REG(op));
-    ea_writeB(TYPE(op), REG(op), OR_B(cpu.D[DN(op)], v), true);
+    uint8_t v = ea_readB(TYPE(op), REG(op), true);
+    ea_writeB(TYPE(op), REG(op), OR_B(cpu.D[DN(op)], v));
 }
 
 void pack_d(uint16_t op) {
@@ -989,8 +995,8 @@ void pack_m(uint16_t op) {
 }
 
 void or_w_to_ea(uint16_t op) {
-    uint16_t v = ea_readW(TYPE(op), REG(op));
-    ea_writeW(TYPE(op), REG(op), OR_W(cpu.D[DN(op)], v), true);
+    uint16_t v = ea_readW(TYPE(op), REG(op), true);
+    ea_writeW(TYPE(op), REG(op), OR_W(cpu.D[DN(op)], v));
 }
 
 void unpk_d(uint16_t op) {
@@ -1006,8 +1012,8 @@ void unpk_m(uint16_t op) {
 }
 
 void or_l_to_ea(uint16_t op) {
-    uint32_t v = ea_readL(TYPE(op), REG(op));
-    ea_writeL(TYPE(op), REG(op), OR_L(cpu.D[DN(op)], v), true);
+    uint32_t v = ea_readL(TYPE(op), REG(op), true);
+    ea_writeL(TYPE(op), REG(op), OR_L(cpu.D[DN(op)], v));
 }
 
 void divs_w(uint16_t op) {
@@ -1072,18 +1078,18 @@ void subx_l_m(uint16_t op) {
 }
 
 void sub_b_to_ea(uint16_t op) {
-    uint8_t v = ea_readB(TYPE(op), REG(op));
-    ea_writeB(TYPE(op), REG(op), SUB_B(v, cpu.D[DN(op)]), true);
+    uint8_t v = ea_readB(TYPE(op), REG(op), true);
+    ea_writeB(TYPE(op), REG(op), SUB_B(v, cpu.D[DN(op)]));
 }
 
 void sub_w_to_ea(uint16_t op) {
-    uint16_t v = ea_readW(TYPE(op), REG(op));
-    ea_writeW(TYPE(op), REG(op), SUB_W(v, cpu.D[DN(op)]), true);
+    uint16_t v = ea_readW(TYPE(op), REG(op), true);
+    ea_writeW(TYPE(op), REG(op), SUB_W(v, cpu.D[DN(op)]));
 }
 
 void sub_l_to_ea(uint16_t op) {
-    uint32_t v = ea_readL(TYPE(op), REG(op));
-    ea_writeL(TYPE(op), REG(op), SUB_L(v, cpu.D[DN(op)]), true);
+    uint32_t v = ea_readL(TYPE(op), REG(op), true);
+    ea_writeL(TYPE(op), REG(op), SUB_L(v, cpu.D[DN(op)]));
 }
 
 void aline_ex(uint16_t /* op */) {
@@ -1113,18 +1119,18 @@ void cmpa_l(uint16_t op) {
 }
 
 void eor_b(uint16_t op) {
-    uint8_t v = ea_readB(TYPE(op), REG(op));
-    ea_writeB(TYPE(op), REG(op), XOR_B(cpu.D[DN(op)], v), true);
+    uint8_t v = ea_readB(TYPE(op), REG(op), true);
+    ea_writeB(TYPE(op), REG(op), XOR_B(cpu.D[DN(op)], v));
 }
 
 void eor_w(uint16_t op) {
-    uint16_t v = ea_readW(TYPE(op), REG(op));
-    ea_writeW(TYPE(op), REG(op), XOR_W(cpu.D[DN(op)], v), true);
+    uint16_t v = ea_readW(TYPE(op), REG(op), true);
+    ea_writeW(TYPE(op), REG(op), XOR_W(cpu.D[DN(op)], v));
 }
 
 void eor_l(uint16_t op) {
-    uint32_t v = ea_readL(TYPE(op), REG(op));
-    ea_writeL(TYPE(op), REG(op), XOR_L(cpu.D[DN(op)], v), true);
+    uint32_t v = ea_readL(TYPE(op), REG(op), true);
+    ea_writeL(TYPE(op), REG(op), XOR_L(cpu.D[DN(op)], v));
 }
 
 void cmpm_b(uint16_t op) {
@@ -1172,18 +1178,18 @@ void abcd_m(uint16_t op) {
 }
 
 void and_b_to_ea(uint16_t op) {
-    uint8_t v = ea_readB(TYPE(op), REG(op));
-    ea_writeB(TYPE(op), REG(op), AND_B(cpu.D[DN(op)], v), true);
+    uint8_t v = ea_readB(TYPE(op), REG(op), true);
+    ea_writeB(TYPE(op), REG(op), AND_B(cpu.D[DN(op)], v));
 }
 
 void and_w_to_ea(uint16_t op) {
-    uint16_t v = ea_readW(TYPE(op), REG(op));
-    ea_writeW(TYPE(op), REG(op), AND_W(cpu.D[DN(op)], v), true);
+    uint16_t v = ea_readW(TYPE(op), REG(op), true);
+    ea_writeW(TYPE(op), REG(op), AND_W(cpu.D[DN(op)], v));
 }
 
 void and_l_to_ea(uint16_t op) {
-    uint32_t v = ea_readL(TYPE(op), REG(op));
-    ea_writeL(TYPE(op), REG(op), AND_L(cpu.D[DN(op)], v), true);
+    uint32_t v = ea_readL(TYPE(op), REG(op), true);
+    ea_writeL(TYPE(op), REG(op), AND_L(cpu.D[DN(op)], v));
 }
 
 void muls_w(uint16_t op) {
@@ -1258,18 +1264,18 @@ void addx_l_m(uint16_t op) {
 }
 
 void add_b_to_ea(uint16_t op) {
-    uint8_t v = ea_readB(TYPE(op), REG(op));
-    ea_writeB(TYPE(op), REG(op), ADD_B(v, cpu.D[DN(op)]), true);
+    uint8_t v = ea_readB(TYPE(op), REG(op), true);
+    ea_writeB(TYPE(op), REG(op), ADD_B(v, cpu.D[DN(op)]));
 }
 
 void add_w_to_ea(uint16_t op) {
-    uint16_t v = ea_readW(TYPE(op), REG(op));
-    ea_writeW(TYPE(op), REG(op), ADD_W(v, cpu.D[DN(op)]), true);
+    uint16_t v = ea_readW(TYPE(op), REG(op), true);
+    ea_writeW(TYPE(op), REG(op), ADD_W(v, cpu.D[DN(op)]));
 }
 
 void add_l_to_ea(uint16_t op) {
-    uint32_t v = ea_readL(TYPE(op), REG(op));
-    ea_writeL(TYPE(op), REG(op), ADD_L(v, cpu.D[DN(op)]), true);
+    uint32_t v = ea_readL(TYPE(op), REG(op), true);
+    ea_writeL(TYPE(op), REG(op), ADD_L(v, cpu.D[DN(op)]));
 }
 
 void asr_b_i(uint16_t op) {
@@ -1369,23 +1375,23 @@ void ror_l_r(uint16_t op) {
 }
 
 void asr_ea(uint16_t op) {
-    uint16_t v = ea_readW(TYPE(op), REG(op));
-    ea_writeW(TYPE(op), REG(op), ASR_W(v, 1), true);
+    uint16_t v = ea_readW(TYPE(op), REG(op), true);
+    ea_writeW(TYPE(op), REG(op), ASR_W(v, 1));
 }
 
 void lsr_ea(uint16_t op) {
-    uint16_t v = ea_readW(TYPE(op), REG(op));
-    ea_writeW(TYPE(op), REG(op), LSR_W(v, 1), true);
+    uint16_t v = ea_readW(TYPE(op), REG(op), true);
+    ea_writeW(TYPE(op), REG(op), LSR_W(v, 1));
 }
 
 void roxr_ea(uint16_t op) {
-    uint16_t v = ea_readW(TYPE(op), REG(op));
-    ea_writeW(TYPE(op), REG(op), ROXR_W(v, 1, cpu.X), true);
+    uint16_t v = ea_readW(TYPE(op), REG(op), true);
+    ea_writeW(TYPE(op), REG(op), ROXR_W(v, 1, cpu.X));
 }
 
 void ror_ea(uint16_t op) {
-    uint16_t v = ea_readW(TYPE(op), REG(op));
-    ea_writeW(TYPE(op), REG(op), ROR_W(v, 1), true);
+    uint16_t v = ea_readW(TYPE(op), REG(op), true);
+    ea_writeW(TYPE(op), REG(op), ROR_W(v, 1));
 }
 
 
@@ -1487,23 +1493,23 @@ void rol_l_r(uint16_t op) {
 }
 
 void asl_ea(uint16_t op) {
-    uint16_t v = ea_readW(TYPE(op), REG(op));
-    ea_writeW(TYPE(op), REG(op), ASL_W(v, 1), true);
+    uint16_t v = ea_readW(TYPE(op), REG(op), true);
+    ea_writeW(TYPE(op), REG(op), ASL_W(v, 1));
 }
 
 void lsl_ea(uint16_t op) {
-    uint16_t v = ea_readW(TYPE(op), REG(op));
-    ea_writeW(TYPE(op), REG(op), LSL_W(v, 1), true);
+    uint16_t v = ea_readW(TYPE(op), REG(op), true);
+    ea_writeW(TYPE(op), REG(op), LSL_W(v, 1));
 }
 
 void roxl_ea(uint16_t op) {
-    uint16_t v = ea_readW(TYPE(op), REG(op));
-    ea_writeW(TYPE(op), REG(op), ROXL_W(v, 1, cpu.X), true);
+    uint16_t v = ea_readW(TYPE(op), REG(op), true);
+    ea_writeW(TYPE(op), REG(op), ROXL_W(v, 1, cpu.X));
 }
 
 void rol_ea(uint16_t op) {
-    uint16_t v = ea_readW(TYPE(op), REG(op));
-    ea_writeW(TYPE(op), REG(op), ROL_W(v, 1), true);
+    uint16_t v = ea_readW(TYPE(op), REG(op), true);
+    ea_writeW(TYPE(op), REG(op), ROL_W(v, 1));
 }
 
 std::pair<int, int> get_bf_offset_width(uint16_t extw) {
@@ -1659,7 +1665,6 @@ run_t run_table[0x10000];
 void init_run_table_fpu();
 void init_run_table_mmu();
 void init_run_table() {
-    cpu.faultParam = std::make_unique<FaultParam>();
 
     for(int i = 0; i < 0x10000; ++i) {
         run_table[i] = nullptr;

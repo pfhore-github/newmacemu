@@ -200,7 +200,7 @@ std::optional<uint32_t> ptest_and_check(uint32_t addr, bool code, bool W) {
     }
     return cpu.TCR_P ? (base & ~1) | (addr & 0x1fff) : base | (addr & 0xfff);
 FAIL:
-    cpu.faultParam->ATC = true;
+    cpu.fault_SSW |= SSW_ATC;
     return {};
 }
 

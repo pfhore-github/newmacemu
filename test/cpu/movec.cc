@@ -169,14 +169,14 @@ BOOST_AUTO_TEST_SUITE(FROM)
 BOOST_AUTO_TEST_CASE(User) {
     cpu.S = false;
     run_test(0);
-    BOOST_TEST(cpu.ex_n == 8);
+    BOOST_TEST(cpu.ex_n == EXCAPTION_NUMBER::PRIV_ERR);
 }
 
 BOOST_AUTO_TEST_CASE(Traced) {
     cpu.S = true;
     cpu.T = 1;
     run_test(0);
-    BOOST_TEST(cpu.ex_n == 9);
+    BOOST_TEST(cpu.ex_n == EXCAPTION_NUMBER::TRACE);
 }
 
 BOOST_AUTO_TEST_CASE(SFC) {
@@ -317,14 +317,14 @@ BOOST_AUTO_TEST_SUITE(TO)
 BOOST_AUTO_TEST_CASE(User) {
     cpu.S = false;
     run_test(90);
-    BOOST_TEST(cpu.ex_n == 8);
+    BOOST_TEST(cpu.ex_n == EXCAPTION_NUMBER::PRIV_ERR);
 }
 
 BOOST_AUTO_TEST_CASE(Traced) {
     cpu.S = true;
     cpu.T = 1;
     run_test(90);
-    BOOST_TEST(cpu.ex_n == 9);
+    BOOST_TEST(cpu.ex_n == EXCAPTION_NUMBER::TRACE);
 }
 
 BOOST_AUTO_TEST_CASE(SFC) {

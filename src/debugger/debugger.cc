@@ -67,29 +67,29 @@ std::string dumpReg() {
     s += fmt::format("{:08x}", cpu.FPIAR);
     return s;
 }
-int get_signum(int con) {
+int get_signum(EXCAPTION_NUMBER con) {
     switch(con) {
-    case 2:
-    case 3:
+    case EXCAPTION_NUMBER::AFAULT:
+    case EXCAPTION_NUMBER::ADDR_ERR:
         return SIGBUS;
-    case 4:
-    case 8:
-    case 10:
-    case 11:
+    case EXCAPTION_NUMBER::ILLEGAL_OP:
+    case EXCAPTION_NUMBER::PRIV_ERR:
+    case EXCAPTION_NUMBER::ALINE:
+    case EXCAPTION_NUMBER::FLINE:
         return SIGILL;
-    case 5:
-    case 48:
-    case 49:
-    case 50:
-    case 51:
-    case 52:
-    case 53:
-    case 54:
-    case 55:
+    case EXCAPTION_NUMBER::DIV0:
+    case EXCAPTION_NUMBER::FP_UNORDER:
+    case EXCAPTION_NUMBER::FP_INEX:
+    case EXCAPTION_NUMBER::FP_DIV0:
+    case EXCAPTION_NUMBER::FP_UNFL:
+    case EXCAPTION_NUMBER::FP_OPERR:
+    case EXCAPTION_NUMBER::FP_OVFL:
+    case EXCAPTION_NUMBER::FP_SNAN:
+    case EXCAPTION_NUMBER::FP_UNIMPL_TYPE:
         return SIGFPE;
-    case 6:
-    case 7:
-    case 9:
+    case EXCAPTION_NUMBER::CHK_FAIL:
+    case EXCAPTION_NUMBER::TRAPx:
+    case EXCAPTION_NUMBER::TRACE:
         return SIGTRAP;
     default:
         return 0;
@@ -123,6 +123,7 @@ void debug_cpu(std::stop_token stoken) {
             run_op();
         } else {
             // EXCEPTION
+            cpu.bus_lock = false;
             cpu.PC = cpu.oldpc;
             stop_cpu(fmt::format("S{:02x}", get_signum(cpu.ex_n)));
         }
@@ -228,6 +229,7 @@ bool gdb_cmd(const char *c) {
             run_op();
             sendPacket("S00");
         } else {
+            cpu.bus_lock = false;
             cpu.PC = cpu.oldpc;
             lastStopped = fmt::format("S{:02x}", get_signum(cpu.ex_n));
             sendPacket(lastStopped);

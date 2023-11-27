@@ -51,7 +51,7 @@ BOOST_AUTO_TEST_CASE(F) {
 BOOST_AUTO_TEST_CASE(traced) {
     cpu.T = 1;
 	run_test(0);
-	BOOST_TEST(cpu.ex_n == 9 );
+	BOOST_TEST(cpu.ex_n == EXCAPTION_NUMBER::TRACE );
 }
 
 BOOST_AUTO_TEST_SUITE_END()
@@ -78,7 +78,7 @@ BOOST_AUTO_TEST_CASE(F) {
 BOOST_AUTO_TEST_CASE(traced) {
     cpu.T = 1;
 	run_test(6);
-	BOOST_TEST(cpu.ex_n == 9 );
+	BOOST_TEST(cpu.ex_n == EXCAPTION_NUMBER::TRACE );
 }
 
 BOOST_AUTO_TEST_SUITE_END()
@@ -106,7 +106,7 @@ BOOST_AUTO_TEST_CASE(F) {
 BOOST_AUTO_TEST_CASE(traced) {
     cpu.T = 1;
 	run_test(12);
-	BOOST_TEST(cpu.ex_n == 9 );
+	BOOST_TEST(cpu.ex_n == EXCAPTION_NUMBER::TRACE );
 }
 
 BOOST_AUTO_TEST_SUITE_END()

@@ -130,18 +130,21 @@ void ea_getaddr_jit(int type, int reg, int sz) {
     as->mov(EA, x86::esi);
 }
 
-void ea_readB_jit(int type, int reg) {
+void ea_readB_jit(int type, int reg, bool lk) {
     if(type == 0) {
         as->movzx(x86::eax, DR_B(reg));
     } else if(type == 7 && reg == 4) {
         as->mov(x86::eax, FETCH() & 0xff);
     } else {
         ea_getaddr_jit( type, reg, 1);
+        if( lk) {
+            as->inc(CPU_BYTE(bus_lock));
+        }
         jit_readB( ARG1.r32());
     }
 }
 
-void ea_readW_jit(int type, int reg) {
+void ea_readW_jit(int type, int reg, bool lk) {
     if(type == 0) {
         as->movzx(x86::eax, DR_W(reg));
     } else if(type == 1) {
@@ -150,11 +153,14 @@ void ea_readW_jit(int type, int reg) {
         as->mov(x86::eax, FETCH());
     } else {
         ea_getaddr_jit( type, reg, 2);
+        if( lk) {
+            as->inc(CPU_BYTE(bus_lock));
+        }
         jit_readW( ARG1.r32());
     }
 }
 
-void ea_readL_jit(int type, int reg) {
+void ea_readL_jit(int type, int reg, bool lk) {
     if(type == 0) {
         as->mov(x86::eax, DR_L(reg));
     } else if(type == 1) {
@@ -163,6 +169,9 @@ void ea_readL_jit(int type, int reg) {
         as->mov(x86::eax, FETCH32());
     } else {
         ea_getaddr_jit( type, reg, 4);
+        if( lk) {
+            as->inc(CPU_BYTE(bus_lock));
+        }
         jit_readL( ARG1.r32());
     }
 }
@@ -175,6 +184,7 @@ void ea_writeB_jit(int type, int reg, bool update) {
             ea_getaddr_jit( type, reg, 1);
         }
         jit_writeB( EA, x86::al);
+        as->mov(CPU_BYTE(bus_lock), 0);
     }
 }
 
@@ -189,6 +199,7 @@ void ea_writeW_jit(int type, int reg, bool update) {
             ea_getaddr_jit( type, reg, 2);
         }
         jit_writeW( EA, x86::ax);
+        as->mov(CPU_BYTE(bus_lock), 0);
     }
 }
 
@@ -202,5 +213,6 @@ void ea_writeL_jit(int type, int reg, bool update) {
             ea_getaddr_jit( type, reg, 4);
         }
         jit_writeL( EA, x86::eax);
+        as->mov(CPU_BYTE(bus_lock), 0);
     }
 }

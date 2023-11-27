@@ -2,6 +2,7 @@
 #define BOOST_TEST_DYN_LINK
 #include "68040.hpp"
 #include "SDL.h"
+#include "exception.hpp"
 #include "jit.hpp"
 #include "memory.hpp"
 #include "test.hpp"
@@ -60,7 +61,7 @@ Prepare::Prepare() {
     TEST::SET_L(0x8308, 0x2081); // System only
     TEST::SET_L(0x830C, 0x3000); // Invalid Area
     cpu.I = 0;
-    cpu.ex_n = 0;
+    cpu.ex_n = EXCAPTION_NUMBER::NO_ERR;
 }
 void init_run_table();
 void init_emu();
@@ -89,5 +90,7 @@ void run_test(uint32_t pc) {
             (*e->exec)((cpu.PC - e->begin) >> 1);
 #endif
         }
+    } else {
+        cpu.bus_lock = false;
     }
 }
