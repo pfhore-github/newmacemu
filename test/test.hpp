@@ -49,7 +49,9 @@ struct DummyIO_B {
     void write(uint32_t addr, uint8_t v);
 };
 
-inline std::ostream& operator<<(std::ostream& os, EXCAPTION_NUMBER e) {
+inline std::ostream& operator<<(std::ostream& os, EXCEPTION_NUMBER e) {
     return os << int(e);
+
+
 }
 #endif

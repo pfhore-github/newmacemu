@@ -19,17 +19,17 @@ BOOST_FIXTURE_TEST_SUITE(NOP, Prepare, *boost::unit_test::fixture<F_NOP>())
 
 BOOST_AUTO_TEST_CASE(execute) {
 	run_test(0);
-	BOOST_TEST(cpu.ex_n == EXCAPTION_NUMBER::NO_ERR );
+	BOOST_TEST(cpu.ex_n == EXCEPTION_NUMBER::NO_ERR );
 }
 BOOST_AUTO_TEST_CASE(trace_always) {
     cpu.T = 2;
 	run_test(0);
-	BOOST_TEST(cpu.ex_n == EXCAPTION_NUMBER::TRACE );
+	BOOST_TEST(cpu.ex_n == EXCEPTION_NUMBER::TRACE );
 }
 
 BOOST_AUTO_TEST_CASE(tracecd) {
     cpu.T = 1;
 	run_test(0);
-	BOOST_TEST(cpu.ex_n == EXCAPTION_NUMBER::TRACE );
+	BOOST_TEST(cpu.ex_n == EXCEPTION_NUMBER::TRACE );
 }
 BOOST_AUTO_TEST_SUITE_END()

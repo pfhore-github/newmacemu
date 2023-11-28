@@ -1433,22 +1433,20 @@ void frestore(uint16_t op) {
 void fdbcc(uint16_t op) {
     uint16_t extw = FETCH();
     int16_t offset = FETCH();
-	update_pc();
+    update_pc();
     if(extw & 1 << 4) {
         jit_test_bsun();
     }
     jit_test_Fcc(extw & 0xf);
-	as->test(x86::al, x86::al);
-	jit_if(COND::FALSE, [op, offset]{
-		as->mov(x86::dx, DR_W(REG(op)));
-		as->dec(x86::dx);
-		as->mov(DR_W(REG(op)), x86::dx);
-		as->cmp(x86::dx, -1);
-		jit_if(COND::NE, [offset]{
-			jumpC(cpu.PC + offset-2);
-		});
-	});
-	jit_trace_branch();
+    as->test(x86::al, x86::al);
+    jit_if(COND::FALSE, [op, offset] {
+        as->mov(x86::dx, DR_W(REG(op)));
+        as->dec(x86::dx);
+        as->mov(DR_W(REG(op)), x86::dx);
+        as->cmp(x86::dx, -1);
+        jit_if(COND::NE, [offset] { jumpC(cpu.PC + offset - 2); });
+    });
+    jit_trace_branch();
 }
 void ftrapcc(uint16_t op) {
     uint16_t extw = FETCH();
@@ -1457,45 +1455,39 @@ void ftrapcc(uint16_t op) {
     } else if(REG(op) == 3) {
         FETCH32();
     }
-	update_pc();
+    update_pc();
     if(extw & 1 << 4) {
         jit_test_bsun();
     }
     jit_test_Fcc(extw & 0xf);
-	as->test(x86::al, x86::al);
-	jit_if(COND::TRUE, []{
-		as->call(TRAPX_ERROR);
-	});
+    as->test(x86::al, x86::al);
+    jit_if(COND::TRUE, [] { as->call(TRAPX_ERROR); });
 }
 
 void fbcc_w(uint16_t op) {
     int c = op & 077;
     int16_t offset = FETCH();
-	update_pc();
+    update_pc();
     if(c & 1 << 4) {
         jit_test_bsun();
     }
     jit_test_Fcc(c & 0xf);
-	as->test(x86::al, x86::al);
-	jit_if(COND::TRUE, [offset]{
-		jumpC(cpu.PC + offset-2);
-	});
-	jit_trace_branch();
+    as->test(x86::al, x86::al);
+    jit_if(COND::TRUE, [offset] { jumpC(cpu.PC + offset - 2); });
+    jit_trace_branch();
 }
 
 void fbcc_l(uint16_t op) {
     int c = op & 077;
     int32_t offset = FETCH32();
-	update_pc();
+    update_pc();
     if(c & 1 << 4) {
         jit_test_bsun();
     }
     jit_test_Fcc(c & 0xf);
-	as->test(x86::al, x86::al);
-	jit_if(COND::TRUE, [offset]{
-		jumpC(cpu.PC + offset-2);
-	});
-	jit_trace_branch();
+    as->test(x86::al, x86::al);
+    jit_if(COND::TRUE, [offset] { jumpC(cpu.PC + offset - 2); });
+    jit_trace_branch();
 }
 
 #endif

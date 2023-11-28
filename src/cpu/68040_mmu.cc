@@ -1,7 +1,7 @@
 #include "68040.hpp"
 #include "exception.hpp"
-#include "memory.hpp"
 #include "inline.hpp"
+#include "memory.hpp"
 #include <optional>
 
 struct addr_e {
@@ -13,6 +13,8 @@ struct addr_e {
     uint8_t ri;
     bool offset_h;
 };
+struct jit_cache;
+extern std::unordered_map<uint32_t, std::shared_ptr<jit_cache>> jit_tables;
 
 constexpr uint32_t DESP_W = 1 << 2;
 constexpr uint32_t DESP_U = 1 << 3;
@@ -70,11 +72,11 @@ atc_search_not_found(uint32_t addr, bool s) {
     return cpu.g_atc[s].insert_or_assign(addr, notfound).first;
 }
 
-std::unordered_map<uint32_t, Cpu::atc_entry>::iterator
+std::pair<std::unordered_map<uint32_t, Cpu::atc_entry>::iterator, bool>
 atc_set(uint32_t addr, uint32_t pg_addr, bool W, bool wp, bool s) {
     uint32_t pg = BusReadL(pg_addr);
     if((pg & 3) == 0) {
-        return atc_search_not_found(addr, s);
+        return { atc_search_not_found(addr, s), true };
     } else if((pg & 3) == 2) {
         pg_addr = pg & ~3;
         pg = BusReadL(pg_addr);
@@ -99,9 +101,9 @@ atc_set(uint32_t addr, uint32_t pg_addr, bool W, bool wp, bool s) {
     e.R = true;
 
     if(pg & DESP_G) {
-        return cpu.g_atc[s].insert_or_assign(addr, e).first;
+        return { cpu.g_atc[s].insert_or_assign(addr, e).first, true };
     } else {
-        return cpu.l_atc[s].insert_or_assign(addr, e).first;
+        return { cpu.l_atc[s].insert_or_assign(addr, e).first, false} ;
     }
 }
 uint32_t pdt_lookup(uint32_t addr) {
@@ -114,18 +116,18 @@ uint32_t pdt_lookup(uint32_t addr) {
     return urp;
 }
 
-std::unordered_map<uint32_t, Cpu::atc_entry>::iterator
+std::pair<std::unordered_map<uint32_t, Cpu::atc_entry>::iterator, bool>
 atc_search(uint32_t addr, bool s, bool W) {
     auto ap = addr_e(addr, cpu.TCR_P);
     uint32_t ur_addr = (s ? cpu.SRP : cpu.URP) | (ap.ri << 2);
     auto urp = pdt_lookup(ur_addr);
     if(!urp) {
-        return atc_search_not_found(addr, s);
+        return { atc_search_not_found(addr, s), true };
     }
     uint32_t pt_addr = (urp & ~0x1FF) | (ap.pi << 2);
     auto pt = pdt_lookup(pt_addr);
     if(!pt) {
-        return atc_search_not_found(addr, s);
+        return { atc_search_not_found(addr, s), true };
     }
 
     uint32_t pg_addr = (pt & ~(cpu.TCR_P ? 0x7f : 0xFF)) | (ap.pgi << 2);
@@ -161,7 +163,7 @@ mmu_result ptest(uint32_t addr, bool sys, bool code, bool W) {
     }
 ATC_SEARCH:
     try {
-        atc_found = atc_search(addr, sys, W);
+        std::tie(atc_found, G) = atc_search(addr, sys, W);
     } catch(BusError &) {
         return {.B = true};
     }
@@ -242,36 +244,75 @@ void cpusha_d() {
 
 void cinvl_i(uint32_t base) {
     base &= ~0xf;
-    (void)base;
-    // TODO: JIT cache must be refreshed
+    for(uint32_t b = base; b < base + 0x10; b += 2) {
+        jit_tables.erase(b);
+    }
 }
 
 void cinvp_i(uint32_t base) {
-    base &= ~(page_size() - 1);
-    (void)base;
-    // TODO: JIT cache must be refreshed
+    auto pg_sz = page_size();
+    base &= ~(pg_sz - 1);
+    for(uint32_t b = base; b < base + pg_sz; b += 2) {
+        jit_tables.erase(b);
+    }
 }
 
-void cinva_i() {
-    // TODO: JIT cache must be refreshed
-}
+void cinva_i() { jit_tables.clear(); }
 
 void cpushl_i(uint32_t base) {
     base &= ~0xf;
-    (void)base;
-    // TODO: JIT cache must be refreshed
+    for(uint32_t b = base; b < base + 0x10; b += 2) {
+        jit_tables.erase(b);
+    }
 }
 
 void cpushp_i(uint32_t base) {
-    base &= ~(page_size() - 1);
-    (void)base;
-    // TODO: JIT cache must be refreshed
+    auto pg_sz = page_size();
+    base &= ~(pg_sz - 1);
+    for(uint32_t b = base; b < base + pg_sz; b += 2) {
+        jit_tables.erase(b);
+    }
 }
 
 void cpusha_i() {
-    // TODO: JIT cache must be refreshed
+    jit_tables.clear();
 }
 
+void pflushn_impl(uint32_t addr) {
+    if(cpu.DFC == 1 || cpu.DFC == 2) {
+        cpu.l_atc[0].erase(addr);
+    } else if(cpu.DFC == 5 || cpu.DFC == 6) {
+        cpu.l_atc[1].erase(addr);
+    }
+}
+
+void pflush_impl(uint32_t addr) {
+    if(cpu.DFC == 1 || cpu.DFC == 2) {
+        cpu.l_atc[0].erase(addr);
+        cpu.g_atc[0].erase(addr);
+    } else if(cpu.DFC == 5 || cpu.DFC == 6) {
+        cpu.l_atc[1].erase(addr);
+        cpu.g_atc[1].erase(addr);
+    }
+}
+
+void pflushan_impl() {
+    if(cpu.DFC == 1 || cpu.DFC == 2) {
+        cpu.l_atc[0].clear();
+    } else if(cpu.DFC == 5 || cpu.DFC == 6) {
+        cpu.l_atc[1].clear();
+    }
+}
+
+void pflusha_impl() {
+    if(cpu.DFC == 1 || cpu.DFC == 2) {
+        cpu.l_atc[0].clear();
+        cpu.g_atc[0].clear();
+    } else if(cpu.DFC == 5 || cpu.DFC == 6) {
+        cpu.l_atc[1].clear();
+        cpu.g_atc[1].clear();
+    }
+}
 namespace OP {
 void cinvl_dc(uint16_t op) {
     PRIV_CHECK();
@@ -390,46 +431,26 @@ void cpusha_bc(uint16_t) {
 void pflushn(uint16_t op) {
     PRIV_CHECK();
     uint32_t addr = cpu.A[REG(op)] >> 12;
-    if(cpu.DFC == 1 || cpu.DFC == 2) {
-        cpu.l_atc[0].erase(addr);
-    } else if(cpu.DFC == 5 || cpu.DFC == 6) {
-        cpu.l_atc[1].erase(addr);
-    }
+	pflushn_impl(addr);
     TRACE_BRANCH();
 }
 
 void pflush(uint16_t op) {
     PRIV_CHECK();
     uint32_t addr = cpu.A[REG(op)] >> 12;
-    if(cpu.DFC == 1 || cpu.DFC == 2) {
-        cpu.l_atc[0].erase(addr);
-        cpu.g_atc[0].erase(addr);
-    } else if(cpu.DFC == 5 || cpu.DFC == 6) {
-        cpu.l_atc[1].erase(addr);
-        cpu.g_atc[1].erase(addr);
-    }
+	pflush_impl(addr);
     TRACE_BRANCH();
 }
 
 void pflushan(uint16_t) {
     PRIV_CHECK();
-    if(cpu.DFC == 1 || cpu.DFC == 2) {
-        cpu.l_atc[0].clear();
-    } else if(cpu.DFC == 5 || cpu.DFC == 6) {
-        cpu.l_atc[1].clear();
-    }
+	pflushan_impl();
     TRACE_BRANCH();
 }
 
 void pflusha(uint16_t) {
     PRIV_CHECK();
-    if(cpu.DFC == 1 || cpu.DFC == 2) {
-        cpu.l_atc[0].clear();
-        cpu.g_atc[0].clear();
-    } else if(cpu.DFC == 5 || cpu.DFC == 6) {
-        cpu.l_atc[1].clear();
-        cpu.g_atc[1].clear();
-    }
+	pflusha_impl();
     TRACE_BRANCH();
 }
 

@@ -34,24 +34,24 @@ BOOST_FIXTURE_TEST_SUITE(TRAPcc, Prepare, *boost::unit_test::fixture<F_TRAPcc>()
 
 BOOST_AUTO_TEST_CASE(noext) {
     run_test(0);
-    BOOST_TEST(cpu.ex_n == EXCAPTION_NUMBER::NO_ERR);
+    BOOST_TEST(cpu.ex_n == EXCEPTION_NUMBER::NO_ERR);
     BOOST_TEST(cpu.PC == 4);
 }
 
 BOOST_AUTO_TEST_CASE(extW) {
     run_test(4);
-    BOOST_TEST(cpu.ex_n == EXCAPTION_NUMBER::NO_ERR);
+    BOOST_TEST(cpu.ex_n == EXCEPTION_NUMBER::NO_ERR);
     BOOST_TEST(cpu.PC == 10);
 }
 
 BOOST_AUTO_TEST_CASE(extL) {
     run_test(10);
-    BOOST_TEST(cpu.ex_n == EXCAPTION_NUMBER::NO_ERR);
+    BOOST_TEST(cpu.ex_n == EXCEPTION_NUMBER::NO_ERR);
     BOOST_TEST(cpu.PC == 18);
 }
 BOOST_AUTO_TEST_CASE(T) {
     run_test(18);
-    BOOST_TEST(cpu.ex_n == EXCAPTION_NUMBER::TRAPx);
+    BOOST_TEST(cpu.ex_n == EXCEPTION_NUMBER::TRAPx);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

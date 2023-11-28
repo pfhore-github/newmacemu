@@ -21,10 +21,8 @@ jit_op jit_compile_op[0x10000];
 CpuFeatures feature;
 std::unique_ptr<x86::Assembler> as;
 
-void call_prolog() {
-}
-void call_epilog(bool ) {
-}
+void call_prolog() {}
+void call_epilog(bool) {}
 void movem_w_store_decr_impl(uint16_t regs, int reg);
 void movem_w_store_base_impl(uint16_t regs, int type, int reg);
 namespace JIT_OP {
@@ -32,6 +30,7 @@ extern Label end_lbl;
 
 } // namespace JIT_OP
 void init_jit_table_fpu();
+void init_jit_table_mmu();
 void jit_init() {
     rt = std::make_unique<JitRuntime>();
 
@@ -436,6 +435,7 @@ void jit_init() {
         jit_compile_op[0173040 | i] = JIT_OP::move16_inc_inc;
     }
     init_jit_table_fpu();
+    init_jit_table_mmu();
 #ifdef CI
     jit_compile_op[0044117] = JIT_OP::jit_exit;
 #endif

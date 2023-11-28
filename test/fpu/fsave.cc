@@ -20,7 +20,7 @@ BOOST_AUTO_TEST_CASE(err) {
     cpu.S = false;
     cpu.A[2] = 0x100;
     run_test(0);
-    BOOST_TEST(cpu.ex_n == EXCAPTION_NUMBER::PRIV_ERR);
+    BOOST_TEST(cpu.ex_n == EXCEPTION_NUMBER::PRIV_ERR);
 }
 
 BOOST_AUTO_TEST_CASE(traced) {
@@ -28,7 +28,7 @@ BOOST_AUTO_TEST_CASE(traced) {
     cpu.T = 1;
     cpu.A[2] = 0x100;
     run_test(0);
-    BOOST_TEST(cpu.ex_n == EXCAPTION_NUMBER::TRACE);
+    BOOST_TEST(cpu.ex_n == EXCEPTION_NUMBER::TRACE);
 }
 BOOST_AUTO_TEST_CASE(normal) {
     cpu.S = true;

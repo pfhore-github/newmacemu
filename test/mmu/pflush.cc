@@ -5,21 +5,43 @@
 #include <boost/test/data/test_case.hpp>
 #include <boost/test/unit_test.hpp>
 namespace bdata = boost::unit_test::data;
-BOOST_FIXTURE_TEST_SUITE(PFLUSHN, Prepare)
+struct F_PFLUSHx {
+	F_PFLUSHx() {
+		// FPLUSHN (%A3)
+		TEST::SET_W(0, 0172400 | 3);
+        TEST::SET_W(2, TEST_BREAK);
+
+		// FPLUSH (%A3)
+		TEST::SET_W(4, 0172410 | 3);
+        TEST::SET_W(6, TEST_BREAK);
+
+		// FPLUSHAN
+		TEST::SET_W(8, 0172420);
+        TEST::SET_W(10, TEST_BREAK);
+
+		// FPLUSHA
+		TEST::SET_W(12, 0172430);
+        TEST::SET_W(14, TEST_BREAK);
+
+        jit_compile(0, 16);
+	}
+};
+BOOST_FIXTURE_TEST_SUITE(PFLUSHx, Prepare,
+                         *boost::unit_test::fixture<F_PFLUSHx>())
+
+BOOST_AUTO_TEST_SUITE(PFLUSHN)
 BOOST_AUTO_TEST_CASE(err) {
     cpu.S = false;
-    TEST::SET_W(0, 0172403);
-    BOOST_TEST(run_test() == 8);
+	run_test(0);
+    BOOST_TEST(cpu.ex_n == EXCEPTION_NUMBER::PRIV_ERR);
 }
-
 BOOST_AUTO_TEST_CASE(traced) {
-    cpu.S = true;
+	cpu.S = true;
     cpu.T = 1;
     cpu.DFC = 2;
     cpu.A[3] = 0x1 << 12;
-    TEST::SET_W(0, 0172403);
-    un_test(0);
-	BOOST_TEST(cpu.ex_n == EXCAPTION_NUMBER::TRACE );
+	run_test(0);
+	BOOST_TEST(cpu.ex_n == EXCEPTION_NUMBER::TRACE );
 }
 
 BOOST_AUTO_TEST_CASE(user) {
@@ -34,9 +56,7 @@ BOOST_AUTO_TEST_CASE(user) {
     cpu.g_atc[0][1] = {5, 0, false, 0, false, false, true};
     cpu.g_atc[0][2] = {5, 0, false, 0, false, false, true};
     cpu.A[3] = 0x1 << 12;
-    TEST::SET_W(0, 0172403);
-    run_test();
-    BOOST_TEST(cpu.PC == 2);
+    run_test(0);
     BOOST_TEST(!cpu.l_atc[0].contains(1));
     BOOST_TEST(cpu.l_atc[1].contains(1));
     BOOST_TEST(cpu.g_atc[0].contains(1));
@@ -59,21 +79,18 @@ BOOST_AUTO_TEST_CASE(sys) {
     cpu.g_atc[0][1] = {5, 0, false, 0, false, false, true};
     cpu.g_atc[0][2] = {5, 0, false, 0, false, false, true};
     cpu.A[3] = 0x1 << 12;
-    TEST::SET_W(0, 0172403);
-    run_test();
+    run_test(0);
     BOOST_TEST(cpu.l_atc[0].contains(1));
     BOOST_TEST(!cpu.l_atc[1].contains(1));
     BOOST_TEST(cpu.g_atc[0].contains(1));
     BOOST_TEST(cpu.g_atc[1].contains(1));
 }
-
 BOOST_AUTO_TEST_SUITE_END()
-
-BOOST_FIXTURE_TEST_SUITE(PFLUSH, Prepare)
+BOOST_AUTO_TEST_SUITE(PFLUSH)
 BOOST_AUTO_TEST_CASE(err) {
     cpu.S = false;
-    TEST::SET_W(0, 0172413);
-    BOOST_TEST(run_test() == 8);
+	run_test(4);
+    BOOST_TEST(cpu.ex_n == EXCEPTION_NUMBER::PRIV_ERR);
 }
 
 BOOST_AUTO_TEST_CASE(traced) {
@@ -81,9 +98,8 @@ BOOST_AUTO_TEST_CASE(traced) {
     cpu.T = 1;
     cpu.DFC = 2;
     cpu.A[3] = 0x1 << 12;
-    TEST::SET_W(0, 0172413);
-    un_test(0);
-	BOOST_TEST(cpu.ex_n == EXCAPTION_NUMBER::TRACE );
+	run_test(4);
+	BOOST_TEST(cpu.ex_n == EXCEPTION_NUMBER::TRACE );
 }
 
 BOOST_AUTO_TEST_CASE(user) {
@@ -98,9 +114,7 @@ BOOST_AUTO_TEST_CASE(user) {
     cpu.g_atc[0][1] = {5, 0, false, 0, false, false, true};
     cpu.g_atc[0][2] = {5, 0, false, 0, false, false, true};
     cpu.A[3] = 0x1 << 12;
-    TEST::SET_W(0, 0172413);
-    run_test();
-    BOOST_TEST(cpu.PC == 2);
+	run_test(4);
     BOOST_TEST(!cpu.l_atc[0].contains(1));
     BOOST_TEST(cpu.l_atc[1].contains(1));
     BOOST_TEST(!cpu.g_atc[0].contains(1));
@@ -123,8 +137,7 @@ BOOST_AUTO_TEST_CASE(sys) {
     cpu.g_atc[0][1] = {5, 0, false, 0, false, false, true};
     cpu.g_atc[0][2] = {5, 0, false, 0, false, false, true};
     cpu.A[3] = 0x1 << 12;
-    TEST::SET_W(0, 0172413);
-    run_test();
+	run_test(4);
     BOOST_TEST(cpu.l_atc[0].contains(1));
     BOOST_TEST(!cpu.l_atc[1].contains(1));
     BOOST_TEST(cpu.g_atc[0].contains(1));
@@ -136,22 +149,19 @@ BOOST_AUTO_TEST_CASE(sys) {
 }
 
 BOOST_AUTO_TEST_SUITE_END()
-
-BOOST_FIXTURE_TEST_SUITE(PFLUSHAN, Prepare)
+BOOST_AUTO_TEST_SUITE(PFLUSHAN)
 BOOST_AUTO_TEST_CASE(err) {
     cpu.S = false;
-    TEST::SET_W(0, 0172423);
-    BOOST_TEST(run_test() == 8);
+    run_test(8);
+    BOOST_TEST(cpu.ex_n == EXCEPTION_NUMBER::PRIV_ERR);
 }
 
 BOOST_AUTO_TEST_CASE(traced) {
     cpu.S = true;
     cpu.T = 1;
     cpu.DFC = 2;
-    cpu.A[3] = 0x1 << 12;
-    TEST::SET_W(0, 0172423);
-    un_test(0);
-	BOOST_TEST(cpu.ex_n == EXCAPTION_NUMBER::TRACE );
+    run_test(8);
+	BOOST_TEST(cpu.ex_n == EXCEPTION_NUMBER::TRACE );
 }
 
 BOOST_AUTO_TEST_CASE(user) {
@@ -165,10 +175,7 @@ BOOST_AUTO_TEST_CASE(user) {
     cpu.g_atc[1][2] = {4, 0, false, 0, false, false, true};
     cpu.g_atc[0][1] = {5, 0, false, 0, false, false, true};
     cpu.g_atc[0][2] = {5, 0, false, 0, false, false, true};
-    cpu.A[3] = 0x1 << 12;
-    TEST::SET_W(0, 0172423);
-    run_test();
-    BOOST_TEST(cpu.PC == 2);
+    run_test(8);
     BOOST_TEST(cpu.l_atc[0].empty());
     BOOST_TEST(cpu.g_atc[0].contains(1));
     BOOST_TEST(cpu.l_atc[1].contains(1));
@@ -189,10 +196,8 @@ BOOST_AUTO_TEST_CASE(sys) {
     cpu.g_atc[1][2] = {4, 0, false, 0, false, false, true};
     cpu.g_atc[0][1] = {5, 0, false, 0, false, false, true};
     cpu.g_atc[0][2] = {5, 0, false, 0, false, false, true};
-    cpu.A[3] = 0x1 << 12;
-    TEST::SET_W(0, 0172423);
-    run_test();
-    BOOST_TEST(cpu.l_atc[1].empty());
+    run_test(8);
+    BOOST_TEST(!cpu.l_atc[1].contains(1));
     BOOST_TEST(cpu.g_atc[0].contains(1));
     BOOST_TEST(cpu.l_atc[0].contains(1));
     BOOST_TEST(cpu.g_atc[1].contains(1));
@@ -202,22 +207,19 @@ BOOST_AUTO_TEST_CASE(sys) {
 }
 
 BOOST_AUTO_TEST_SUITE_END()
-
-BOOST_FIXTURE_TEST_SUITE(PFLUSHA, Prepare)
+BOOST_AUTO_TEST_SUITE(PFLUSHA)
 BOOST_AUTO_TEST_CASE(err) {
     cpu.S = false;
-    TEST::SET_W(0, 0172433);
-    BOOST_TEST(run_test() == 8);
+	run_test(12);
+    BOOST_TEST(cpu.ex_n == EXCEPTION_NUMBER::PRIV_ERR);
 }
 
 BOOST_AUTO_TEST_CASE(traced) {
     cpu.S = true;
     cpu.T = 1;
     cpu.DFC = 2;
-    cpu.A[3] = 0x1 << 12;
-    TEST::SET_W(0, 0172433);
-    un_test(0);
-	BOOST_TEST(cpu.ex_n == EXCAPTION_NUMBER::TRACE );
+    run_test(12);
+	BOOST_TEST(cpu.ex_n == EXCEPTION_NUMBER::TRACE );
 }
 
 BOOST_AUTO_TEST_CASE(user) {
@@ -231,10 +233,7 @@ BOOST_AUTO_TEST_CASE(user) {
     cpu.g_atc[1][2] = {4, 0, false, 0, false, false, true};
     cpu.g_atc[0][1] = {5, 0, false, 0, false, false, true};
     cpu.g_atc[0][2] = {5, 0, false, 0, false, false, true};
-    cpu.A[3] = 0x1 << 12;
-    TEST::SET_W(0, 0172433);
-    run_test();
-    BOOST_TEST(cpu.PC == 2);
+    run_test(12);
     BOOST_TEST(cpu.l_atc[0].empty());
     BOOST_TEST(cpu.g_atc[0].empty());
     BOOST_TEST(cpu.l_atc[1].contains(1));
@@ -254,10 +253,8 @@ BOOST_AUTO_TEST_CASE(sys) {
     cpu.g_atc[1][2] = {4, 0, false, 0, false, false, true};
     cpu.g_atc[0][1] = {5, 0, false, 0, false, false, true};
     cpu.g_atc[0][2] = {5, 0, false, 0, false, false, true};
-    cpu.A[3] = 0x1 << 12;
-    TEST::SET_W(0, 0172433);
-    run_test();
-    BOOST_TEST(cpu.l_atc[1].empty());
+    run_test(12);
+    BOOST_TEST(!cpu.l_atc[1].contains(1));
     BOOST_TEST(cpu.g_atc[1].empty());
     BOOST_TEST(cpu.g_atc[0].contains(1));
     BOOST_TEST(cpu.l_atc[0].contains(1));
@@ -265,3 +262,5 @@ BOOST_AUTO_TEST_CASE(sys) {
     BOOST_TEST(cpu.g_atc[0].contains(2));
 }
 
+BOOST_AUTO_TEST_SUITE_END()
+BOOST_AUTO_TEST_SUITE_END()

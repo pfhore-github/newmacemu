@@ -56,12 +56,12 @@ Prepare::Prepare() {
     cpu.URP = cpu.SRP = 0x8000;
     TEST::SET_L(0x8000, 0x8202); // ROOT-dsc
     TEST::SET_L(0x8200, 0x8302); // Ptr-dsc
-    TEST::SET_L(0x8300, 1);      // TEST Area
-    TEST::SET_L(0x8304, 0x1005); // Write protected
-    TEST::SET_L(0x8308, 0x2081); // System only
+    TEST::SET_L(0x8300, 0x0419); // TEST Area
+    TEST::SET_L(0x8304, 0x1405); // Write protected
+    TEST::SET_L(0x8308, 0x2481); // System only
     TEST::SET_L(0x830C, 0x3000); // Invalid Area
     cpu.I = 0;
-    cpu.ex_n = EXCAPTION_NUMBER::NO_ERR;
+    cpu.ex_n = EXCEPTION_NUMBER::NO_ERR;
 }
 void init_run_table();
 void init_emu();
@@ -87,7 +87,11 @@ void run_test(uint32_t pc) {
             run_op();
 #else
             auto e = jit_tables[cpu.PC].get();
-            (*e->exec)((cpu.PC - e->begin) >> 1);
+            if(e) {
+                (*e->exec)((cpu.PC - e->begin) >> 1);
+            } else {
+                run_op();
+            }
 #endif
         }
     } else {

@@ -78,7 +78,7 @@ struct Cpu {
     uint16_t fault_SSW;
     uint32_t oldpc;
     uint32_t ex_addr;
-    volatile EXCAPTION_NUMBER ex_n;
+    volatile EXCEPTION_NUMBER ex_n;
     bool bus_lock;
 
     bool in_exception;

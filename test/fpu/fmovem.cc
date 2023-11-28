@@ -120,7 +120,7 @@ BOOST_AUTO_TEST_CASE(trace_postincr) {
     cpu.A[3] = 0x100;
     cpu.T = 1;
     run_test(0);
-    BOOST_TEST(cpu.ex_n == EXCAPTION_NUMBER::TRACE);
+    BOOST_TEST(cpu.ex_n == EXCEPTION_NUMBER::TRACE);
 }
 BOOST_AUTO_TEST_CASE(static_postincr) {
     cpu.A[3] = 0x100;
@@ -141,7 +141,7 @@ BOOST_AUTO_TEST_CASE(trace_addr) {
     cpu.T = 1;
     STORE_MEMX(0x100, 1.1);
     run_test(6);
-    BOOST_TEST(cpu.ex_n == EXCAPTION_NUMBER::TRACE);
+    BOOST_TEST(cpu.ex_n == EXCEPTION_NUMBER::TRACE);
 }
 BOOST_AUTO_TEST_CASE(static_addr) {
     cpu.A[3] = 0x100;
@@ -190,7 +190,7 @@ BOOST_AUTO_TEST_CASE(trace_predecr) {
     cpu.A[3] = 0x100;
     cpu.T = 1;
     run_test(24);
-    BOOST_TEST(cpu.ex_n == EXCAPTION_NUMBER::TRACE);
+    BOOST_TEST(cpu.ex_n == EXCEPTION_NUMBER::TRACE);
 }
 BOOST_AUTO_TEST_CASE(static_predecr) {
     cpu.A[3] = 0x130;
@@ -209,7 +209,7 @@ BOOST_AUTO_TEST_CASE(trace_addr) {
     cpu.A[3] = 0x100;
     cpu.T = 1;
     run_test(30);
-    BOOST_TEST(cpu.ex_n == EXCAPTION_NUMBER::TRACE);
+    BOOST_TEST(cpu.ex_n == EXCEPTION_NUMBER::TRACE);
 }
 BOOST_AUTO_TEST_CASE(static_addr) {
     cpu.A[3] = 0x100;

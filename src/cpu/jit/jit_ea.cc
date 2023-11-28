@@ -26,7 +26,7 @@ static void parseExt_jit(int reg) {
     if(!(next & 1 << 8)) {
         int8_t d = next & 0xff;
         as->lea(x86::rsi,
-              x86::ptr(x86::r10, x86::rax, ri_c, static_cast<int32_t>(d)));
+                x86::ptr(x86::r10, x86::rax, ri_c, static_cast<int32_t>(d)));
         return;
     }
     if(next & 1 << 7) {
@@ -50,7 +50,7 @@ static void parseExt_jit(int reg) {
     switch(next & 3) {
     case 0:
         as->lea(x86::rsi,
-              x86::ptr(x86::r10, x86::rax, ri_c, static_cast<int32_t>(bd)));
+                x86::ptr(x86::r10, x86::rax, ri_c, static_cast<int32_t>(bd)));
         return;
     case 1:
         break;
@@ -63,13 +63,13 @@ static void parseExt_jit(int reg) {
     }
     if(!(next & 1 << 2)) {
         as->lea(x86::r11,
-              x86::ptr(x86::r10, x86::rax, ri_c, static_cast<int32_t>(bd)));
-        jit_readL( x86::r11d);
+                x86::ptr(x86::r10, x86::rax, ri_c, static_cast<int32_t>(bd)));
+        jit_readL(x86::r11d);
         as->lea(x86::rsi, x86::ptr(x86::rax, od_v));
     } else {
         as->mov(x86::r12, x86::rax);
         as->lea(x86::r11, x86::ptr(x86::r10, static_cast<int32_t>(bd)));
-        jit_readL( x86::r11d);
+        jit_readL(x86::r11d);
         as->lea(x86::rsi, x86::ptr(x86::r12, x86::rax, ri_c, od_v));
     }
 }
@@ -100,7 +100,7 @@ void ea_getaddr_jit(int type, int reg, int sz) {
         break;
     }
     case 6:
-        parseExt_jit( reg);
+        parseExt_jit(reg);
         break;
     case 7:
         switch(reg) {
@@ -117,7 +117,7 @@ void ea_getaddr_jit(int type, int reg, int sz) {
             break;
         }
         case 3:
-            parseExt_jit( -1);
+            parseExt_jit(-1);
             break;
         default:
             throw JitError{};
@@ -136,11 +136,11 @@ void ea_readB_jit(int type, int reg, bool lk) {
     } else if(type == 7 && reg == 4) {
         as->mov(x86::eax, FETCH() & 0xff);
     } else {
-        ea_getaddr_jit( type, reg, 1);
-        if( lk) {
+        ea_getaddr_jit(type, reg, 1);
+        if(lk) {
             as->inc(CPU_BYTE(bus_lock));
         }
-        jit_readB( ARG1.r32());
+        jit_readB(ARG1.r32());
     }
 }
 
@@ -152,11 +152,11 @@ void ea_readW_jit(int type, int reg, bool lk) {
     } else if(type == 7 && reg == 4) {
         as->mov(x86::eax, FETCH());
     } else {
-        ea_getaddr_jit( type, reg, 2);
-        if( lk) {
+        ea_getaddr_jit(type, reg, 2);
+        if(lk) {
             as->inc(CPU_BYTE(bus_lock));
         }
-        jit_readW( ARG1.r32());
+        jit_readW(ARG1.r32());
     }
 }
 
@@ -168,11 +168,11 @@ void ea_readL_jit(int type, int reg, bool lk) {
     } else if(type == 7 && reg == 4) {
         as->mov(x86::eax, FETCH32());
     } else {
-        ea_getaddr_jit( type, reg, 4);
-        if( lk) {
+        ea_getaddr_jit(type, reg, 4);
+        if(lk) {
             as->inc(CPU_BYTE(bus_lock));
         }
-        jit_readL( ARG1.r32());
+        jit_readL(ARG1.r32());
     }
 }
 
@@ -181,9 +181,9 @@ void ea_writeB_jit(int type, int reg, bool update) {
         as->mov(DR_B(reg), x86::al);
     } else {
         if(!update) {
-            ea_getaddr_jit( type, reg, 1);
+            ea_getaddr_jit(type, reg, 1);
         }
-        jit_writeB( EA, x86::al);
+        jit_writeB(EA, x86::al);
         as->mov(CPU_BYTE(bus_lock), 0);
     }
 }
@@ -196,9 +196,9 @@ void ea_writeW_jit(int type, int reg, bool update) {
         as->mov(AR_L(reg), x86::eax);
     } else {
         if(!update) {
-            ea_getaddr_jit( type, reg, 2);
+            ea_getaddr_jit(type, reg, 2);
         }
-        jit_writeW( EA, x86::ax);
+        jit_writeW(EA, x86::ax);
         as->mov(CPU_BYTE(bus_lock), 0);
     }
 }
@@ -210,9 +210,9 @@ void ea_writeL_jit(int type, int reg, bool update) {
         as->mov(AR_L(reg), x86::eax);
     } else {
         if(!update) {
-            ea_getaddr_jit( type, reg, 4);
+            ea_getaddr_jit(type, reg, 4);
         }
-        jit_writeL( EA, x86::eax);
+        jit_writeL(EA, x86::eax);
         as->mov(CPU_BYTE(bus_lock), 0);
     }
 }

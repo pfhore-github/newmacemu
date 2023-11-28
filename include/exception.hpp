@@ -18,7 +18,7 @@ enum class TM : uint8_t {
     ALT_7
 };
 enum class SIZ : uint8_t { L = 0, B, W, LN, NONE };
-enum class EXCAPTION_NUMBER : uint8_t {
+enum class EXCEPTION_NUMBER : uint8_t {
     NO_ERR = 0,
     RESET = 1,
     AFAULT,
@@ -66,7 +66,7 @@ enum class EXCAPTION_NUMBER : uint8_t {
     FP_SNAN,
     FP_UNIMPL_TYPE
 };
-void handle_exception(EXCAPTION_NUMBER n);
+void handle_exception(EXCEPTION_NUMBER n);
 constexpr uint16_t SSW_CP = 1 << 15;
 constexpr uint16_t SSW_CU = 1 << 14;
 constexpr uint16_t SSW_CT = 1 << 13;

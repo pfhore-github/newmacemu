@@ -35,25 +35,25 @@ struct F_FTRAPcc {
 BOOST_FIXTURE_TEST_SUITE(FTRAPcc, Prepare, *boost::unit_test::fixture<F_FTRAPcc>())
 BOOST_AUTO_TEST_CASE(ImmNone) {
     run_test(0);
-    BOOST_TEST(cpu.ex_n == EXCAPTION_NUMBER::NO_ERR);
+    BOOST_TEST(cpu.ex_n == EXCEPTION_NUMBER::NO_ERR);
     BOOST_TEST(cpu.PC == 6);
 }
 
 BOOST_AUTO_TEST_CASE(Imm16) {
     run_test(6);
-    BOOST_TEST(cpu.ex_n == EXCAPTION_NUMBER::NO_ERR);
+    BOOST_TEST(cpu.ex_n == EXCEPTION_NUMBER::NO_ERR);
     BOOST_TEST(cpu.PC == 14);
 }
 
 BOOST_AUTO_TEST_CASE(Imm32) {
     run_test(14);
-    BOOST_TEST(cpu.ex_n == EXCAPTION_NUMBER::NO_ERR);
+    BOOST_TEST(cpu.ex_n == EXCEPTION_NUMBER::NO_ERR);
     BOOST_TEST(cpu.PC == 24);
 }
 
 BOOST_AUTO_TEST_CASE(TRAP) {
     run_test(24);
-    BOOST_TEST(cpu.ex_n == EXCAPTION_NUMBER::TRAPx);
+    BOOST_TEST(cpu.ex_n == EXCEPTION_NUMBER::TRAPx);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

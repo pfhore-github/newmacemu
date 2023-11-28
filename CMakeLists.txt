@@ -27,7 +27,7 @@ src/cpu/op.cc src/cpu/run.cc src/cpu/m68k_ea.cc src/cpu/bcd.cc src/cpu/arithmeti
 src/cpu/68040_mmu.cc src/cpu/branch.cc
 src/cpu/exception.cc src/cpu/op_move.cc src/cpu/68040_fpu.cc src/bus.cc src/memory.cc 
 src/cpu/jit/jit.cc src/cpu/jit/jit_ea.cc src/cpu/jit/jit_util.cc
-src/cpu/jit/jit_op.cc src/cpu/jit/jit_fpu.cc
+src/cpu/jit/jit_op.cc src/cpu/jit/jit_fpu.cc src/cpu/jit/jit_mmu.cc
 )
 set(SRC_CHIPS
 src/chip/via.cc
@@ -116,9 +116,13 @@ test/fpu/fcmp.cc test/fpu/ftst.cc
 test/fpu/fmovem.cc 
 test/fpu/fscc.cc test/fpu/fsave.cc test/fpu/frestore.cc 
 test/fpu/fdbcc.cc test/fpu/ftrapcc.cc test/fpu/fbcc.cc 
-test/fpu/fnop.cc
+test/fpu/fnop.cc test/fpu/fpexcept.cc
 
 test/fpu/common.cc
+
+test/mmu/pflush.cc test/cpu/cinv.cc test/cpu/cpush.cc test/mmu/ptest.cc
+ 
+
 )
 add_executable(testcpu ${SRC_CPU} ${SRC_CHIPS} 
 test/test_main.cc 
@@ -127,13 +131,12 @@ ${CPU_TEST}
 
 
 
-test/fpu/fpexcept.cc
+
 
 test/mmu/ittr.cc test/mmu/dttr.cc test/mmu/disabled.cc test/mmu/atc.cc test/mmu/psearch.cc
-test/cpu/cinv.cc test/cpu/cpush.cc 
-test/mmu/pflush.cc 
+ 
 
-test/mmu/ptest.cc
+
 ]]
 ) 
 add_executable(testjit ${SRC_CPU} ${SRC_CHIPS} test/test_main.cc 
