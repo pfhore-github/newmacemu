@@ -5,7 +5,6 @@
 #include <optional>
 #include <utility>
 #include <vector>
-struct BusError {};
 uint8_t ReadB(uint32_t addr);
 uint16_t ReadW(uint32_t addr);
 uint16_t FetchW(uint32_t addr);
@@ -13,6 +12,12 @@ uint32_t ReadL(uint32_t addr);
 void WriteB(uint32_t addr, uint8_t b);
 void WriteW(uint32_t addr, uint16_t w);
 void WriteL(uint32_t addr, uint32_t l);
+uint8_t ReadSB(uint32_t addr);
+uint16_t ReadSW(uint32_t addr);
+uint32_t ReadSL(uint32_t addr);
+void WriteSB(uint32_t addr, uint8_t b);
+void WriteSW(uint32_t addr, uint16_t w);
+void WriteSL(uint32_t addr, uint32_t l);
 inline uint16_t FETCH() { return FetchW(std::exchange(cpu.PC, cpu.PC + 2)); }
 inline uint32_t FETCH32() {
     uint32_t v = FETCH();

@@ -81,7 +81,6 @@ struct Cpu {
     volatile EXCEPTION_NUMBER ex_n;
     bool bus_lock;
 
-    bool in_exception;
     bool must_trace;
 
     bool movem_run;
@@ -90,20 +89,20 @@ struct Cpu {
     std::atomic<int> inturrupt;
     uint32_t &R(int n) { return n < 8 ? D[n & 7] : A[n & 7]; }
 };
-
 struct mmu_result {
     uint32_t paddr = 0;
     uint8_t Ux = 0;
     uint8_t CM = 0;
     bool R = false;
     bool T = false;
+    bool U = false;
     bool W = false;
     bool M = false;
     bool S = false;
     bool G = false;
     bool B = false;
     uint32_t value() const {
-        return R | T << 1 | W << 2 | M << 4 | CM << 5 | S << 7 | Ux << 8 |
+        return R | T << 1 | W << 2 | U << 3 | M << 4 | CM << 5 | S << 7 | Ux << 8 |
                G << 10 | B << 11 | paddr << 12;
     }
 };

@@ -47,7 +47,6 @@ Prepare::Prepare() {
     cpu.DTTR[1].E = false;
     cpu.ITTR[0].E = false;
     cpu.ITTR[1].E = false;
-    cpu.in_exception = false;
     // EXCEPTION TABLE
     cpu.VBR = 0x4000;
     for(int i = 0; i < 64; ++i) {
@@ -60,8 +59,10 @@ Prepare::Prepare() {
     TEST::SET_L(0x8304, 0x1405); // Write protected
     TEST::SET_L(0x8308, 0x2481); // System only
     TEST::SET_L(0x830C, 0x3000); // Invalid Area
+    TEST::SET_L(0x8310, 0x4481); // EX-TABLE
     cpu.I = 0;
     cpu.ex_n = EXCEPTION_NUMBER::NO_ERR;
+    cpu.fault_SSW = 0;
 }
 void init_run_table();
 void init_emu();
@@ -79,7 +80,6 @@ extern std::unordered_map<uint32_t, std::shared_ptr<jit_cache>> jit_tables;
 #endif
 void run_test(uint32_t pc) {
     cpu.PC = pc;
-    cpu.in_exception = false;
     testing = true;
     if(setjmp(cpu.ex) == 0) {
         while(testing) {
@@ -96,5 +96,6 @@ void run_test(uint32_t pc) {
         }
     } else {
         cpu.bus_lock = false;
+        handle_exception(cpu.ex_n);
     }
 }

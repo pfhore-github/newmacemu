@@ -40,16 +40,16 @@ struct F_MOVES {
         TEST::SET_W(34, TEST_BREAK);
 
         jit_compile(0, 36);
-    }};
+    }
+};
 BOOST_FIXTURE_TEST_SUITE(MOVES, Prepare, *boost::unit_test::fixture<F_MOVES>())
-
 
 BOOST_AUTO_TEST_SUITE(Load)
 BOOST_AUTO_TEST_SUITE(Byte)
 BOOST_AUTO_TEST_CASE(NG) {
     cpu.S = false;
-	run_test(0);
-	BOOST_TEST( cpu.ex_n == EXCEPTION_NUMBER::PRIV_ERR );
+    run_test(0);
+    BOOST_TEST(cpu.ex_n == EXCEPTION_NUMBER::PRIV_ERR);
 }
 BOOST_AUTO_TEST_CASE(OK) {
     cpu.S = true;
@@ -65,15 +65,16 @@ BOOST_AUTO_TEST_CASE(fault) {
     cpu.SFC = 4;
     run_test(0);
     BOOST_TEST(cpu.ex_n == EXCEPTION_NUMBER::AFAULT);
-    BOOST_TEST((cpu.fault_SSW & TT_MASK) == TT_ALT);
-    BOOST_TEST((cpu.fault_SSW & 7) == 4);
+    uint16_t ssw = TEST::GET_W(0xBD0);
+    BOOST_TEST((ssw & TT_MASK) == TT_ALT);
+    BOOST_TEST((ssw & 7) == 4);
 }
 
 BOOST_AUTO_TEST_CASE(traced) {
     cpu.S = true;
     cpu.T = 1;
-	run_test(0);
-	BOOST_TEST( cpu.ex_n == EXCEPTION_NUMBER::TRACE );
+    run_test(0);
+    BOOST_TEST(cpu.ex_n == EXCEPTION_NUMBER::TRACE);
 }
 
 BOOST_AUTO_TEST_SUITE_END()
@@ -81,8 +82,8 @@ BOOST_AUTO_TEST_SUITE(Word)
 
 BOOST_AUTO_TEST_CASE(NG) {
     cpu.S = false;
-	run_test(6);
-	BOOST_TEST( cpu.ex_n == EXCEPTION_NUMBER::PRIV_ERR );
+    run_test(6);
+    BOOST_TEST(cpu.ex_n == EXCEPTION_NUMBER::PRIV_ERR);
 }
 
 BOOST_AUTO_TEST_CASE(OK) {
@@ -99,15 +100,16 @@ BOOST_AUTO_TEST_CASE(fault) {
     cpu.SFC = 4;
     run_test(6);
     BOOST_TEST(cpu.ex_n == EXCEPTION_NUMBER::AFAULT);
-    BOOST_TEST((cpu.fault_SSW & TT_MASK) == TT_ALT);
-    BOOST_TEST((cpu.fault_SSW & 7) == 4);
+    uint16_t ssw = TEST::GET_W(0xBD0);
+    BOOST_TEST((ssw & TT_MASK) == TT_ALT);
+    BOOST_TEST((ssw & 7) == 4);
 }
 
 BOOST_AUTO_TEST_CASE(traced) {
     cpu.S = true;
     cpu.T = 1;
-	run_test(6);
-	BOOST_TEST( cpu.ex_n == EXCEPTION_NUMBER::TRACE );
+    run_test(6);
+    BOOST_TEST(cpu.ex_n == EXCEPTION_NUMBER::TRACE);
 }
 
 BOOST_AUTO_TEST_SUITE_END()
@@ -115,8 +117,8 @@ BOOST_AUTO_TEST_SUITE(Long)
 
 BOOST_AUTO_TEST_CASE(NG) {
     cpu.S = false;
-   	run_test(12);
-	BOOST_TEST( cpu.ex_n == EXCEPTION_NUMBER::PRIV_ERR );
+    run_test(12);
+    BOOST_TEST(cpu.ex_n == EXCEPTION_NUMBER::PRIV_ERR);
 }
 
 BOOST_AUTO_TEST_CASE(OK) {
@@ -126,15 +128,25 @@ BOOST_AUTO_TEST_CASE(OK) {
     cpu.SFC = 4;
     run_test(12);
     BOOST_TEST(cpu.D[3] == 0x12345678);
-    BOOST_TEST((cpu.fault_SSW & TT_MASK) == TT_ALT);
-    BOOST_TEST((cpu.fault_SSW & 7) == 4);
+}
+
+BOOST_AUTO_TEST_CASE(fault) {
+    cpu.S = true;
+    cpu.A[2] = 0x70000000;
+    cpu.ISP = cpu.MSP = 0x100 + 60;
+    cpu.SFC = 4;
+    run_test(12);
+    BOOST_TEST(cpu.ex_n == EXCEPTION_NUMBER::AFAULT);
+    uint16_t ssw = TEST::GET_W(0xBD0);
+    BOOST_TEST((ssw & TT_MASK) == TT_ALT);
+    BOOST_TEST((ssw & 7) == 4);
 }
 
 BOOST_AUTO_TEST_CASE(traced) {
     cpu.S = true;
     cpu.T = 1;
-	run_test(12);
-	BOOST_TEST( cpu.ex_n == EXCEPTION_NUMBER::TRACE );
+    run_test(12);
+    BOOST_TEST(cpu.ex_n == EXCEPTION_NUMBER::TRACE);
 }
 
 BOOST_AUTO_TEST_SUITE_END()
@@ -144,8 +156,8 @@ BOOST_AUTO_TEST_SUITE(Byte)
 
 BOOST_AUTO_TEST_CASE(NG) {
     cpu.S = false;
-	run_test(18);
-	BOOST_TEST( cpu.ex_n == EXCEPTION_NUMBER::PRIV_ERR );
+    run_test(18);
+    BOOST_TEST(cpu.ex_n == EXCEPTION_NUMBER::PRIV_ERR);
 }
 BOOST_AUTO_TEST_CASE(OK) {
     cpu.S = true;
@@ -154,15 +166,23 @@ BOOST_AUTO_TEST_CASE(OK) {
     cpu.DFC = 4;
     run_test(18);
     BOOST_TEST(RAM[0x100] == 0x22);
-    BOOST_TEST((cpu.fault_SSW & TT_MASK) == TT_ALT);
-    BOOST_TEST((cpu.fault_SSW & 7) == 4);
 }
 
+BOOST_AUTO_TEST_CASE(fault) {
+    cpu.S = true;
+    cpu.A[2] = 0x70000000;
+    cpu.DFC = 4;
+    run_test(18);
+    BOOST_TEST(cpu.ex_n == EXCEPTION_NUMBER::AFAULT);
+    uint16_t ssw = TEST::GET_W(0xBD0);
+    BOOST_TEST((ssw & TT_MASK) == TT_ALT);
+    BOOST_TEST((ssw & 7) == 4);
+}
 BOOST_AUTO_TEST_CASE(traced) {
     cpu.S = true;
     cpu.T = 1;
-	run_test(18);
-	BOOST_TEST( cpu.ex_n == EXCEPTION_NUMBER::TRACE );
+    run_test(18);
+    BOOST_TEST(cpu.ex_n == EXCEPTION_NUMBER::TRACE);
 }
 
 BOOST_AUTO_TEST_SUITE_END()
@@ -170,8 +190,8 @@ BOOST_AUTO_TEST_SUITE(Word)
 
 BOOST_AUTO_TEST_CASE(NG) {
     cpu.S = false;
-	run_test(24);
-	BOOST_TEST( cpu.ex_n == EXCEPTION_NUMBER::PRIV_ERR );
+    run_test(24);
+    BOOST_TEST(cpu.ex_n == EXCEPTION_NUMBER::PRIV_ERR);
 }
 BOOST_AUTO_TEST_CASE(OK) {
     cpu.S = true;
@@ -180,15 +200,23 @@ BOOST_AUTO_TEST_CASE(OK) {
     cpu.DFC = 4;
     run_test(24);
     BOOST_TEST(TEST::GET_W(0x100) == 0x1234);
-    BOOST_TEST((cpu.fault_SSW & TT_MASK) == TT_ALT);
-    BOOST_TEST((cpu.fault_SSW & 7) == 4);
+}
+BOOST_AUTO_TEST_CASE(fault) {
+    cpu.S = true;
+    cpu.A[2] = 0x70000000;
+    cpu.DFC = 4;
+    run_test(24);
+    BOOST_TEST(cpu.ex_n == EXCEPTION_NUMBER::AFAULT);
+    uint16_t ssw = TEST::GET_W(0xBD0);
+    BOOST_TEST((ssw & TT_MASK) == TT_ALT);
+    BOOST_TEST((ssw & 7) == 4);
 }
 
 BOOST_AUTO_TEST_CASE(traced) {
     cpu.S = true;
     cpu.T = 1;
-	run_test(24);
-	BOOST_TEST( cpu.ex_n == EXCEPTION_NUMBER::TRACE );
+    run_test(24);
+    BOOST_TEST(cpu.ex_n == EXCEPTION_NUMBER::TRACE);
 }
 
 BOOST_AUTO_TEST_SUITE_END()
@@ -196,8 +224,8 @@ BOOST_AUTO_TEST_SUITE(Long)
 
 BOOST_AUTO_TEST_CASE(NG) {
     cpu.S = false;
-	run_test(30);
-	BOOST_TEST( cpu.ex_n == EXCEPTION_NUMBER::PRIV_ERR );
+    run_test(30);
+    BOOST_TEST(cpu.ex_n == EXCEPTION_NUMBER::PRIV_ERR);
 }
 
 BOOST_AUTO_TEST_CASE(OK) {
@@ -207,15 +235,24 @@ BOOST_AUTO_TEST_CASE(OK) {
     cpu.DFC = 4;
     run_test(30);
     BOOST_TEST(TEST::GET_L(0x100) == 0x12345678);
-    BOOST_TEST((cpu.fault_SSW & TT_MASK) == TT_ALT);
-    BOOST_TEST((cpu.fault_SSW & 7) == 4);
+}
+
+BOOST_AUTO_TEST_CASE(fault) {
+    cpu.S = true;
+    cpu.A[2] = 0x3000;
+    cpu.SFC = 4;
+    run_test(30);
+    BOOST_TEST(cpu.ex_n == EXCEPTION_NUMBER::AFAULT);
+    uint16_t ssw = TEST::GET_W(0xBD0);
+    BOOST_TEST((ssw & TT_MASK) == TT_ALT);
+    BOOST_TEST((ssw & 7) == 4);
 }
 
 BOOST_AUTO_TEST_CASE(traced) {
     cpu.S = true;
     cpu.T = 1;
-	run_test(30);
-	BOOST_TEST( cpu.ex_n == EXCEPTION_NUMBER::TRACE );
+    run_test(30);
+    BOOST_TEST(cpu.ex_n == EXCEPTION_NUMBER::TRACE);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

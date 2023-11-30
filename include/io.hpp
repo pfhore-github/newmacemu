@@ -5,22 +5,8 @@
 #include <memory>
 
 struct IO_BUS {
-    virtual uint8_t Read8(uint32_t addr) = 0;
-    virtual uint16_t Read16(uint32_t addr) {
-        return Read8(addr) << 8 | Read8(addr+1);
-    }
-    virtual uint32_t Read32(uint32_t addr) {
-        return Read16(addr) << 16 | Read16(addr + 2);
-    }
-    virtual void Write8(uint32_t addr, uint8_t value) = 0;
-    virtual void Write16(uint32_t addr, uint16_t value) {
-        Write8(addr, value >> 8);
-        Write8(addr + 1, value);
-    }
-    virtual void Write32(uint32_t addr, uint32_t value) {
-        Write16(addr, value >> 16);
-        Write16(addr + 2, value);
-    }
+    virtual uint32_t Read(uint32_t addr) = 0;
+    virtual void Write(uint32_t addr, uint32_t value) = 0;
 };
 
 extern std::unique_ptr<IO_BUS> io;

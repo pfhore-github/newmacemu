@@ -2,8 +2,9 @@
 #include "exception.hpp"
 #include "inline.hpp"
 #include "memory.hpp"
+#include "bus.hpp"
 #include <optional>
-
+#include <expected>
 struct addr_e {
     addr_e(uint32_t v, bool large)
         : pgi(large ? ((v >> 1) & 0x1f) : (v & 0x3f)), pi(v >> 6 & 0x7f),
@@ -63,8 +64,6 @@ mmu_result ptest_ttr(uint32_t addr, bool sys, bool code) {
     }
     return {.R = false};
 }
-uint32_t BusReadL(uint32_t addr);
-void BusWriteL(uint32_t addr, uint32_t v);
 
 std::unordered_map<uint32_t, Cpu::atc_entry>::iterator
 atc_search_not_found(uint32_t addr, bool s) {
@@ -115,18 +114,17 @@ uint32_t pdt_lookup(uint32_t addr) {
     BusWriteL(addr, urp);
     return urp;
 }
-
 std::pair<std::unordered_map<uint32_t, Cpu::atc_entry>::iterator, bool>
 atc_search(uint32_t addr, bool s, bool W) {
     auto ap = addr_e(addr, cpu.TCR_P);
     uint32_t ur_addr = (s ? cpu.SRP : cpu.URP) | (ap.ri << 2);
     auto urp = pdt_lookup(ur_addr);
-    if(!urp) {
-        return { atc_search_not_found(addr, s), true };
-    }
+	if( !urp) {
+		return { atc_search_not_found(addr, s), true };
+	}
     uint32_t pt_addr = (urp & ~0x1FF) | (ap.pi << 2);
     auto pt = pdt_lookup(pt_addr);
-    if(!pt) {
+	if( !pt) {
         return { atc_search_not_found(addr, s), true };
     }
 
@@ -181,29 +179,27 @@ FOUND: {
     re.S = entry.S;
     re.Ux = entry.U;
     re.G = G;
+    re.U = true;
     re.paddr = entry.paddr;
     return re;
 }
 }
-std::optional<uint32_t> ptest_and_check(uint32_t addr, bool code, bool W) {
+std::expected<uint32_t, uint16_t> ptest_and_check(uint32_t addr, bool code, bool W) {
     auto ret = ptest(addr >> 12, cpu.S, code, W);
     uint32_t base = ret.paddr << 12;
-    if(ret.B) {
-        goto FAIL;
+    if(ret.B) {		
+		return std::unexpected{0};
     }
     if(!ret.R) {
-        goto FAIL;
+		return std::unexpected{SSW_ATC};
     }
     if(ret.W && W) {
-        goto FAIL;
+		return std::unexpected{SSW_ATC};
     }
     if(ret.S && !cpu.S) {
-        goto FAIL;
+		return std::unexpected{SSW_ATC};
     }
     return cpu.TCR_P ? (base & ~1) | (addr & 0x1fff) : base | (addr & 0xfff);
-FAIL:
-    cpu.fault_SSW |= SSW_ATC;
-    return {};
 }
 
 static uint32_t page_size() { return cpu.TCR_P ? 0x2000 : 0x100; }

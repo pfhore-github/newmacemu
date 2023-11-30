@@ -2,10 +2,11 @@
 #include "68040.hpp"
 #include "SDL_events.h"
 #include "SDL_log.h"
-#include "memory.hpp"
 #include "inline.hpp"
+#include "memory.hpp"
+#include <expected>
 #include <fmt/core.h>
-void double_fault() {
+[[noreturn]] void double_fault() {
 #ifdef CI
     fmt::print("double buf fault:{:x}", cpu.PC);
 #else
@@ -14,35 +15,51 @@ void double_fault() {
 #endif
     exit(1);
 }
+std::expected<void, uint16_t> WriteWImpl(uint32_t addr, uint16_t w);
+std::expected<uint32_t, uint16_t> ReadLImpl(uint32_t addr);
 
+inline void ex_PUSH16(uint16_t v) {
+    if(auto x = WriteWImpl(cpu.A[7] -= 2, v); !x) {
+        double_fault();
+    }
+}
+inline void ex_PUSH32(uint32_t v) {
+    ex_PUSH16(v);
+    ex_PUSH16(v >> 16);
+}
+
+inline uint32_t ex_READL(uint32_t addr) {
+    auto p = ReadLImpl(addr);
+    if(p) {
+        return *p;
+    } else {
+        double_fault();
+    }
+}
 void EXCEPTION0(int n, uint32_t nextpc, uint16_t sr) {
-    PUSH16(n << 2);
-    PUSH32(nextpc);
-    PUSH16(sr);
-    JUMP(ReadL(cpu.VBR + (n << 2)));
+    ex_PUSH16(n << 2);
+    ex_PUSH32(nextpc);
+    ex_PUSH16(sr);
+    JUMP(ex_READL(cpu.VBR + (n << 2)));
 }
 
 void EXCEPTION2(int n, uint32_t addr, uint32_t nextpc, uint16_t sr) {
-    PUSH32(addr);
-    PUSH16(0x2 << 12 | n << 2);
-    PUSH32(nextpc);
-    PUSH16(sr);
-    JUMP(ReadL(cpu.VBR + (n << 2)));
+    ex_PUSH32(addr);
+    ex_PUSH16(0x2 << 12 | n << 2);
+    ex_PUSH32(nextpc);
+    ex_PUSH16(sr);
+    JUMP(ex_READL(cpu.VBR + (n << 2)));
 }
 
 void EXCEPTION3(int n, uint16_t sr) {
-    PUSH32(cpu.EA);
-    PUSH16(0x3 << 12 | n << 2);
-    PUSH32(cpu.PC);
-    PUSH16(sr);
-    JUMP(ReadL(cpu.VBR + (n << 2)));
+    ex_PUSH32(cpu.EA);
+    ex_PUSH16(0x3 << 12 | n << 2);
+    ex_PUSH32(cpu.PC);
+    ex_PUSH16(sr);
+    JUMP(ex_READL(cpu.VBR + (n << 2)));
 }
 
 void handle_exception(EXCEPTION_NUMBER n) {
-    if(cpu.in_exception) {
-        double_fault();
-    }
-    cpu.in_exception = true;
     uint16_t sr = GetSR();
     cpu.S = true;
     LoadSP();
@@ -53,34 +70,30 @@ void handle_exception(EXCEPTION_NUMBER n) {
         break;
     case EXCEPTION_NUMBER::AFAULT:
         cpu.A[7] -= 4 * 9;
-        PUSH32(cpu.ex_addr);
+        ex_PUSH32(cpu.ex_addr);
         cpu.A[7] -= 2 * 3;
         if(cpu.must_trace) {
             cpu.fault_SSW |= SSW_CT;
         }
         // SSW
-        PUSH16(cpu.fault_SSW);
+        ex_PUSH16(cpu.fault_SSW);
         if(cpu.fault_SSW & (SSW_CP | SSW_CU | SSW_CT | SSW_CM)) {
-            PUSH32(cpu.EA);
+            ex_PUSH32(cpu.EA);
         } else {
-            PUSH32(0);
+            ex_PUSH32(0);
         }
-        PUSH16(0x7 << 12 | 2 << 2);
-        PUSH32(cpu.oldpc);
-        PUSH16(sr);
-        JUMP(ReadL(cpu.VBR + (2 << 2)));
-
-        // reset mid flag
-        cpu.fault_SSW = 0;
-
+        ex_PUSH16(0x7 << 12 | 2 << 2);
+        ex_PUSH32(cpu.oldpc);
+        ex_PUSH16(sr);
+        JUMP(ex_READL(cpu.VBR + (2 << 2)));
         break;
     case EXCEPTION_NUMBER::ADDR_ERR:
-        EXCEPTION2(3, cpu.ex_addr& ~1, cpu.oldpc, sr);
+        EXCEPTION2(3, cpu.ex_addr & ~1, cpu.oldpc, sr);
         break;
-    case EXCEPTION_NUMBER::ILLEGAL_OP:  
-    case EXCEPTION_NUMBER::PRIV_ERR:  
+    case EXCEPTION_NUMBER::ILLEGAL_OP:
+    case EXCEPTION_NUMBER::PRIV_ERR:
     case EXCEPTION_NUMBER::ALINE:
-    case EXCEPTION_NUMBER::FLINE: 
+    case EXCEPTION_NUMBER::FLINE:
     case EXCEPTION_NUMBER::FORMAT_ERR:
         EXCEPTION0(int(n), cpu.oldpc, sr);
         break;
@@ -102,24 +115,24 @@ void handle_exception(EXCEPTION_NUMBER n) {
     case EXCEPTION_NUMBER::TRAP15:
         EXCEPTION0(int(n), cpu.PC, sr);
         break;
-    case EXCEPTION_NUMBER::DIV0: 
-    case EXCEPTION_NUMBER::CHK_FAIL: 
-    case EXCEPTION_NUMBER::TRAPx: 
+    case EXCEPTION_NUMBER::DIV0:
+    case EXCEPTION_NUMBER::CHK_FAIL:
+    case EXCEPTION_NUMBER::TRAPx:
     case EXCEPTION_NUMBER::TRACE:
         EXCEPTION2(int(n), cpu.oldpc, cpu.PC, sr);
         break;
     case EXCEPTION_NUMBER::FP_UNORDER:
-    case EXCEPTION_NUMBER::FP_INEX: 
+    case EXCEPTION_NUMBER::FP_INEX:
     case EXCEPTION_NUMBER::FP_DIV0:
     case EXCEPTION_NUMBER::FP_UNFL:
     case EXCEPTION_NUMBER::FP_OPERR:
-    case EXCEPTION_NUMBER::FP_OVFL: 
+    case EXCEPTION_NUMBER::FP_OVFL:
     case EXCEPTION_NUMBER::FP_SNAN:
-    case EXCEPTION_NUMBER::FP_UNIMPL_TYPE: 
+    case EXCEPTION_NUMBER::FP_UNIMPL_TYPE:
         EXCEPTION3(int(n), cpu.oldpc);
         break;
-    case EXCEPTION_NUMBER::UNDEF_IRQ: 
-    case EXCEPTION_NUMBER::UNKNOWN_IRQ: 
+    case EXCEPTION_NUMBER::UNDEF_IRQ:
+    case EXCEPTION_NUMBER::UNKNOWN_IRQ:
     case EXCEPTION_NUMBER::IRQ_LV1:
     case EXCEPTION_NUMBER::IRQ_LV2:
     case EXCEPTION_NUMBER::IRQ_LV3:
@@ -128,17 +141,17 @@ void handle_exception(EXCEPTION_NUMBER n) {
     case EXCEPTION_NUMBER::IRQ_LV6:
     case EXCEPTION_NUMBER::IRQ_LV7:
         cpu.I = int(n) - 24;
-        PUSH16(int(n) << 2);
-        PUSH32(cpu.PC);
-        PUSH16(sr);
+        ex_PUSH16(int(n) << 2);
+        ex_PUSH32(cpu.PC);
+        ex_PUSH16(sr);
         if(cpu.M) {
             cpu.M = false;
             LoadSP();
-            PUSH32(0x01 << 12 | (int(n) << 2));
-            PUSH32(cpu.PC);
-            PUSH16(sr);
+            ex_PUSH32(0x01 << 12 | (int(n) << 2));
+            ex_PUSH32(cpu.PC);
+            ex_PUSH16(sr);
         }
-        JUMP(ReadL(cpu.VBR + (int(n) << 2)));
+        JUMP(ex_READL(cpu.VBR + (int(n) << 2)));
         break;
     }
 }
@@ -146,21 +159,20 @@ void handle_exception(EXCEPTION_NUMBER n) {
     cpu.ex_n = n;
     longjmp(cpu.ex, 1);
 }
-void ACCESS_FAULT(uint32_t a, SIZ sz, bool rw,  TM m) {
+void ACCESS_FAULT(uint32_t a, SIZ sz, bool rw, TM m, uint16_t tt) {
     cpu.ex_addr = a;
-    if( cpu.movem_run) {
+    if(cpu.movem_run) {
         cpu.fault_SSW |= SSW_CM;
     }
+    cpu.fault_SSW |= tt;
     cpu.fault_SSW |= cpu.bus_lock << 9;
     cpu.fault_SSW |= rw << 8;
-    cpu.fault_SSW = (cpu.fault_SSW &~ (3 << 5)) | int(sz) << 5;
-    if( (cpu.fault_SSW & TT_MASK) != TT_ALT) {
-        cpu.fault_SSW = (cpu.fault_SSW &~ 7) | int(m);
-    }
+    cpu.fault_SSW |= int(sz) << 5;
+    cpu.fault_SSW |= int(m);
     RAISE(EXCEPTION_NUMBER::AFAULT);
 }
 void ADDRESS_ERROR(uint32_t addr) {
-    cpu.ex_addr = addr ;
+    cpu.ex_addr = addr;
     RAISE(EXCEPTION_NUMBER::ADDR_ERR);
 }
 
@@ -177,7 +189,9 @@ void TRACE() { RAISE(EXCEPTION_NUMBER::TRACE); }
 void ALINE() { RAISE(EXCEPTION_NUMBER::ALINE); }
 void FLINE() { RAISE(EXCEPTION_NUMBER::FLINE); }
 void FORMAT_ERROR() { RAISE(EXCEPTION_NUMBER::FORMAT_ERR); }
-void TRAP_ERROR(int n) { RAISE(EXCEPTION_NUMBER(int(EXCEPTION_NUMBER::TRAP0) + n)); }
+void TRAP_ERROR(int n) {
+    RAISE(EXCEPTION_NUMBER(int(EXCEPTION_NUMBER::TRAP0) + n));
+}
 void FP_EX_BSUN() { RAISE(EXCEPTION_NUMBER::FP_UNORDER); }
 void FP_EX_INEX() { RAISE(EXCEPTION_NUMBER::FP_INEX); }
 void FP_EX_DIV0() { RAISE(EXCEPTION_NUMBER::FP_DIV0); }
@@ -186,7 +200,9 @@ void FP_EX_OPERR() { RAISE(EXCEPTION_NUMBER::FP_OPERR); }
 void FP_EX_OVFL() { RAISE(EXCEPTION_NUMBER::FP_OVFL); }
 void FP_EX_SNAN() { RAISE(EXCEPTION_NUMBER::FP_SNAN); }
 void FP_EX_UNIMPL_TYPE() { RAISE(EXCEPTION_NUMBER::FP_UNIMPL_TYPE); }
-void IRQ(int n) { RAISE(EXCEPTION_NUMBER(int(EXCEPTION_NUMBER::UNKNOWN_IRQ) + n)); }
+void IRQ(int n) {
+    RAISE(EXCEPTION_NUMBER(int(EXCEPTION_NUMBER::UNKNOWN_IRQ) + n));
+}
 
 void do_rte() {
     uint16_t sr = POP16();
@@ -222,7 +238,7 @@ void do_rte() {
         }
         if(ssw & 1 << 12) {
             // CM restart
-            cpu.EA = ReadL(cpu.A[7] + 0x00);
+            cpu.EA = ex_READL(cpu.A[7] + 0x00);
             // restart MOVEM
             cpu.movem_run = true;
         }
@@ -236,7 +252,6 @@ void do_rte() {
     if(cpu.T == 1) {
         cpu.must_trace = true;
     }
-    cpu.in_exception = false;
     JUMP(pc);
 }
 
@@ -252,6 +267,6 @@ void RESET() {
     cpu.ITTR[0].E = 0;
     cpu.ITTR[1].E = 0;
     LoadSP();
-    cpu.A[7] = ReadL(0);
-    JUMP(ReadL(4));
+    cpu.A[7] = ex_READL(0);
+    JUMP(ex_READL(4));
 }

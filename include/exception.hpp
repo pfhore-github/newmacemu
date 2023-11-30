@@ -76,7 +76,7 @@ constexpr uint16_t SSW_ATC = 1 << 10;
 constexpr uint16_t SSW_LK = 1 << 9;
 constexpr uint16_t SSW_RW = 1 << 8;
 [[noreturn]] void ACCESS_FAULT(uint32_t a, SIZ sz, bool rw,
-                               TM m = TM::USER_DATA);
+                               TM m, uint16_t tt = TT_NORMAL);
 // 3
 [[noreturn]] void ADDRESS_ERROR(uint32_t next);
 

@@ -6,7 +6,7 @@
 #include <boost/test/data/monomorphic.hpp>
 #include <boost/test/data/test_case.hpp>
 #include <boost/test/unit_test.hpp>
-
+#include "bus.hpp"
 #include <deque>
 void init_easc_and_play_sound(uint32_t asc, uint32_t via);
 namespace bdata = boost::unit_test::data;
@@ -16,23 +16,24 @@ void test_rom(
     uint32_t from, uint32_t to,
     const std::unordered_map<uint32_t, std::function<void()>> &testStubs,
     bool trace) {
-    cpu.in_exception = false;
     from |= 0x40800000;
     to |= 0x40800000;
     cpu.S = true;
     called.clear();
-    #if 0
+#if 0
     if(trace) {
         cpu.PC = from;
         debug_activate();
     }
-    #endif
+#endif
     for(cpu.PC = from; cpu.PC != to;) {
         if(trace) {
             printf("%X:%08x\n", cpu.PC, cpu.D[0]);
         }
         if(setjmp(cpu.ex) == 0) {
             run_op();
+        } else {
+            cpu.bus_lock = false;
         }
         auto stubFound = testStubs.find(cpu.PC & ~0x40800000);
         if(stubFound != testStubs.end()) {

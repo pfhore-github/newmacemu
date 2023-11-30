@@ -404,13 +404,10 @@ void moves_b(uint16_t op) {
     uint16_t extw = FETCH();
     int rn = extw >> 12 & 15;
     cpu.EA = ea_getaddr(TYPE(op), REG(op), 1);
-    cpu.fault_SSW = (cpu.fault_SSW &~ TT_MASK) | TT_ALT; 
     if(extw & 1 << 11) {
-        cpu.fault_SSW = (cpu.fault_SSW &~ 7) | cpu.DFC; 
-        WriteB(cpu.EA, cpu.R(rn));
+        WriteSB(cpu.EA, cpu.R(rn));
     } else {
-        cpu.fault_SSW = (cpu.fault_SSW &~ 7) | cpu.SFC; 
-        STORE_B(cpu.R(rn), ReadB(cpu.EA));
+        STORE_B(cpu.R(rn), ReadSB(cpu.EA));
     }
     TRACE_BRANCH();
 }
@@ -420,13 +417,10 @@ void moves_w(uint16_t op) {
     uint16_t extw = FETCH();
     int rn = extw >> 12 & 15;
     cpu.EA = ea_getaddr(TYPE(op), REG(op), 2);
-    cpu.fault_SSW = (cpu.fault_SSW &~ TT_MASK) | TT_ALT; 
     if(extw & 1 << 11) {
-        cpu.fault_SSW = (cpu.fault_SSW &~ 7) | cpu.DFC; 
-        WriteW(cpu.EA, cpu.R(rn));
+        WriteSW(cpu.EA, cpu.R(rn));
     } else {
-        cpu.fault_SSW = (cpu.fault_SSW &~ 7) | cpu.SFC; 
-        STORE_W(cpu.R(rn), ReadW(cpu.EA));
+        STORE_W(cpu.R(rn), ReadSW(cpu.EA));
     }
     TRACE_BRANCH();
 }
@@ -436,13 +430,10 @@ void moves_l(uint16_t op) {
     uint16_t extw = FETCH();
     int rn = extw >> 12 & 15;
     cpu.EA = ea_getaddr(TYPE(op), REG(op), 4);
-    cpu.fault_SSW = (cpu.fault_SSW &~ TT_MASK) | TT_ALT; 
     if(extw & 1 << 11) {
-        cpu.fault_SSW = (cpu.fault_SSW &~ 7) | cpu.DFC; 
-        WriteL(cpu.EA, cpu.R(rn));
+        WriteSL(cpu.EA, cpu.R(rn));
     } else {
-        cpu.fault_SSW = (cpu.fault_SSW &~ 7) | cpu.SFC; 
-        STORE_L(cpu.R(rn), ReadL(cpu.EA));
+        STORE_L(cpu.R(rn), ReadSL(cpu.EA));
     }
     TRACE_BRANCH();
 }
@@ -1631,30 +1622,30 @@ void fline_default(uint16_t) { FLINE(); }
 
 void move16_inc_imm(uint16_t op) {
     uint32_t imm = FETCH32();
-    MMU_Transfer16(cpu.A[REG(op)], imm);
+    Transfer16(cpu.A[REG(op)], imm);
     cpu.A[REG(op)] += 16;
 }
 
 void move16_imm_inc(uint16_t op) {
     uint32_t imm = FETCH32();
-    MMU_Transfer16(imm, cpu.A[REG(op)]);
+    Transfer16(imm, cpu.A[REG(op)]);
     cpu.A[REG(op)] += 16;
 }
 
 void move16_base_imm(uint16_t op) {
     uint32_t imm = FETCH32();
-    MMU_Transfer16(cpu.A[REG(op)], imm);
+    Transfer16(cpu.A[REG(op)], imm);
 }
 
 void move16_imm_base(uint16_t op) {
     uint32_t imm = FETCH32();
-    MMU_Transfer16(imm, cpu.A[REG(op)]);
+    Transfer16(imm, cpu.A[REG(op)]);
 }
 
 void move16_inc_inc(uint16_t op) {
     uint16_t extw = FETCH();
     int ay = extw >> 12 & 7;
-    MMU_Transfer16(cpu.A[REG(op)], cpu.A[ay]);
+    Transfer16(cpu.A[REG(op)], cpu.A[ay]);
     cpu.A[ay] += 16;
     cpu.A[REG(op)] += 16;
 }

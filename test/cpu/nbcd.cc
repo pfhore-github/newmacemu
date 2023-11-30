@@ -27,7 +27,22 @@ BOOST_AUTO_TEST_CASE(value) {
     BOOST_TEST(cpu.X);
     BOOST_TEST(cpu.C);
 }
-BOOST_AUTO_TEST_CASE(Z) {
+BOOST_AUTO_TEST_CASE(c1) {
+    cpu.D[2] = 0x30;
+    cpu.X = false;
+    run_test(0);
+    BOOST_TEST(cpu.D[2] == 0x70);
+}
+
+BOOST_AUTO_TEST_CASE(Z1) {
+    cpu.Z = true;
+    cpu.D[2] = 0x00;
+    cpu.X = false;
+    run_test(0);
+    BOOST_TEST(cpu.Z);
+}
+
+BOOST_AUTO_TEST_CASE(Z2) {
     cpu.Z = true;
     cpu.D[2] = 0x99;
     cpu.X = true;

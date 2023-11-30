@@ -3,6 +3,7 @@
 #include "SDL.h"
 #include "SDL_timer.h"
 #include "chip/rbv.hpp"
+#include "bus.hpp"
 #include <deque>
 #include <utility>
 #include <vector>

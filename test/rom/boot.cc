@@ -219,7 +219,7 @@ BOOST_AUTO_TEST_CASE(glue) {
                  {0x311A, testNG},
                  {0x3154, testNG},
                  {0x3162, testNG},
-                 {0x47AE, []() { getHwIDFromVia(0x40000000); }},
+                 {0x47AE, [] { getHwIDFromVia(0x40000000); }},
 
              });
     while(called[0] != 0x40803060) {
@@ -248,7 +248,7 @@ BOOST_AUTO_TEST_CASE(mdu) {
                  {0x311A, testNG},
                  {0x3154, testNG},
                  {0x3162, testNG},
-                 {0x47AE, []() { getHwIDFromVia(0x46000000); }},
+                 {0x47AE, [] { getHwIDFromVia(0x46000000); }},
 
              });
     while(called[0] != 0x4080307E) {
@@ -285,7 +285,7 @@ BOOST_AUTO_TEST_CASE(oss) {
                  {0x46FE, testhw},
                  {0x477A, testhw},
                  {0x3D48, GetHwInfoExtra},
-                 {0x47AE, []() { getHwIDFromVia(0x52000000); }},
+                 {0x47AE, [] { getHwIDFromVia(0x52000000); }},
 
              });
     while(called[0] != 0x408030BE) {
@@ -318,7 +318,7 @@ BOOST_AUTO_TEST_CASE(v8) {
                  {0x311A, testOk},
                  {0x3154, testNG},
                  {0x3162, testNG},
-                 {0x47AE, []() { getHwIDFromVia(0x54000000); }},
+                 {0x47AE, [] { getHwIDFromVia(0x54000000); }},
 
              });
     while(called[0] != 0x4080311A) {
@@ -347,7 +347,7 @@ BOOST_AUTO_TEST_CASE(mcu) {
                  {0x311A, testNG},
                  {0x3154, testOk},
                  {0x3162, testNG},
-                 {0x47AE, []() { getHwIDFromVia(0x10000000); }},
+                 {0x47AE, [] { getHwIDFromVia(0x10000000); }},
 
              });
     while(called[0] != 0x40803154) {
@@ -376,7 +376,7 @@ BOOST_AUTO_TEST_CASE(jaws) {
                  {0x311A, testNG},
                  {0x3154, testNG},
                  {0x3162, testOk},
-                 {0x47AE, []() { getHwIDFromVia(0x12000000); }},
+                 {0x47AE, [] { getHwIDFromVia(0x12000000); }},
 
              });
     while(called[0] != 0x40803162) {

@@ -255,7 +255,7 @@ BOOST_AUTO_TEST_CASE(sys) {
     cpu.g_atc[0][2] = {5, 0, false, 0, false, false, true};
     run_test(12);
     BOOST_TEST(!cpu.l_atc[1].contains(1));
-    BOOST_TEST(cpu.g_atc[1].empty());
+    BOOST_TEST(!cpu.g_atc[1].contains(1));
     BOOST_TEST(cpu.g_atc[0].contains(1));
     BOOST_TEST(cpu.l_atc[0].contains(1));
     BOOST_TEST(cpu.l_atc[0].contains(2));

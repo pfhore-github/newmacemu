@@ -30,23 +30,23 @@ struct PrepareROM : Prepare {
 };
 BOOST_FIXTURE_TEST_SUITE(init, PrepareROM)
 struct BadIO : public IO_BUS {
-    uint8_t Read8(uint32_t) { return 0; }
-    void Write8(uint32_t, uint8_t) {}
+    uint32_t Read(uint32_t) { return 0; }
+    void Write(uint32_t, uint32_t) {}
 };
 struct BadIO2 : public IO_BUS {
-    uint8_t Read8(uint32_t) { throw BusError{}; }
-    void Write8(uint32_t, uint8_t) {}
+    uint32_t Read(uint32_t) { throw BusError{}; }
+    void Write(uint32_t, uint32_t) {}
 };
 struct BadIO3 : public IO_BUS {
     RBV rbv;
-    uint8_t Read8(uint32_t addr) {
+    uint32_t Read(uint32_t addr) {
         switch((addr >> 13) & 0x1f) {
         case 19:
             return rbv.read(addr & 0xff);
         }
         throw BusError{};
     }
-    void Write8(uint32_t, uint8_t) {}
+    void Write(uint32_t, uint32_t) {}
 };
 BOOST_AUTO_TEST_SUITE(_3060)
 auto CheckVIA(bool t) {
@@ -76,7 +76,7 @@ BOOST_AUTO_TEST_CASE(ok) {
 
 BOOST_AUTO_TEST_CASE(ng1) {
     cpu.A[0] = 0x4080337C;
-    test_rom(0x307E, 0x2F58, {{0x46AA, []() {
+    test_rom(0x307E, 0x2F58, {{0x46AA, [] {
                                    cpu.Z = false;
                                    cpu.PC = cpu.A[6];
                                }}});
@@ -115,7 +115,7 @@ BOOST_AUTO_TEST_CASE(ok) {
 }
 BOOST_AUTO_TEST_CASE(ng1) {
     cpu.A[0] = 0x40803420;
-    test_rom(0x30BE, 0x2F58, {{0x46AA, []() {
+    test_rom(0x30BE, 0x2F58, {{0x46AA, [] {
                                    cpu.Z = false;
                                    cpu.PC = cpu.A[6];
                                }}});
@@ -123,7 +123,7 @@ BOOST_AUTO_TEST_CASE(ng1) {
 
 BOOST_AUTO_TEST_CASE(ng2) {
     cpu.A[0] = 0x40803420;
-    test_rom(0x30BE, 0x2F58, {{0x46AA, []() {
+    test_rom(0x30BE, 0x2F58, {{0x46AA, [] {
                                    cpu.Z = true;
                                    cpu.PC = cpu.A[6];
                                }}});
@@ -229,7 +229,7 @@ auto CheckSCSI_MCU(bool v) {
 }
 BOOST_AUTO_TEST_CASE(None) {
     cpu.D[0] = 0;
-    test_rom(0x3D48, 0x3DAA, {{0x4706, []() { CheckSCSI_MCU(true); }}});
+    test_rom(0x3D48, 0x3DAA, {{0x4706, [] { CheckSCSI_MCU(true); }}});
     BOOST_TEST(cpu.D[0] == 0);
 }
 
@@ -237,7 +237,7 @@ BOOST_AUTO_TEST_CASE(QuadraScsiFailure) {
     cpu.D[0] = 0x1008700;
     cpu.A[0] = 0x40803568;
     cpu.A[1] = 0x408038BC;
-    test_rom(0x3D48, 0x3DAA, {{0x4706, []() { CheckSCSI_MCU(false); }}});
+    test_rom(0x3D48, 0x3DAA, {{0x4706, [] { CheckSCSI_MCU(false); }}});
     BOOST_TEST(cpu.D[0] == 0x008700);
 }
 
@@ -245,7 +245,7 @@ BOOST_AUTO_TEST_CASE(QuadraScsi1) {
     cpu.D[0] = 0x1008700;
     cpu.A[0] = 0x40803568;
     cpu.A[1] = 0x408038BC;
-    test_rom(0x3D48, 0x3DAA, {{0x4706, []() { CheckSCSI_MCU(true); }}});
+    test_rom(0x3D48, 0x3DAA, {{0x4706, [] { CheckSCSI_MCU(true); }}});
     BOOST_TEST(cpu.D[0] == 0x1000000);
 }
 
@@ -253,7 +253,7 @@ BOOST_AUTO_TEST_CASE(QuadraScsi2Failure) {
     cpu.D[0] = 0x3008700;
     cpu.A[0] = 0x40803568;
     cpu.A[1] = 0x408038BC;
-    test_rom(0x3D48, 0x3DAA, {{0x4706, []() {
+    test_rom(0x3D48, 0x3DAA, {{0x4706, [] {
                                    cpu.Z = cpu.A[2] == 0x50F0F000;
                                    cpu.PC = cpu.A[6];
                                }}});
@@ -264,7 +264,7 @@ BOOST_AUTO_TEST_CASE(QuadraScsi2) {
     cpu.D[0] = 0x3008700;
     cpu.A[0] = 0x40803568;
     cpu.A[1] = 0x408038BC;
-    test_rom(0x3D48, 0x3DAA, {{0x4706, []() {
+    test_rom(0x3D48, 0x3DAA, {{0x4706, [] {
                                    cpu.Z = true;
                                    cpu.PC = cpu.A[6];
                                }}});
@@ -296,12 +296,12 @@ BOOST_AUTO_TEST_CASE(none) {
 }
 BOOST_AUTO_TEST_CASE(ok) {
     cpu.D[2] = 1 << 28;
-    test_rom(0x3DBA, 0x3050, {{0x4640, []() { cacheTest(true); }}});
+    test_rom(0x3DBA, 0x3050, {{0x4640, [] { cacheTest(true); }}});
     BOOST_TEST(cpu.D[2] == 1 << 28);
 }
 BOOST_AUTO_TEST_CASE(ng) {
     cpu.D[2] = 1 << 28;
-    test_rom(0x3DBA, 0x3050, {{0x4640, []() { cacheTest(false); }}});
+    test_rom(0x3DBA, 0x3050, {{0x4640, [] { cacheTest(false); }}});
     BOOST_TEST(cpu.D[2] == 0);
 }
 BOOST_AUTO_TEST_SUITE_END()
@@ -352,8 +352,8 @@ BOOST_AUTO_TEST_CASE(fail1) {
     BOOST_TEST(!cpu.Z);
 }
 struct BadIIfx2_2 : public IO_BUS {
-    uint8_t Read8(uint32_t) { return 1; }
-    void Write8(uint32_t, uint8_t) {}
+    uint32_t Read(uint32_t) { return 1; }
+    void Write(uint32_t, uint32_t) {}
 };
 BOOST_AUTO_TEST_CASE(fail2) {
     cpu.A[2] = 0x50F1E000;
@@ -373,8 +373,8 @@ BOOST_AUTO_TEST_CASE(success) {
     BOOST_TEST(cpu.Z);
 }
 struct BadVIA : public IO_BUS {
-    uint8_t Read8(uint32_t) { throw BusError{}; }
-    void Write8(uint32_t, uint8_t) {}
+    uint32_t Read(uint32_t) { throw BusError{}; }
+    void Write(uint32_t, uint32_t) {}
 };
 BOOST_AUTO_TEST_CASE(fail1) {
     cpu.A[2] = 0x50F01C00;
@@ -401,7 +401,7 @@ BOOST_AUTO_TEST_CASE(fail2) {
 struct BadVIA2 : public IO_BUS {
     VIA1 via1;
     VIA2 via2;
-    uint8_t Read8(uint32_t addr) {
+    uint32_t Read(uint32_t addr) {
         switch((addr >> 13) & 0x1f) {
         case 0:
             return via1.read(addr >> 9 & 0xf);
@@ -410,7 +410,7 @@ struct BadVIA2 : public IO_BUS {
         }
         return 0;
     }
-    void Write8(uint32_t, uint8_t) {}
+    void Write(uint32_t, uint32_t) {}
 };
 BOOST_AUTO_TEST_CASE(fail3) {
     cpu.A[2] = 0x50F01C00;
@@ -422,7 +422,7 @@ BOOST_AUTO_TEST_CASE(fail3) {
 
 struct BadVIA3 : public IO_BUS {
     VIA1 via1;
-    uint8_t Read8(uint32_t addr) override {
+    uint32_t Read(uint32_t addr) override {
         switch((addr >> 13) & 0x1f) {
         case 0:
             return via1.read(addr >> 9 & 0xf);
@@ -431,7 +431,7 @@ struct BadVIA3 : public IO_BUS {
         }
         return 0;
     }
-    void Write8(uint32_t addr, uint8_t v) override {
+    void Write(uint32_t addr, uint32_t v) override {
         switch((addr >> 13) & 0x1f) {
         case 0:
             return via1.write(addr >> 9 & 0xf, v);
@@ -556,8 +556,8 @@ BOOST_AUTO_TEST_CASE(fail1) {
 }
 
 struct DummyIOP2 : public IO_BUS {
-    uint8_t Read8(uint32_t) override { return 0; }
-    void Write8(uint32_t, uint8_t) override {}
+    uint32_t Read(uint32_t) override { return 0; }
+    void Write(uint32_t, uint32_t) override {}
 };
 
 BOOST_AUTO_TEST_CASE(fail2) {

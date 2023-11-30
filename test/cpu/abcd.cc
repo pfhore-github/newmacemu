@@ -33,6 +33,22 @@ BOOST_DATA_TEST_CASE(value, bdata::xrange(2), old_x) {
     BOOST_TEST(!cpu.C);
 }
 
+BOOST_AUTO_TEST_CASE(c1) {
+    cpu.X = false;
+    cpu.D[3] = 0x22;
+    cpu.D[1] = 0x38;
+    run_test(0);
+    BOOST_TEST(cpu.D[3] == 0x60);
+}
+
+BOOST_AUTO_TEST_CASE(c2) {
+    cpu.X = false;
+    cpu.D[3] = 0x29;
+    cpu.D[1] = 0x38;
+    run_test(0);
+    BOOST_TEST(cpu.D[3] == 0x67);
+}
+
 BOOST_AUTO_TEST_CASE(CX) {
     cpu.X = false;
     cpu.D[3] = 0x77;
@@ -42,7 +58,7 @@ BOOST_AUTO_TEST_CASE(CX) {
     BOOST_TEST(cpu.X);
 }
 
-BOOST_AUTO_TEST_CASE(Z) {
+BOOST_AUTO_TEST_CASE(Z1) {
     cpu.Z = true;
     cpu.X = false;
     cpu.D[3] = 0;
@@ -50,6 +66,34 @@ BOOST_AUTO_TEST_CASE(Z) {
     run_test(0);
     BOOST_TEST(cpu.Z);
 }
+
+BOOST_AUTO_TEST_CASE(Z2) {
+    cpu.Z = true;
+    cpu.X = true;
+    cpu.D[3] = 0x99;
+    cpu.D[1] = 0;
+    run_test(0);
+    BOOST_TEST(cpu.Z);
+}
+
+BOOST_AUTO_TEST_CASE(Z3) {
+    cpu.Z = true;
+    cpu.X = false;
+    cpu.D[3] = 0x65;
+    cpu.D[1] = 0x35;
+    run_test(0);
+    BOOST_TEST(cpu.Z);
+}
+
+BOOST_AUTO_TEST_CASE(Z4) {
+    cpu.Z = true;
+    cpu.X = false;
+    cpu.D[3] = 0x60;
+    cpu.D[1] = 0x40;
+    run_test(0);
+    BOOST_TEST(cpu.Z);
+}
+
 BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE(Mem)
 BOOST_DATA_TEST_CASE(value, bdata::xrange(2), old_x) {

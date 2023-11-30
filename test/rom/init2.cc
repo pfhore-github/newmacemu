@@ -96,22 +96,22 @@ BOOST_AUTO_TEST_SUITE(SCBI_CHECK)
 std::function<void()> test1(uint8_t v) {
     switch(v) {
     case 0:
-        return []() {
+        return [] {
             cpu.D[4] = 0;
             cpu.PC = cpu.A[6];
         };
     case 1:
-        return []() {
+        return [] {
             cpu.D[4] = (cpu.D[3] & 0xffff) == 0x78 ? 0x53434249 : 0;
             cpu.PC = cpu.A[6];
         };
     case 2:
-        return []() {
+        return [] {
             cpu.D[4] = (cpu.D[3] & 0xffff) == 0xF8 ? 0x53434249 : 0;
             cpu.PC = cpu.A[6];
         };
     }
-    return []() {};
+    return [] {};
 }
 BOOST_AUTO_TEST_CASE(Not) { test_rom(0x46CD8, 0x46D7C, {{0x4721C, test1(0)}}); }
 BOOST_AUTO_TEST_CASE(_78) { test_rom(0x46CD8, 0x46CF8, {{0x4721C, test1(1)}}); }
@@ -147,8 +147,8 @@ struct DummyIOP2 : public IOP {
 };
 struct DummyMB : public IO_BUS {
     DummyIOP2 d;
-    uint8_t Read8(uint32_t addr) override { return d.read(addr >> 1 & 0x1f); }
-    void Write8(uint32_t addr, uint8_t value) { d.write(addr>>1 & 0x1f, value);}
+    uint32_t Read(uint32_t addr) override { return d.read(addr >> 1 & 0x1f); }
+    void Write(uint32_t addr, uint32_t value) { d.write(addr>>1 & 0x1f, value);}
 };
 BOOST_AUTO_TEST_CASE(success) {
     cpu.A[3] = 0x50F0C020;
@@ -166,7 +166,7 @@ BOOST_AUTO_TEST_CASE(success) {
 }
 struct DummyIOP3 {
     std::deque<uint8_t> vs = {0xA9, 0x81, 0xff, 0xff};
-    uint8_t read(uint32_t) {
+    uint32_t read(uint32_t) {
         auto p = vs[0];
         vs.pop_front();
         return p;
@@ -175,8 +175,8 @@ struct DummyIOP3 {
 };
 struct DummyMB2 : public IO_BUS {
     DummyIOP3 d;
-    uint8_t Read8(uint32_t addr) override { return d.read(addr >> 1 & 0x1f); }
-    void Write8(uint32_t addr, uint8_t value) { d.write(addr>>1 & 0x1f, value);}
+    uint32_t Read(uint32_t addr) override { return d.read(addr >> 1 & 0x1f); }
+    void Write(uint32_t addr, uint32_t value) { d.write(addr>>1 & 0x1f, value);}
 };
 BOOST_AUTO_TEST_CASE(fail) {
     cpu.A[3] = 0x50F0C020;

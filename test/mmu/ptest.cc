@@ -98,6 +98,15 @@ BOOST_AUTO_TEST_CASE(F) {
     BOOST_TEST(!(cpu.MMUSR & 4));
 }
 BOOST_AUTO_TEST_SUITE_END()
+BOOST_AUTO_TEST_CASE(U) {
+    TEST::SET_L(0x8300, 0x0411); // TEST Area
+    cpu.A[2] = 0;
+    run_test(0);
+    BOOST_TEST(cpu.MMUSR & 8);
+    BOOST_TEST(TEST::GET_L(0x8000) & 8);
+    BOOST_TEST(TEST::GET_L(0x8200) & 8);
+    BOOST_TEST(TEST::GET_L(0x8300) & 8);
+}
 BOOST_DATA_TEST_CASE(M, bdata::xrange(2), v) {
     TEST::SET_L(0x8300, 1 | v << 4);
     cpu.A[2] = 0;
@@ -129,7 +138,7 @@ BOOST_AUTO_TEST_CASE(F) {
 }
 BOOST_AUTO_TEST_SUITE_END()
 
-BOOST_DATA_TEST_CASE(U, bdata::xrange(4), v) {
+BOOST_DATA_TEST_CASE(Ux, bdata::xrange(4), v) {
     TEST::SET_L(0x8300, 1 | v << 8);
     cpu.A[2] = 0;
     cpu.DFC = 6;
@@ -146,6 +155,7 @@ BOOST_DATA_TEST_CASE(G, bdata::xrange(2), v) {
 }
 
 BOOST_AUTO_TEST_CASE(B) {
+    cpu.TCR_E = true;
     TEST::SET_L(0x8004, 0xFFFFFFF2); // ATC-BUS ERROR
     cpu.A[2] = 0x2000000;
     cpu.DFC = 6;
