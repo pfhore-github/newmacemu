@@ -14,6 +14,7 @@ BOOST_AUTO_TEST_SUITE(base)
 
 BOOST_AUTO_TEST_CASE(match) {
     cpu.ITTR[0].logic_base = 0x01;
+    cpu.ITTR[0].logic_mask = 0;
     cpu.ITTR[0].E = true;
     cpu.ITTR[0].W = true;
     cpu.ITTR[0].S = 2;
@@ -23,6 +24,7 @@ BOOST_AUTO_TEST_CASE(match) {
 }
 BOOST_AUTO_TEST_CASE(unmatch) {
     cpu.ITTR[0].logic_base = 0x01;
+    cpu.ITTR[0].logic_mask = 0;
     cpu.ITTR[0].E = true;
     cpu.ITTR[0].W = true;
     cpu.ITTR[0].S = 2;
@@ -43,6 +45,7 @@ BOOST_AUTO_TEST_CASE(mask) {
 }
 BOOST_AUTO_TEST_CASE(E) {
     cpu.ITTR[0].logic_base = 0x01;
+    cpu.ITTR[0].logic_mask = 0;
     cpu.ITTR[0].E = false;
     cpu.ITTR[0].W = true;
     cpu.ITTR[0].S = 2;
@@ -52,6 +55,7 @@ BOOST_AUTO_TEST_CASE(E) {
 BOOST_AUTO_TEST_SUITE(S)
 BOOST_DATA_TEST_CASE(unspecified, bdata::xrange(2), s) {
     cpu.ITTR[0].logic_base = 0x01;
+    cpu.ITTR[0].logic_mask = 0;
     cpu.ITTR[0].E = true;
     cpu.ITTR[0].W = true;
     cpu.ITTR[0].S = 2;
@@ -62,6 +66,7 @@ BOOST_DATA_TEST_CASE(unspecified, bdata::xrange(2), s) {
 
 BOOST_DATA_TEST_CASE(user, bdata::xrange(2), s) {
     cpu.ITTR[0].logic_base = 0x01;
+    cpu.ITTR[0].logic_mask = 0;
     cpu.ITTR[0].E = true;
     cpu.ITTR[0].W = true;
     cpu.ITTR[0].S = 0;
@@ -75,6 +80,7 @@ BOOST_DATA_TEST_CASE(user, bdata::xrange(2), s) {
 
 BOOST_DATA_TEST_CASE(sys, bdata::xrange(2), s) {
     cpu.ITTR[0].logic_base = 0x01;
+    cpu.ITTR[0].logic_mask = 0;
     cpu.ITTR[0].E = true;
     cpu.ITTR[0].W = true;
     cpu.ITTR[0].S = 1;
@@ -88,6 +94,7 @@ BOOST_DATA_TEST_CASE(sys, bdata::xrange(2), s) {
 BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_CASE(W) {
     cpu.ITTR[0].logic_base = 0x01;
+    cpu.ITTR[0].logic_mask = 0;
     cpu.ITTR[0].E = true;
     cpu.ITTR[0].W = true;
     cpu.ITTR[0].S = 2;
@@ -97,6 +104,7 @@ BOOST_AUTO_TEST_CASE(W) {
 
 BOOST_AUTO_TEST_CASE(Data) {
     cpu.ITTR[0].logic_base = 0x01;
+    cpu.ITTR[0].logic_mask = 0;
     cpu.ITTR[0].E = true;
     cpu.ITTR[0].W = true;
     cpu.ITTR[0].S = 2;
@@ -112,6 +120,7 @@ BOOST_AUTO_TEST_SUITE(base)
 
 BOOST_AUTO_TEST_CASE(match) {
     cpu.ITTR[1].logic_base = 0x02;
+    cpu.ITTR[1].logic_mask = 0;
     cpu.ITTR[1].E = true;
     cpu.ITTR[1].W = true;
     cpu.ITTR[1].S = 2;
@@ -121,6 +130,7 @@ BOOST_AUTO_TEST_CASE(match) {
 }
 BOOST_AUTO_TEST_CASE(unmatch) {
     cpu.ITTR[1].logic_base = 0x01;
+    cpu.ITTR[1].logic_mask = 0;
     cpu.ITTR[1].E = true;
     cpu.ITTR[1].W = true;
     cpu.ITTR[1].S = 2;
@@ -141,6 +151,7 @@ BOOST_AUTO_TEST_CASE(mask) {
 }
 BOOST_AUTO_TEST_CASE(E) {
     cpu.ITTR[1].logic_base = 0x01;
+    cpu.ITTR[1].logic_mask = 0;
     cpu.ITTR[1].E = false;
     cpu.ITTR[1].W = true;
     cpu.ITTR[1].S = 2;
@@ -150,6 +161,7 @@ BOOST_AUTO_TEST_CASE(E) {
 BOOST_AUTO_TEST_SUITE(S)
 BOOST_DATA_TEST_CASE(unspecified, bdata::xrange(2), s) {
     cpu.ITTR[1].logic_base = 0x01;
+    cpu.ITTR[1].logic_mask = 0;
     cpu.ITTR[1].E = true;
     cpu.ITTR[1].W = true;
     cpu.ITTR[1].S = 2;
@@ -160,6 +172,7 @@ BOOST_DATA_TEST_CASE(unspecified, bdata::xrange(2), s) {
 
 BOOST_DATA_TEST_CASE(user, bdata::xrange(2), s) {
     cpu.ITTR[1].logic_base = 0x01;
+    cpu.ITTR[1].logic_mask = 0;
     cpu.ITTR[1].E = true;
     cpu.ITTR[1].W = true;
     cpu.ITTR[1].S = 0;
@@ -173,6 +186,7 @@ BOOST_DATA_TEST_CASE(user, bdata::xrange(2), s) {
 
 BOOST_DATA_TEST_CASE(sys, bdata::xrange(2), s) {
     cpu.ITTR[1].logic_base = 0x01;
+    cpu.ITTR[1].logic_mask = 0;
     cpu.ITTR[1].E = true;
     cpu.ITTR[1].W = true;
     cpu.ITTR[1].S = 1;
@@ -187,6 +201,7 @@ BOOST_AUTO_TEST_SUITE_END()
 
 BOOST_AUTO_TEST_CASE(W) {
     cpu.ITTR[1].logic_base = 0x01;
+    cpu.ITTR[1].logic_mask = 0;
     cpu.ITTR[1].E = true;
     cpu.ITTR[1].W = true;
     cpu.ITTR[1].S = 2;
@@ -196,9 +211,11 @@ BOOST_AUTO_TEST_CASE(W) {
 BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_CASE(Data) {
     cpu.ITTR[1].logic_base = 0x01;
+    cpu.ITTR[1].logic_mask = 0;
     cpu.ITTR[1].E = true;
     cpu.ITTR[1].W = true;
     cpu.ITTR[1].S = 2;
     auto v = ptest(0x01000, false, false, false);
     BOOST_TEST(!v.T);
 }
+BOOST_AUTO_TEST_SUITE_END()

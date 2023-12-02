@@ -14,7 +14,8 @@ BOOST_AUTO_TEST_SUITE(base)
 
 BOOST_AUTO_TEST_CASE(match) {
     cpu.DTTR[0].logic_base = 0x01;
-    cpu.DTTR[0].E = true;
+    cpu.DTTR[0].logic_mask = 0;
+        cpu.DTTR[0].E = true;
     cpu.DTTR[0].W = true;
     cpu.DTTR[0].S = 2;
     auto v = ptest(0x01000, false, false, false);
@@ -23,6 +24,7 @@ BOOST_AUTO_TEST_CASE(match) {
 }
 BOOST_AUTO_TEST_CASE(unmatch) {
     cpu.DTTR[0].logic_base = 0x01;
+    cpu.DTTR[0].logic_mask = 0;
     cpu.DTTR[0].E = true;
     cpu.DTTR[0].W = true;
     cpu.DTTR[0].S = 2;
@@ -43,6 +45,7 @@ BOOST_AUTO_TEST_CASE(mask) {
 }
 BOOST_AUTO_TEST_CASE(E) {
     cpu.DTTR[0].logic_base = 0x01;
+    cpu.DTTR[0].logic_mask = 0;
     cpu.DTTR[0].E = false;
     cpu.DTTR[0].W = true;
     cpu.DTTR[0].S = 2;
@@ -52,6 +55,7 @@ BOOST_AUTO_TEST_CASE(E) {
 BOOST_AUTO_TEST_SUITE(S)
 BOOST_DATA_TEST_CASE(unspecified, bdata::xrange(2), s) {
     cpu.DTTR[0].logic_base = 0x01;
+    cpu.DTTR[0].logic_mask = 0;
     cpu.DTTR[0].E = true;
     cpu.DTTR[0].W = true;
     cpu.DTTR[0].S = 2;
@@ -62,6 +66,7 @@ BOOST_DATA_TEST_CASE(unspecified, bdata::xrange(2), s) {
 
 BOOST_DATA_TEST_CASE(user, bdata::xrange(2), s) {
     cpu.DTTR[0].logic_base = 0x01;
+    cpu.DTTR[0].logic_mask = 0;
     cpu.DTTR[0].E = true;
     cpu.DTTR[0].W = true;
     cpu.DTTR[0].S = 0;
@@ -75,6 +80,7 @@ BOOST_DATA_TEST_CASE(user, bdata::xrange(2), s) {
 
 BOOST_DATA_TEST_CASE(sys, bdata::xrange(2), s) {
     cpu.DTTR[0].logic_base = 0x01;
+    cpu.DTTR[0].logic_mask = 0;
     cpu.DTTR[0].E = true;
     cpu.DTTR[0].W = true;
     cpu.DTTR[0].S = 1;
@@ -89,6 +95,7 @@ BOOST_DATA_TEST_CASE(sys, bdata::xrange(2), s) {
 BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_CASE(W) {
     cpu.DTTR[0].logic_base = 0x01;
+    cpu.DTTR[0].logic_mask = 0;
     cpu.DTTR[0].E = true;
     cpu.DTTR[0].W = true;
     cpu.DTTR[0].S = 2;
@@ -98,6 +105,7 @@ BOOST_AUTO_TEST_CASE(W) {
 
 BOOST_AUTO_TEST_CASE(Code) {
     cpu.DTTR[0].logic_base = 0x01;
+    cpu.DTTR[0].logic_mask = 0;
     cpu.DTTR[0].E = true;
     cpu.DTTR[0].W = true;
     cpu.DTTR[0].S = 2;
@@ -113,6 +121,7 @@ BOOST_AUTO_TEST_SUITE(base)
 
 BOOST_AUTO_TEST_CASE(match) {
     cpu.DTTR[1].logic_base = 0x02;
+    cpu.DTTR[1].logic_mask = 0;
     cpu.DTTR[1].E = true;
     cpu.DTTR[1].W = true;
     cpu.DTTR[1].S = 2;
@@ -122,6 +131,7 @@ BOOST_AUTO_TEST_CASE(match) {
 }
 BOOST_AUTO_TEST_CASE(unmatch) {
     cpu.DTTR[1].logic_base = 0x01;
+    cpu.DTTR[1].logic_mask = 0;
     cpu.DTTR[1].E = true;
     cpu.DTTR[1].W = true;
     cpu.DTTR[1].S = 2;
@@ -142,6 +152,7 @@ BOOST_AUTO_TEST_CASE(mask) {
 }
 BOOST_AUTO_TEST_CASE(E) {
     cpu.DTTR[1].logic_base = 0x01;
+    cpu.DTTR[1].logic_mask = 0;
     cpu.DTTR[1].E = false;
     cpu.DTTR[1].W = true;
     cpu.DTTR[1].S = 2;
@@ -151,6 +162,7 @@ BOOST_AUTO_TEST_CASE(E) {
 BOOST_AUTO_TEST_SUITE(S)
 BOOST_DATA_TEST_CASE(unspecified, bdata::xrange(2), s) {
     cpu.DTTR[1].logic_base = 0x01;
+    cpu.DTTR[1].logic_mask = 0;
     cpu.DTTR[1].E = true;
     cpu.DTTR[1].W = true;
     cpu.DTTR[1].S = 2;
@@ -161,6 +173,7 @@ BOOST_DATA_TEST_CASE(unspecified, bdata::xrange(2), s) {
 
 BOOST_DATA_TEST_CASE(user, bdata::xrange(2), s) {
     cpu.DTTR[1].logic_base = 0x01;
+    cpu.DTTR[1].logic_mask = 0;
     cpu.DTTR[1].E = true;
     cpu.DTTR[1].W = true;
     cpu.DTTR[1].S = 0;
@@ -174,6 +187,7 @@ BOOST_DATA_TEST_CASE(user, bdata::xrange(2), s) {
 
 BOOST_DATA_TEST_CASE(sys, bdata::xrange(2), s) {
     cpu.DTTR[1].logic_base = 0x01;
+    cpu.DTTR[1].logic_mask = 0;
     cpu.DTTR[1].E = true;
     cpu.DTTR[1].W = true;
     cpu.DTTR[1].S = 1;
@@ -188,6 +202,7 @@ BOOST_AUTO_TEST_SUITE_END()
 
 BOOST_AUTO_TEST_CASE(W) {
     cpu.DTTR[1].logic_base = 0x01;
+    cpu.DTTR[1].logic_mask = 0;
     cpu.DTTR[1].E = true;
     cpu.DTTR[1].W = true;
     cpu.DTTR[1].S = 2;
@@ -197,8 +212,11 @@ BOOST_AUTO_TEST_CASE(W) {
 BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_CASE(Code) {
     cpu.DTTR[1].logic_base = 0x01;
+    cpu.DTTR[1].logic_mask = 0;
     cpu.DTTR[1].E = true;
     cpu.DTTR[1].S = 2;
     auto v = ptest(0x01000, false, true, false);
     BOOST_TEST(!v.T);
 }
+
+BOOST_AUTO_TEST_SUITE_END()

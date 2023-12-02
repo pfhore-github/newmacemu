@@ -122,7 +122,7 @@ test/fpu/common.cc
 
 test/mmu/pflush.cc test/cpu/cinv.cc test/cpu/cpush.cc test/mmu/ptest.cc
  
-
+test/mmu/ittr.cc test/mmu/dttr.cc 
 )
 add_executable(testcpu ${SRC_CPU} ${SRC_CHIPS} 
 test/test_main.cc 
@@ -133,7 +133,7 @@ ${CPU_TEST}
 
 
 
-test/mmu/ittr.cc test/mmu/dttr.cc test/mmu/disabled.cc test/mmu/atc.cc test/mmu/psearch.cc
+test/mmu/disabled.cc test/mmu/atc.cc test/mmu/psearch.cc
  
 
 
