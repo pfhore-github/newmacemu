@@ -57,6 +57,7 @@ void init_emu() {
 
     // instead overlay, just copy
     memcpy(RAM, ROM, ROMSize);
+
     init_run_table();
     initBus();
     init_fpu();

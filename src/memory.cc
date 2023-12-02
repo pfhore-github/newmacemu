@@ -49,7 +49,7 @@ static std::expected<uint16_t, uint16_t> ReadWImpl(uint32_t addr,
     }
 }
 
-std::expected<uint32_t, uint16_t> ReadLImpl(uint32_t addr) {
+std::expected<uint32_t, uint16_t> ReadLImpl(uint32_t addr, bool lock) {
     if(addr & 2) [[unlikely]] {
         if(auto vx1 = ReadWImpl(addr)) {
             if(auto vx2 = ReadWImpl(addr + 2)) {
@@ -61,7 +61,7 @@ std::expected<uint32_t, uint16_t> ReadLImpl(uint32_t addr) {
             return std::unexpected{vx1.error() | SSW_MA};
         }
     }
-    if(auto paddr = ptest_and_check(addr, false, cpu.bus_lock)) {
+    if(auto paddr = ptest_and_check(addr, false, lock)) {
         try {
             return BusReadL(*paddr);
         } catch(BusError &) {
@@ -72,7 +72,7 @@ std::expected<uint32_t, uint16_t> ReadLImpl(uint32_t addr) {
     }
 }
 
-static std::expected<void, uint16_t> WriteBImpl(uint32_t addr, uint8_t b) {
+std::expected<void, uint16_t> WriteBImpl(uint32_t addr, uint8_t b) {
     try {
         if(auto paddr = ptest_and_check(addr, false, true)) {
             BusWriteB(*paddr, b);
@@ -162,7 +162,7 @@ uint16_t FetchW(uint32_t addr) {
 }
 
 uint32_t ReadL(uint32_t addr) {
-    if(auto v = ReadLImpl(addr)) {
+    if(auto v = ReadLImpl(addr, cpu.bus_lock)) {
         return *v;
     } else {
         cpu.fault_SSW = v.error();
@@ -241,7 +241,7 @@ uint16_t ReadSW(uint32_t addr) {
 }
 
 uint32_t ReadSL(uint32_t addr) {
-    auto p = ReadLImpl(addr);
+    auto p = ReadLImpl(addr, false);
     if(p) {
         return *p;
     } else {

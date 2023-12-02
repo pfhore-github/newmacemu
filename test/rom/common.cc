@@ -30,7 +30,7 @@ void test_rom(
         if(trace) {
             printf("%X:%08x\n", cpu.PC, cpu.D[0]);
         }
-        if(setjmp(cpu.ex) == 0) {
+        if(setjmp(ex_buf) == 0) {
             run_op();
         } else {
             cpu.bus_lock = false;

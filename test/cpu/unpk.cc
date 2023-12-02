@@ -30,13 +30,13 @@ BOOST_AUTO_TEST_CASE(Reg) {
 }
 
 BOOST_AUTO_TEST_CASE(Mem) {
-    RAM[0x100] = 0x34;
-    cpu.A[1] = 0x101;
-    cpu.A[3] = 0x112;
+    RAM[0x1000] = 0x34;
+    cpu.A[1] = 0x1001;
+    cpu.A[3] = 0x1012;
     run_test(6);
-    BOOST_TEST(TEST::GET_W(0x110) == 0x0309);
-    BOOST_TEST(cpu.A[1] == 0x100);
-    BOOST_TEST(cpu.A[3] == 0x110);
+    BOOST_TEST(TEST::GET_W(0x1010) == 0x0309);
+    BOOST_TEST(cpu.A[1] == 0x1000);
+    BOOST_TEST(cpu.A[3] == 0x1010);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

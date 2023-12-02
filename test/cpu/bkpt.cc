@@ -19,6 +19,6 @@ BOOST_FIXTURE_TEST_SUITE(BKPT, Prepare, *boost::unit_test::fixture<F_BKPT>())
 
 BOOST_AUTO_TEST_CASE(execute) {
 	run_test(0);	
-    BOOST_CHECK(cpu.ex_n == EXCEPTION_NUMBER::ILLEGAL_OP);
+    BOOST_CHECK(ex_n == EXCEPTION_NUMBER::ILLEGAL_OP);
 }
 BOOST_AUTO_TEST_SUITE_END()

@@ -5,7 +5,7 @@
 #include <atomic>
 #include <functional>
 #include <memory>
-#include <setjmp.h>
+
 #include <stdint.h>
 #include <unordered_map>
 
@@ -15,6 +15,9 @@ enum class FPU_PREC {
     D,
     AUTO,
 };
+
+// ATC
+
 struct Cpu {
     uint32_t D[8];
     uint32_t A[8];
@@ -26,6 +29,11 @@ struct Cpu {
     // FPU
     mpfr_t FP[8];
     uint64_t FP_nan[8];
+
+    mpfr_t fp_tmp;
+    uint64_t fp_tmp_nan;
+    int fp_tmp_tv;
+
     struct FPCR_t {
         mpfr_rnd_t RND;
         FPU_PREC PREC;
@@ -39,9 +47,6 @@ struct Cpu {
         bool EXC_INEX, EXC_DZ, EXC_UNFL, EXC_OVFL, EXC_IOP;
     } FPSR;
     uint32_t FPIAR;
-    mpfr_t fp_tmp;
-    uint64_t fp_tmp_nan;
-    int fp_tmp_tv;
 
     // hyperviser
     uint32_t MSP, ISP, USP;
@@ -63,22 +68,11 @@ struct Cpu {
     uint32_t MMUSR;
     bool CACR_DE, CACR_IE;
 
-    // ATC
-    struct atc_entry {
-        uint32_t paddr;
-        uint8_t U;
-        bool S;
-        uint8_t CM;
-        bool M, W, R;
-    };
 
-    std::unordered_map<uint32_t, atc_entry> l_atc[2], g_atc[2];
     // internal
-    jmp_buf ex;
+ 
     uint16_t fault_SSW;
     uint32_t oldpc;
-    uint32_t ex_addr;
-    volatile EXCEPTION_NUMBER ex_n;
     bool bus_lock;
 
     bool must_trace;
@@ -89,23 +83,7 @@ struct Cpu {
     std::atomic<int> inturrupt;
     uint32_t &R(int n) { return n < 8 ? D[n & 7] : A[n & 7]; }
 };
-struct mmu_result {
-    uint32_t paddr = 0;
-    uint8_t Ux = 0;
-    uint8_t CM = 0;
-    bool R = false;
-    bool T = false;
-    bool U = false;
-    bool W = false;
-    bool M = false;
-    bool S = false;
-    bool G = false;
-    bool B = false;
-    uint32_t value() const {
-        return R | T << 1 | W << 2 | U << 3 | M << 4 | CM << 5 | S << 7 | Ux << 8 |
-               G << 10 | B << 11 | paddr << 12;
-    }
-};
+
 
 // Mac 68K has no multi CPU, so doesn't support multi CPU!
 extern Cpu cpu;

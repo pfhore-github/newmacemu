@@ -6,6 +6,7 @@
 #include <boost/test/data/test_case.hpp>
 #include <boost/test/unit_test.hpp>
 namespace bdata = boost::unit_test::data;
+extern uint32_t ex_addr;
 struct F_MOVEM {
     F_MOVEM() {
         // MOVEM.W %D0-%D3/%A0-%A3, (%A5)
@@ -65,26 +66,26 @@ BOOST_AUTO_TEST_CASE(ok) {
     cpu.A[1] = 0x1001;
     cpu.A[2] = 0x1002;
     cpu.A[3] = 0x1003;
-    cpu.A[5] = 0x200;
+    cpu.A[5] = 0x1200;
     run_test(0);
-    BOOST_TEST(cpu.A[5] == 0x200);
-    BOOST_TEST(TEST::GET_W(0x200) == 0x0001);
-    BOOST_TEST(TEST::GET_W(0x202) == 0x0002);
-    BOOST_TEST(TEST::GET_W(0x204) == 0x0003);
-    BOOST_TEST(TEST::GET_W(0x206) == 0x0004);
-    BOOST_TEST(TEST::GET_W(0x208) == 0x1000);
-    BOOST_TEST(TEST::GET_W(0x20A) == 0x1001);
-    BOOST_TEST(TEST::GET_W(0x20C) == 0x1002);
-    BOOST_TEST(TEST::GET_W(0x20E) == 0x1003);
+    BOOST_TEST(cpu.A[5] == 0x1200);
+    BOOST_TEST(TEST::GET_W(0x1200) == 0x0001);
+    BOOST_TEST(TEST::GET_W(0x1202) == 0x0002);
+    BOOST_TEST(TEST::GET_W(0x1204) == 0x0003);
+    BOOST_TEST(TEST::GET_W(0x1206) == 0x0004);
+    BOOST_TEST(TEST::GET_W(0x1208) == 0x1000);
+    BOOST_TEST(TEST::GET_W(0x120A) == 0x1001);
+    BOOST_TEST(TEST::GET_W(0x120C) == 0x1002);
+    BOOST_TEST(TEST::GET_W(0x120E) == 0x1003);
 }
 
 BOOST_AUTO_TEST_CASE(fail) {
-    cpu.A[5] = 0xFFE;
+    cpu.A[5] = 0x1FFE;
 	run_test(0);
-	BOOST_TEST(cpu.ex_n == EXCEPTION_NUMBER::AFAULT);
+	BOOST_TEST(ex_n == EXCEPTION_NUMBER::AFAULT);
 	BOOST_TEST(cpu.fault_SSW & SSW_CM);
-	BOOST_TEST(cpu.ex_addr == 0x1000);
-    BOOST_TEST(cpu.EA == 0xFFE);
+	BOOST_TEST(ex_addr == 0x2000);
+    BOOST_TEST(cpu.EA == 0x1FFE);
 }
 BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE(decr)
@@ -97,25 +98,25 @@ BOOST_AUTO_TEST_CASE(ok) {
     cpu.A[1] = 0x1001;
     cpu.A[2] = 0x1002;
     cpu.A[3] = 0x1003;
-    cpu.A[5] = 0x210;
+    cpu.A[5] = 0x1210;
     run_test(8);
-    BOOST_TEST(TEST::GET_W(0x200) == 0x0001);
-    BOOST_TEST(TEST::GET_W(0x202) == 0x0002);
-    BOOST_TEST(TEST::GET_W(0x204) == 0x0003);
-    BOOST_TEST(TEST::GET_W(0x206) == 0x0004);
-    BOOST_TEST(TEST::GET_W(0x208) == 0x1000);
-    BOOST_TEST(TEST::GET_W(0x20A) == 0x1001);
-    BOOST_TEST(TEST::GET_W(0x20C) == 0x1002);
-    BOOST_TEST(TEST::GET_W(0x20E) == 0x1003);
-    BOOST_TEST(cpu.A[5] == 0x200);
+    BOOST_TEST(TEST::GET_W(0x1200) == 0x0001);
+    BOOST_TEST(TEST::GET_W(0x1202) == 0x0002);
+    BOOST_TEST(TEST::GET_W(0x1204) == 0x0003);
+    BOOST_TEST(TEST::GET_W(0x1206) == 0x0004);
+    BOOST_TEST(TEST::GET_W(0x1208) == 0x1000);
+    BOOST_TEST(TEST::GET_W(0x120A) == 0x1001);
+    BOOST_TEST(TEST::GET_W(0x120C) == 0x1002);
+    BOOST_TEST(TEST::GET_W(0x120E) == 0x1003);
+    BOOST_TEST(cpu.A[5] == 0x1200);
 }
 BOOST_AUTO_TEST_CASE(fail) {
-    cpu.A[5] = 0x4;
+    cpu.A[5] = 0x1004;
 	run_test(8);
-	BOOST_TEST(cpu.ex_n == EXCEPTION_NUMBER::AFAULT);
+	BOOST_TEST(ex_n == EXCEPTION_NUMBER::AFAULT);
 	BOOST_TEST(cpu.fault_SSW & SSW_CM);
-	BOOST_TEST(cpu.ex_addr == 0xfffffffe);
-    BOOST_TEST(cpu.EA == 2);
+	BOOST_TEST(ex_addr == 0xffe);
+    BOOST_TEST(cpu.EA == 0x1002);
 }
 
 BOOST_AUTO_TEST_SUITE_END()
@@ -132,25 +133,25 @@ BOOST_AUTO_TEST_CASE(ok) {
     cpu.A[1] = 0x10000001;
     cpu.A[2] = 0x10000002;
     cpu.A[3] = 0x10000003;
-    cpu.A[5] = 0x200;
+    cpu.A[5] = 0x1200;
     run_test(14);
-    BOOST_TEST(TEST::GET_L(0x200) == 0x00000001);
-    BOOST_TEST(TEST::GET_L(0x204) == 0x00000002);
-    BOOST_TEST(TEST::GET_L(0x208) == 0x00000003);
-    BOOST_TEST(TEST::GET_L(0x20C) == 0x00000004);
-    BOOST_TEST(TEST::GET_L(0x210) == 0x10000000);
-    BOOST_TEST(TEST::GET_L(0x214) == 0x10000001);
-    BOOST_TEST(TEST::GET_L(0x218) == 0x10000002);
-    BOOST_TEST(TEST::GET_L(0x21C) == 0x10000003);
-    BOOST_TEST(cpu.A[5] == 0x200);
+    BOOST_TEST(TEST::GET_L(0x1200) == 0x00000001);
+    BOOST_TEST(TEST::GET_L(0x1204) == 0x00000002);
+    BOOST_TEST(TEST::GET_L(0x1208) == 0x00000003);
+    BOOST_TEST(TEST::GET_L(0x120C) == 0x00000004);
+    BOOST_TEST(TEST::GET_L(0x1210) == 0x10000000);
+    BOOST_TEST(TEST::GET_L(0x1214) == 0x10000001);
+    BOOST_TEST(TEST::GET_L(0x1218) == 0x10000002);
+    BOOST_TEST(TEST::GET_L(0x121C) == 0x10000003);
+    BOOST_TEST(cpu.A[5] == 0x1200);
 }
 BOOST_AUTO_TEST_CASE(fail) {
-    cpu.A[5] = 0xFFC;
+    cpu.A[5] = 0x1FFC;
 	run_test(14);
-	BOOST_TEST(cpu.ex_n == EXCEPTION_NUMBER::AFAULT);
+	BOOST_TEST(ex_n == EXCEPTION_NUMBER::AFAULT);
 	BOOST_TEST(cpu.fault_SSW & SSW_CM);
-	BOOST_TEST(cpu.ex_addr == 0x1000);
-    BOOST_TEST(cpu.EA == 0xFFC);
+	BOOST_TEST(ex_addr == 0x2000);
+    BOOST_TEST(cpu.EA == 0x1FFC);
 }
 BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE(decr)
@@ -164,25 +165,25 @@ BOOST_AUTO_TEST_CASE(ok) {
     cpu.A[1] = 0x10000001;
     cpu.A[2] = 0x10000002;
     cpu.A[3] = 0x10000003;
-    cpu.A[5] = 0x220;
+    cpu.A[5] = 0x1220;
     run_test(20);
-    BOOST_TEST(TEST::GET_L(0x200) == 0x00000001);
-    BOOST_TEST(TEST::GET_L(0x204) == 0x00000002);
-    BOOST_TEST(TEST::GET_L(0x208) == 0x00000003);
-    BOOST_TEST(TEST::GET_L(0x20C) == 0x00000004);
-    BOOST_TEST(TEST::GET_L(0x210) == 0x10000000);
-    BOOST_TEST(TEST::GET_L(0x214) == 0x10000001);
-    BOOST_TEST(TEST::GET_L(0x218) == 0x10000002);
-    BOOST_TEST(TEST::GET_L(0x21C) == 0x10000003);
-    BOOST_TEST(cpu.A[5] == 0x200);
+    BOOST_TEST(TEST::GET_L(0x1200) == 0x00000001);
+    BOOST_TEST(TEST::GET_L(0x1204) == 0x00000002);
+    BOOST_TEST(TEST::GET_L(0x1208) == 0x00000003);
+    BOOST_TEST(TEST::GET_L(0x120C) == 0x00000004);
+    BOOST_TEST(TEST::GET_L(0x1210) == 0x10000000);
+    BOOST_TEST(TEST::GET_L(0x1214) == 0x10000001);
+    BOOST_TEST(TEST::GET_L(0x1218) == 0x10000002);
+    BOOST_TEST(TEST::GET_L(0x121C) == 0x10000003);
+    BOOST_TEST(cpu.A[5] == 0x1200);
 }
 BOOST_AUTO_TEST_CASE(fail) {
-    cpu.A[5] = 0x4;
+    cpu.A[5] = 0x1004;
 	run_test(20);
-	BOOST_TEST(cpu.ex_n == EXCEPTION_NUMBER::AFAULT);
+	BOOST_TEST(ex_n == EXCEPTION_NUMBER::AFAULT);
 	BOOST_TEST(cpu.fault_SSW & SSW_CM);
-	BOOST_TEST(cpu.ex_addr == 0xfffffffc);
-    BOOST_TEST(cpu.EA == 0);
+	BOOST_TEST(ex_addr == 0xffc);
+    BOOST_TEST(cpu.EA == 0x1000);
 }
 
 BOOST_AUTO_TEST_SUITE_END()
@@ -195,17 +196,17 @@ BOOST_AUTO_TEST_SUITE(addr)
 
 BOOST_AUTO_TEST_CASE(ok) {
 
-    TEST::SET_W(0x200, 0x0001);
-    TEST::SET_W(0x202, 0x0002);
-    TEST::SET_W(0x204, 0x0003);
-    TEST::SET_W(0x206, 0x0004);
-    TEST::SET_W(0x208, 0x1000);
-    TEST::SET_W(0x20A, 0x1001);
-    TEST::SET_W(0x20C, 0x1002);
-    TEST::SET_W(0x20E, 0x1003);
-    cpu.A[5] = 0x200;
+    TEST::SET_W(0x1200, 0x0001);
+    TEST::SET_W(0x1202, 0x0002);
+    TEST::SET_W(0x1204, 0x0003);
+    TEST::SET_W(0x1206, 0x0004);
+    TEST::SET_W(0x1208, 0x1000);
+    TEST::SET_W(0x120A, 0x1001);
+    TEST::SET_W(0x120C, 0x1002);
+    TEST::SET_W(0x120E, 0x1003);
+    cpu.A[5] = 0x1200;
     run_test(26);
-    BOOST_TEST(cpu.A[5] == 0x200);
+    BOOST_TEST(cpu.A[5] == 0x1200);
     BOOST_TEST(cpu.D[0] == 0x0001);
     BOOST_TEST(cpu.D[1] == 0x0002);
     BOOST_TEST(cpu.D[2] == 0x0003);
@@ -218,26 +219,26 @@ BOOST_AUTO_TEST_CASE(ok) {
 BOOST_AUTO_TEST_CASE(fail) {
     cpu.A[5] = 0x2ffc;
 	run_test(26);
-	BOOST_TEST(cpu.ex_n == EXCEPTION_NUMBER::AFAULT);
+	BOOST_TEST(ex_n == EXCEPTION_NUMBER::AFAULT);
 	BOOST_TEST(cpu.fault_SSW & SSW_CM);
-	BOOST_TEST(cpu.ex_addr == 0x3000);
+	BOOST_TEST(ex_addr == 0x3000);
     BOOST_TEST(cpu.EA == 0x2ffc);
 }
 BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE(incr)
 BOOST_AUTO_TEST_CASE(ok) {
 
-    TEST::SET_W(0x200, 0x0001);
-    TEST::SET_W(0x202, 0x0002);
-    TEST::SET_W(0x204, 0x0003);
-    TEST::SET_W(0x206, 0x0004);
-    TEST::SET_W(0x208, 0x1000);
-    TEST::SET_W(0x20A, 0x1001);
-    TEST::SET_W(0x20C, 0x1002);
-    TEST::SET_W(0x20E, 0x1003);
-    cpu.A[5] = 0x200;
+    TEST::SET_W(0x1200, 0x0001);
+    TEST::SET_W(0x1202, 0x0002);
+    TEST::SET_W(0x1204, 0x0003);
+    TEST::SET_W(0x1206, 0x0004);
+    TEST::SET_W(0x1208, 0x1000);
+    TEST::SET_W(0x120A, 0x1001);
+    TEST::SET_W(0x120C, 0x1002);
+    TEST::SET_W(0x120E, 0x1003);
+    cpu.A[5] = 0x1200;
     run_test(32);
-    BOOST_TEST(cpu.A[5] == 0x210);
+    BOOST_TEST(cpu.A[5] == 0x1210);
     BOOST_TEST(cpu.D[0] == 0x0001);
     BOOST_TEST(cpu.D[1] == 0x0002);
     BOOST_TEST(cpu.D[2] == 0x0003);
@@ -250,9 +251,9 @@ BOOST_AUTO_TEST_CASE(ok) {
 BOOST_AUTO_TEST_CASE(fail) {
     cpu.A[5] = 0x2ffc;
 	run_test(32);
-	BOOST_TEST(cpu.ex_n == EXCEPTION_NUMBER::AFAULT);
+	BOOST_TEST(ex_n == EXCEPTION_NUMBER::AFAULT);
 	BOOST_TEST(cpu.fault_SSW & SSW_CM);
-	BOOST_TEST(cpu.ex_addr == 0x3000);
+	BOOST_TEST(ex_addr == 0x3000);
     BOOST_TEST(cpu.EA == 0x2ffc);
 }
 BOOST_AUTO_TEST_SUITE_END()
@@ -263,17 +264,17 @@ BOOST_AUTO_TEST_SUITE(addr)
 
 BOOST_AUTO_TEST_CASE(ok) {
 
-    TEST::SET_L(0x200, 0x00000001);
-    TEST::SET_L(0x204, 0x00000002);
-    TEST::SET_L(0x208, 0x00000003);
-    TEST::SET_L(0x20C, 0x00000004);
-    TEST::SET_L(0x210, 0x10000000);
-    TEST::SET_L(0x214, 0x10000001);
-    TEST::SET_L(0x218, 0x10000002);
-    TEST::SET_L(0x21C, 0x10000003);
-    cpu.A[5] = 0x200;
+    TEST::SET_L(0x1200, 0x00000001);
+    TEST::SET_L(0x1204, 0x00000002);
+    TEST::SET_L(0x1208, 0x00000003);
+    TEST::SET_L(0x120C, 0x00000004);
+    TEST::SET_L(0x1210, 0x10000000);
+    TEST::SET_L(0x1214, 0x10000001);
+    TEST::SET_L(0x1218, 0x10000002);
+    TEST::SET_L(0x121C, 0x10000003);
+    cpu.A[5] = 0x1200;
     run_test(38);
-    BOOST_TEST(cpu.A[5] == 0x200);
+    BOOST_TEST(cpu.A[5] == 0x1200);
     BOOST_TEST(cpu.D[0] == 0x00000001);
     BOOST_TEST(cpu.D[1] == 0x00000002);
     BOOST_TEST(cpu.D[2] == 0x00000003);
@@ -286,26 +287,26 @@ BOOST_AUTO_TEST_CASE(ok) {
 BOOST_AUTO_TEST_CASE(fail) {
     cpu.A[5] = 0x2ffc;
 	run_test(38);
-	BOOST_TEST(cpu.ex_n == EXCEPTION_NUMBER::AFAULT);
+	BOOST_TEST(ex_n == EXCEPTION_NUMBER::AFAULT);
 	BOOST_TEST(cpu.fault_SSW & SSW_CM);
-	BOOST_TEST(cpu.ex_addr == 0x3000);
+	BOOST_TEST(ex_addr == 0x3000);
     BOOST_TEST(cpu.EA == 0x2ffc);
 }
 BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE(incr)
 BOOST_AUTO_TEST_CASE(ok) {
 
-    TEST::SET_L(0x200, 0x00000001);
-    TEST::SET_L(0x204, 0x00000002);
-    TEST::SET_L(0x208, 0x00000003);
-    TEST::SET_L(0x20C, 0x00000004);
-    TEST::SET_L(0x210, 0x10000000);
-    TEST::SET_L(0x214, 0x10000001);
-    TEST::SET_L(0x218, 0x10000002);
-    TEST::SET_L(0x21C, 0x10000003);
-    cpu.A[5] = 0x200;
+    TEST::SET_L(0x1200, 0x00000001);
+    TEST::SET_L(0x1204, 0x00000002);
+    TEST::SET_L(0x1208, 0x00000003);
+    TEST::SET_L(0x120C, 0x00000004);
+    TEST::SET_L(0x1210, 0x10000000);
+    TEST::SET_L(0x1214, 0x10000001);
+    TEST::SET_L(0x1218, 0x10000002);
+    TEST::SET_L(0x121C, 0x10000003);
+    cpu.A[5] = 0x1200;
     run_test(44);
-    BOOST_TEST(cpu.A[5] == 0x220);
+    BOOST_TEST(cpu.A[5] == 0x1220);
     BOOST_TEST(cpu.D[0] == 0x00000001);
     BOOST_TEST(cpu.D[1] == 0x00000002);
     BOOST_TEST(cpu.D[2] == 0x00000003);
@@ -318,9 +319,9 @@ BOOST_AUTO_TEST_CASE(ok) {
 BOOST_AUTO_TEST_CASE(fail) {
     cpu.A[5] = 0x2ffc;
 	run_test(44);
-	BOOST_TEST(cpu.ex_n == EXCEPTION_NUMBER::AFAULT);
+	BOOST_TEST(ex_n == EXCEPTION_NUMBER::AFAULT);
 	BOOST_TEST(cpu.fault_SSW & SSW_CM);
-	BOOST_TEST(cpu.ex_addr == 0x3000);
+	BOOST_TEST(ex_addr == 0x3000);
     BOOST_TEST(cpu.EA == 0x2ffc);
 }
 BOOST_AUTO_TEST_SUITE_END()

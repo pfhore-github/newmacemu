@@ -35,20 +35,20 @@ BOOST_FIXTURE_TEST_SUITE(BCHG, Prepare, *boost::unit_test::fixture<F_BCHG>())
 BOOST_AUTO_TEST_SUITE(Byte)
 
 BOOST_DATA_TEST_CASE(ByImm, bdata::xrange(2), z) {
-    RAM[0x100] = z << 3;
-    cpu.A[2] = 0x100;
+    RAM[0x1000] = z << 3;
+    cpu.A[2] = 0x1000;
     run_test(0);
     BOOST_TEST(cpu.Z != z);
-    BOOST_TEST(RAM[0x100] == !z << 3);
+    BOOST_TEST(RAM[0x1000] == !z << 3);
 }
 
 BOOST_AUTO_TEST_CASE(ByReg) {
     cpu.D[4] = 3;
-    RAM[0x100] = 0xff;
-    cpu.A[2] = 0x100;
+    RAM[0x1000] = 0xff;
+    cpu.A[2] = 0x1000;
     run_test(6);
     BOOST_TEST(!cpu.Z);
-    BOOST_TEST(RAM[0x100] == 0xF7);
+    BOOST_TEST(RAM[0x1000] == 0xF7);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

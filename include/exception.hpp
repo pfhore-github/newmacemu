@@ -1,7 +1,7 @@
 #ifndef CPU_EXCEPTION_
 #define CPU_EXCEPTION_
 #include <stdint.h>
-
+#include <setjmp.h>
 constexpr uint16_t TT_MASK = 0x18;
 constexpr uint16_t TT_NORMAL = 0;
 constexpr uint16_t TT_MOVE16 = 1 << 3;
@@ -133,4 +133,7 @@ constexpr uint16_t SSW_RW = 1 << 8;
 [[noreturn]] void FP_EX_UNIMPL_TYPE();
 
 [[noreturn]] void IRQ(int n);
+
+extern jmp_buf ex_buf;
+extern EXCEPTION_NUMBER ex_n;
 #endif

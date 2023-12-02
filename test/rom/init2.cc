@@ -147,8 +147,8 @@ struct DummyIOP2 : public IOP {
 };
 struct DummyMB : public IO_BUS {
     DummyIOP2 d;
-    uint32_t Read(uint32_t addr) override { return d.read(addr >> 1 & 0x1f); }
-    void Write(uint32_t addr, uint32_t value) { d.write(addr>>1 & 0x1f, value);}
+    uint8_t readB(uint32_t addr) override { return d.read(addr >> 1 & 0x1f); }
+    void writeB(uint32_t addr, uint8_t value) override { d.write(addr>>1 & 0x1f, value);}
 };
 BOOST_AUTO_TEST_CASE(success) {
     cpu.A[3] = 0x50F0C020;
@@ -175,8 +175,8 @@ struct DummyIOP3 {
 };
 struct DummyMB2 : public IO_BUS {
     DummyIOP3 d;
-    uint32_t Read(uint32_t addr) override { return d.read(addr >> 1 & 0x1f); }
-    void Write(uint32_t addr, uint32_t value) { d.write(addr>>1 & 0x1f, value);}
+    uint8_t readB(uint32_t addr) override { return d.read(addr >> 1 & 0x1f); }
+    void writeB(uint32_t addr, uint8_t value) { d.write(addr>>1 & 0x1f, value);}
 };
 BOOST_AUTO_TEST_CASE(fail) {
     cpu.A[3] = 0x50F0C020;

@@ -1,10 +1,11 @@
 #include "68040.hpp"
+#include "bus.hpp"
 #include "exception.hpp"
 #include "inline.hpp"
 #include "memory.hpp"
-#include "bus.hpp"
-#include <optional>
+#include "mmu.hpp"
 #include <expected>
+#include <optional>
 struct addr_e {
     addr_e(uint32_t v, bool large)
         : pgi(large ? ((v >> 1) & 0x1f) : (v & 0x3f)), pi(v >> 6 & 0x7f),
@@ -15,6 +16,9 @@ struct addr_e {
     bool offset_h;
 };
 struct jit_cache;
+// [sys/user][key]
+atc_entry d_atc[2][16], i_atc[2][16];
+
 extern std::unordered_map<uint32_t, std::shared_ptr<jit_cache>> jit_tables;
 
 constexpr uint32_t DESP_W = 1 << 2;
@@ -65,17 +69,17 @@ mmu_result ptest_ttr(uint32_t addr, bool sys, bool code) {
     return {.R = false};
 }
 
-std::unordered_map<uint32_t, Cpu::atc_entry>::iterator
-atc_search_not_found(uint32_t addr, bool s) {
-    Cpu::atc_entry notfound = {0, 0, false, 0, false, false, false};
-    return cpu.g_atc[s].insert_or_assign(addr, notfound).first;
+void atc_search_not_found(atc_entry *atcp, uint32_t addr) {
+    atcp[addr & 0xf].laddr = addr;
+    atcp[addr & 0xf].V = true;
+    atcp[addr & 0xf].R = false;
 }
 
-std::pair<std::unordered_map<uint32_t, Cpu::atc_entry>::iterator, bool>
-atc_set(uint32_t addr, uint32_t pg_addr, bool W, bool wp, bool s) {
+void atc_set(atc_entry *atcp, uint32_t addr, uint32_t pg_addr, bool W, bool wp,
+             bool s) {
     uint32_t pg = BusReadL(pg_addr);
     if((pg & 3) == 0) {
-        return { atc_search_not_found(addr, s), true };
+        return;
     } else if((pg & 3) == 2) {
         pg_addr = pg & ~3;
         pg = BusReadL(pg_addr);
@@ -89,21 +93,21 @@ atc_set(uint32_t addr, uint32_t pg_addr, bool W, bool wp, bool s) {
         }
     }
     BusWriteL(pg_addr, pg);
+    auto &e = atcp[addr & 0xf];
 
-    Cpu::atc_entry e;
+    e.laddr = addr;
+    e.V = true;
+    e.G = pg & DESP_G;
+
     e.paddr = pg >> 12;
+    e.pg_addr = pg_addr;
+
     e.U = pg >> 8 & 3;
     e.S = pg & DESP_S;
     e.CM = pg >> 5 & 3;
     e.M = pg & DESP_M;
     e.W = wp;
     e.R = true;
-
-    if(pg & DESP_G) {
-        return { cpu.g_atc[s].insert_or_assign(addr, e).first, true };
-    } else {
-        return { cpu.l_atc[s].insert_or_assign(addr, e).first, false} ;
-    }
 }
 uint32_t pdt_lookup(uint32_t addr) {
     auto urp = BusReadL(addr);
@@ -114,23 +118,25 @@ uint32_t pdt_lookup(uint32_t addr) {
     BusWriteL(addr, urp);
     return urp;
 }
-std::pair<std::unordered_map<uint32_t, Cpu::atc_entry>::iterator, bool>
-atc_search(uint32_t addr, bool s, bool W) {
+void atc_search(atc_entry *atcp, uint32_t addr, bool s, bool W) {
     auto ap = addr_e(addr, cpu.TCR_P);
     uint32_t ur_addr = (s ? cpu.SRP : cpu.URP) | (ap.ri << 2);
     auto urp = pdt_lookup(ur_addr);
-	if( !urp) {
-		return { atc_search_not_found(addr, s), true };
-	}
+    if(!urp) {
+        atc_search_not_found(atcp, addr);
+        return;
+    }
     uint32_t pt_addr = (urp & ~0x1FF) | (ap.pi << 2);
     auto pt = pdt_lookup(pt_addr);
-	if( !pt) {
-        return { atc_search_not_found(addr, s), true };
+    if(!pt) {
+        atc_search_not_found(atcp, addr);
+        return;
     }
 
     uint32_t pg_addr = (pt & ~(cpu.TCR_P ? 0x7f : 0xFF)) | (ap.pgi << 2);
-    return atc_set(addr, pg_addr, W, (urp | pt) & DESP_W, s);
+    atc_set(atcp, addr, pg_addr, W, (urp | pt) & DESP_W, s);
 }
+
 mmu_result ptest(uint32_t addr, bool sys, bool code, bool W) {
     mmu_result re;
     auto pret = ptest_ttr(addr, sys, code);
@@ -147,62 +153,54 @@ mmu_result ptest(uint32_t addr, bool sys, bool code, bool W) {
         re.paddr = addr;
         return re;
     }
-    std::unordered_map<uint32_t, Cpu::atc_entry>::iterator atc_found;
-    bool G = false;
+    auto atcp = code ? i_atc[sys] : d_atc[sys];
+    atc_entry *entry = nullptr;
     // ATC check
-    atc_found = cpu.l_atc[sys].find(addr);
-    if(atc_found != cpu.l_atc[sys].end()) {
-        goto FOUND;
+    auto p = &atcp[addr & 0xf];
+    if(p->V && p->laddr == addr) {
+        entry = p;
+    } else {
+        try {
+            atc_search(atcp, addr, sys, W);
+            entry = &atcp[addr & 0xf];
+        } catch(BusError &) {
+            return {.B = true};
+        }
     }
-    atc_found = cpu.g_atc[sys].find(addr);
-    if(atc_found != cpu.g_atc[sys].end()) {
-        G = true;
-        goto FOUND;
+    if(entry->R && W && !entry->W && !entry->M && !(entry->S && !sys)) {
+        BusWriteL(entry->pg_addr, BusReadL(entry->pg_addr) | DESP_M);
+        entry->M = true;
     }
-ATC_SEARCH:
-    try {
-        std::tie(atc_found, G) = atc_search(addr, sys, W);
-    } catch(BusError &) {
-        return {.B = true};
-    }
-FOUND: {
-    auto &entry = atc_found->second;
-    if(entry.R && W && !entry.W && !entry.M && !(entry.S && !sys)) {
-        cpu.l_atc[sys].erase(addr);
-        cpu.g_atc[sys].erase(addr);
-        goto ATC_SEARCH;
-    }
-    re.R = entry.R;
-    re.W = entry.W;
-    re.M = entry.M;
-    re.CM = entry.CM;
-    re.S = entry.S;
-    re.Ux = entry.U;
-    re.G = G;
-    re.U = true;
-    re.paddr = entry.paddr;
+    re.R = entry->R;
+    re.W = entry->W;
+    re.M = entry->M;
+    re.CM = entry->CM;
+    re.S = entry->S;
+    re.Ux = entry->U;
+    re.G = entry->G;
+    re.paddr = entry->paddr;
     return re;
 }
-}
-std::expected<uint32_t, uint16_t> ptest_and_check(uint32_t addr, bool code, bool W) {
+std::expected<uint32_t, uint16_t> ptest_and_check(uint32_t addr, bool code,
+                                                  bool W) {
     auto ret = ptest(addr >> 12, cpu.S, code, W);
     uint32_t base = ret.paddr << 12;
-    if(ret.B) {		
-		return std::unexpected{0};
+    if(ret.B) {
+        return std::unexpected{0};
     }
     if(!ret.R) {
-		return std::unexpected{SSW_ATC};
+        return std::unexpected{SSW_ATC};
     }
     if(ret.W && W) {
-		return std::unexpected{SSW_ATC};
+        return std::unexpected{SSW_ATC};
     }
     if(ret.S && !cpu.S) {
-		return std::unexpected{SSW_ATC};
+        return std::unexpected{SSW_ATC};
     }
     return cpu.TCR_P ? (base & ~1) | (addr & 0x1fff) : base | (addr & 0xfff);
 }
 
-static uint32_t page_size() { return cpu.TCR_P ? 0x2000 : 0x100; }
+static uint32_t page_size() { return cpu.TCR_P ? 0x2000 : 0x1000; }
 void op_ptest(uint32_t addr, bool w);
 extern run_t run_table[0x10000];
 
@@ -270,43 +268,69 @@ void cpushp_i(uint32_t base) {
     }
 }
 
-void cpusha_i() {
-    jit_tables.clear();
-}
+void cpusha_i() { jit_tables.clear(); }
 
 void pflushn_impl(uint32_t addr) {
+    if(d_atc[1][addr & 0xf].laddr == addr && !d_atc[1][addr & 0xf].G) {
+        d_atc[1][addr & 0xf].V = false;
+    }
+    if(i_atc[1][addr & 0xf].laddr == addr && !i_atc[1][addr & 0xf].G) {
+        i_atc[1][addr & 0xf].V = false;
+    }
     if(cpu.DFC == 1 || cpu.DFC == 2) {
-        cpu.l_atc[0].erase(addr);
-    } else if(cpu.DFC == 5 || cpu.DFC == 6) {
-        cpu.l_atc[1].erase(addr);
+        if(d_atc[0][addr & 0xf].laddr == addr && !d_atc[0][addr & 0xf].G) {
+            d_atc[0][addr & 0xf].V = false;
+        }
+        if(i_atc[0][addr & 0xf].laddr == addr && !i_atc[0][addr & 0xf].G) {
+            i_atc[0][addr & 0xf].V = false;
+        }
     }
 }
 
 void pflush_impl(uint32_t addr) {
+    if(d_atc[1][addr & 0xf].laddr == addr) {
+        d_atc[1][addr & 0xf].V = false;
+    }
+    if(i_atc[1][addr & 0xf].laddr == addr) {
+        i_atc[1][addr & 0xf].V = false;
+    }
     if(cpu.DFC == 1 || cpu.DFC == 2) {
-        cpu.l_atc[0].erase(addr);
-        cpu.g_atc[0].erase(addr);
-    } else if(cpu.DFC == 5 || cpu.DFC == 6) {
-        cpu.l_atc[1].erase(addr);
-        cpu.g_atc[1].erase(addr);
+        if(d_atc[0][addr & 0xf].laddr == addr) {
+            d_atc[0][addr & 0xf].V = false;
+        }
+        if(i_atc[0][addr & 0xf].laddr == addr) {
+            i_atc[0][addr & 0xf].V = false;
+        }
     }
 }
 
 void pflushan_impl() {
-    if(cpu.DFC == 1 || cpu.DFC == 2) {
-        cpu.l_atc[0].clear();
-    } else if(cpu.DFC == 5 || cpu.DFC == 6) {
-        cpu.l_atc[1].clear();
+    for(int j = 0; j < 16; ++j) {
+        if(!d_atc[1][j].G) {
+            d_atc[1][j].V = false;
+        }
+        if(!i_atc[1][j].G) {
+            i_atc[1][j].V = false;
+        }
+        if(cpu.DFC == 1 || cpu.DFC == 2) {
+            if(!d_atc[0][j].G) {
+                d_atc[0][j].V = false;
+            }
+            if(!i_atc[0][j].G) {
+                i_atc[0][j].V = false;
+            }
+        }
     }
 }
 
 void pflusha_impl() {
-    if(cpu.DFC == 1 || cpu.DFC == 2) {
-        cpu.l_atc[0].clear();
-        cpu.g_atc[0].clear();
-    } else if(cpu.DFC == 5 || cpu.DFC == 6) {
-        cpu.l_atc[1].clear();
-        cpu.g_atc[1].clear();
+    for(int j = 0; j < 16; ++j) {
+        d_atc[1][j].V = false;
+        i_atc[1][j].V = false;
+        if(cpu.DFC == 1 || cpu.DFC == 2) {
+            d_atc[0][j].V = false;
+            i_atc[0][j].V = false;
+        }
     }
 }
 namespace OP {
@@ -427,26 +451,26 @@ void cpusha_bc(uint16_t) {
 void pflushn(uint16_t op) {
     PRIV_CHECK();
     uint32_t addr = cpu.A[REG(op)] >> 12;
-	pflushn_impl(addr);
+    pflushn_impl(addr);
     TRACE_BRANCH();
 }
 
 void pflush(uint16_t op) {
     PRIV_CHECK();
     uint32_t addr = cpu.A[REG(op)] >> 12;
-	pflush_impl(addr);
+    pflush_impl(addr);
     TRACE_BRANCH();
 }
 
 void pflushan(uint16_t) {
     PRIV_CHECK();
-	pflushan_impl();
+    pflushan_impl();
     TRACE_BRANCH();
 }
 
 void pflusha(uint16_t) {
     PRIV_CHECK();
-	pflusha_impl();
+    pflusha_impl();
     TRACE_BRANCH();
 }
 
@@ -501,26 +525,22 @@ void op_ptest(uint32_t addr, bool w) {
     switch(cpu.DFC) {
     case 1:
         // USER_DATA
-        cpu.l_atc[0].erase(addr);
-        cpu.g_atc[0].erase(addr);
+        d_atc[0][addr & 0xf].V = false;
         cpu.MMUSR = ptest(addr, false, false, w).value();
         break;
     case 2:
         // USER_CODE
-        cpu.l_atc[0].erase(addr);
-        cpu.g_atc[0].erase(addr);
+        i_atc[0][addr & 0xf].V = false;
         cpu.MMUSR = ptest(addr, false, true, w).value();
         break;
     case 5:
         // SYS_DATA
-        cpu.l_atc[1].erase(addr);
-        cpu.g_atc[1].erase(addr);
+        d_atc[1][addr & 0xf].V = false;
         cpu.MMUSR = ptest(addr, true, false, w).value();
         break;
     case 6:
         // SYS_CODE
-        cpu.l_atc[1].erase(addr);
-        cpu.g_atc[1].erase(addr);
+        i_atc[1][addr & 0xf].V = false;
         cpu.MMUSR = ptest(addr, true, true, w).value();
         break;
     }

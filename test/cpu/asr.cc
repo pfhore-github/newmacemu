@@ -388,10 +388,10 @@ BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE(EA)
 
 BOOST_AUTO_TEST_CASE(value) {
-    cpu.A[2] = 0x100;
-	TEST::SET_W(0x100, 2000);
+    cpu.A[2] = 0x1000;
+	TEST::SET_W(0x1000, 2000);
     run_test(36);
-    BOOST_TEST(TEST::GET_W(0x100) == 1000);
+    BOOST_TEST(TEST::GET_W(0x1000) == 1000);
     BOOST_TEST(!cpu.Z);
     BOOST_TEST(!cpu.V);
     BOOST_TEST(!cpu.C);
@@ -400,23 +400,23 @@ BOOST_AUTO_TEST_CASE(value) {
 }
 
 BOOST_AUTO_TEST_CASE(N) {
-    cpu.A[2] = 0x100;
-	TEST::SET_W(0x100, -2000);
+    cpu.A[2] = 0x1000;
+	TEST::SET_W(0x1000, -2000);
     run_test(36);
-    BOOST_TEST(static_cast<int16_t>(TEST::GET_W(0x100)) == -1000);
+    BOOST_TEST(static_cast<int16_t>(TEST::GET_W(0x1000)) == -1000);
     BOOST_TEST(cpu.N);
 }
 
 BOOST_AUTO_TEST_CASE(Z) {
-    cpu.A[2] = 0x100;
-	TEST::SET_W(0x100, 0);
+    cpu.A[2] = 0x1000;
+	TEST::SET_W(0x1000, 0);
     run_test(36);
     BOOST_TEST(cpu.Z);
 }
 
 BOOST_AUTO_TEST_CASE(CX) {
-    cpu.A[2] = 0x100;
-	TEST::SET_W(0x100, 1);
+    cpu.A[2] = 0x1000;
+	TEST::SET_W(0x1000, 1);
     run_test(36);
     BOOST_TEST(cpu.C);
     BOOST_TEST(cpu.X);

@@ -90,10 +90,10 @@ BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE(ToMem)
 BOOST_AUTO_TEST_CASE(value) {
     cpu.D[3] = 14;
-    cpu.A[2] = 0x100;
-    RAM[0x100] = 60;
+    cpu.A[2] = 0x1000;
+    RAM[0x1000] = 60;
     run_test(12);
-    BOOST_TEST(RAM[0x100] == 46);
+    BOOST_TEST(RAM[0x1000] == 46);
     BOOST_TEST(!cpu.V);
     BOOST_TEST(!cpu.C);
     BOOST_TEST(!cpu.X);
@@ -103,16 +103,16 @@ BOOST_AUTO_TEST_CASE(value) {
 
 BOOST_AUTO_TEST_CASE(V) {
     cpu.D[3] = 1;
-    cpu.A[2] = 0x100;
-    RAM[0x100] = 0x80;
+    cpu.A[2] = 0x1000;
+    RAM[0x1000] = 0x80;
     run_test(12);
     BOOST_TEST(cpu.V);
 }
 
 BOOST_AUTO_TEST_CASE(CX) {
     cpu.D[3] = 1;
-    cpu.A[2] = 0x100;
-    RAM[0x100] = 0;
+    cpu.A[2] = 0x1000;
+    RAM[0x1000] = 0;
     run_test(12);
     BOOST_TEST(cpu.C);
     BOOST_TEST(cpu.X);
@@ -120,16 +120,16 @@ BOOST_AUTO_TEST_CASE(CX) {
 
 BOOST_AUTO_TEST_CASE(N) {
     cpu.D[3] = 1;
-    cpu.A[2] = 0x100;
-    RAM[0x100] = -4;
+    cpu.A[2] = 0x1000;
+    RAM[0x1000] = -4;
     run_test(12);
     BOOST_TEST(cpu.N);
 }
 
 BOOST_AUTO_TEST_CASE(Z) {
     cpu.D[3] = 0;
-    cpu.A[2] = 0x100;
-    RAM[0x100] = 0;
+    cpu.A[2] = 0x1000;
+    RAM[0x1000] = 0;
     run_test(12);
     BOOST_TEST(cpu.Z);
 }
@@ -186,10 +186,10 @@ BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE(ToMem)
 BOOST_AUTO_TEST_CASE(value) {
     cpu.D[3] = 300;
-    cpu.A[2] = 0x100;
-    TEST::SET_W(0x100, 2000);
+    cpu.A[2] = 0x1000;
+    TEST::SET_W(0x1000, 2000);
     run_test(16);
-    BOOST_TEST(TEST::GET_W(0x100) == 1700);
+    BOOST_TEST(TEST::GET_W(0x1000) == 1700);
     BOOST_TEST(!cpu.V);
     BOOST_TEST(!cpu.C);
     BOOST_TEST(!cpu.X);
@@ -199,16 +199,16 @@ BOOST_AUTO_TEST_CASE(value) {
 
 BOOST_AUTO_TEST_CASE(V) {
     cpu.D[3] = 1;
-    cpu.A[2] = 0x100;
-    TEST::SET_W(0x100, 0x8000);
+    cpu.A[2] = 0x1000;
+    TEST::SET_W(0x1000, 0x8000);
     run_test(16);
     BOOST_TEST(cpu.V);
 }
 
 BOOST_AUTO_TEST_CASE(CX) {
     cpu.D[3] = 1;
-    cpu.A[2] = 0x100;
-    TEST::SET_W(0x100, 0);
+    cpu.A[2] = 0x1000;
+    TEST::SET_W(0x1000, 0);
     run_test(16);
     BOOST_TEST(cpu.C);
     BOOST_TEST(cpu.X);
@@ -216,16 +216,16 @@ BOOST_AUTO_TEST_CASE(CX) {
 
 BOOST_AUTO_TEST_CASE(N) {
     cpu.D[3] = 1;
-    cpu.A[2] = 0x100;
-    TEST::SET_W(0x100, -4);
+    cpu.A[2] = 0x1000;
+    TEST::SET_W(0x1000, -4);
     run_test(16);
     BOOST_TEST(cpu.N);
 }
 
 BOOST_AUTO_TEST_CASE(Z) {
     cpu.D[3] = 1000;
-    cpu.A[2] = 0x100;
-    TEST::SET_W(0x100, 1000);
+    cpu.A[2] = 0x1000;
+    TEST::SET_W(0x1000, 1000);
     run_test(16);
     BOOST_TEST(cpu.Z);
 }
@@ -284,10 +284,10 @@ BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE(ToMem)
 BOOST_AUTO_TEST_CASE(value) {
     cpu.D[3] = 30000;
-    cpu.A[2] = 0x100;
-    TEST::SET_L(0x100, 200000);
+    cpu.A[2] = 0x1000;
+    TEST::SET_L(0x1000, 200000);
     run_test(20);
-    BOOST_TEST(TEST::GET_L(0x100) == 170000);
+    BOOST_TEST(TEST::GET_L(0x1000) == 170000);
     BOOST_TEST(!cpu.V);
     BOOST_TEST(!cpu.C);
     BOOST_TEST(!cpu.X);
@@ -297,16 +297,16 @@ BOOST_AUTO_TEST_CASE(value) {
 
 BOOST_AUTO_TEST_CASE(V) {
     cpu.D[3] = 1;
-    cpu.A[2] = 0x100;
-    TEST::SET_L(0x100, 0x80000000);
+    cpu.A[2] = 0x1000;
+    TEST::SET_L(0x1000, 0x80000000);
     run_test(20);
     BOOST_TEST(cpu.V);
 }
 
 BOOST_AUTO_TEST_CASE(CX) {
     cpu.D[3] = 1;
-    cpu.A[2] = 0x100;
-    TEST::SET_L(0x100, 0);
+    cpu.A[2] = 0x1000;
+    TEST::SET_L(0x1000, 0);
     run_test(20);
     BOOST_TEST(cpu.C);
     BOOST_TEST(cpu.X);
@@ -314,16 +314,16 @@ BOOST_AUTO_TEST_CASE(CX) {
 
 BOOST_AUTO_TEST_CASE(N) {
     cpu.D[3] = 1;
-    cpu.A[2] = 0x100;
-    TEST::SET_L(0x100, -4);
+    cpu.A[2] = 0x1000;
+    TEST::SET_L(0x1000, -4);
     run_test(20);
     BOOST_TEST(cpu.N);
 }
 
 BOOST_AUTO_TEST_CASE(Z) {
     cpu.D[3] = 100000;
-    cpu.A[2] = 0x100;
-    TEST::SET_L(0x100, 100000);
+    cpu.A[2] = 0x1000;
+    TEST::SET_L(0x1000, 100000);
     run_test(20);
     BOOST_TEST(cpu.Z);
 }

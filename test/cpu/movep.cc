@@ -37,37 +37,37 @@ BOOST_AUTO_TEST_SUITE(Store)
 
 BOOST_AUTO_TEST_CASE(Word) {
     cpu.D[3] = 0x1234;
-    cpu.A[2] = 0x100;
+    cpu.A[2] = 0x1000;
     run_test(0);
-    BOOST_TEST(RAM[0x110] == 0x12);
-    BOOST_TEST(RAM[0x112] == 0x34);
+    BOOST_TEST(RAM[0x1010] == 0x12);
+    BOOST_TEST(RAM[0x1012] == 0x34);
 }
 
 BOOST_AUTO_TEST_CASE(Long) {
     cpu.D[3] = 0x12345678;
-    cpu.A[2] = 0x100;
+    cpu.A[2] = 0x1000;
     run_test(6);
-    BOOST_TEST(RAM[0x110] == 0x12);
-    BOOST_TEST(RAM[0x112] == 0x34);
-    BOOST_TEST(RAM[0x114] == 0x56);
-    BOOST_TEST(RAM[0x116] == 0x78);
+    BOOST_TEST(RAM[0x1010] == 0x12);
+    BOOST_TEST(RAM[0x1012] == 0x34);
+    BOOST_TEST(RAM[0x1014] == 0x56);
+    BOOST_TEST(RAM[0x1016] == 0x78);
 }
 BOOST_AUTO_TEST_SUITE_END()
 
 BOOST_AUTO_TEST_SUITE(Load)
 
 BOOST_AUTO_TEST_CASE(Word) {
-    cpu.A[2] = 0x100;
-    TEST::SET_L(0x110, 0x12345678);
+    cpu.A[2] = 0x1000;
+    TEST::SET_L(0x1010, 0x12345678);
     run_test(12);
     BOOST_TEST(cpu.D[3] == 0x1256);
 }
 
 BOOST_AUTO_TEST_CASE(Long) {
     cpu.D[3] = 0x12345678;
-    cpu.A[2] = 0x100;
-    TEST::SET_L(0x110, 0x12345678);
-    TEST::SET_L(0x114, 0x9ABCDEF0);
+    cpu.A[2] = 0x1000;
+    TEST::SET_L(0x1010, 0x12345678);
+    TEST::SET_L(0x1014, 0x9ABCDEF0);
     run_test(18);
     BOOST_TEST(cpu.D[3] == 0x12569ADE);
 }

@@ -180,13 +180,3 @@ add_test(NAME rom/asc2 COMMAND $<TARGET_FILE:testrom> -t "e_asc/*")
 add_test(NAME rom/adb1 COMMAND $<TARGET_FILE:testrom> -t "adb1/*")
 
 
-#ExternalProject_Add(
-#  build_rom                 # Name for custom target
-#  SOURCE_DIR ../rom
-#  BINARY_DIR ../rom
-#  CONFIGURE_COMMAND ""         # Skip configuring the project, e.g. with autoconf
-#  BUILD_COMMAND
-#    make 
-#  INSTALL_COMMAND ""      # This particular build system has no install command
-#  BUILD_BYPRODUCTS obj/rom.bin
-#)

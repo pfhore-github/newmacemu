@@ -456,8 +456,9 @@ void jit_jumptable(jit_cache &jit) {
 }
 void jit_postop() {
     Label lb = as->newLabel();
-    as->mov(x86::al, x86::byte_ptr(x86::rbx, offsetof(Cpu, must_trace)));
-    as->mov(x86::byte_ptr(x86::rbx, offsetof(Cpu, must_trace)), 0);
+    as->lea(x86::rdi, CPU_BYTE(must_trace));
+    as->mov(x86::al, x86::byte_ptr(x86::rdi));
+    as->mov(x86::byte_ptr(x86::rdi), 0);
     as->test(x86::al, 1);
     as->je(lb);
     as->call(TRACE);
@@ -543,10 +544,10 @@ void jit_run(uint32_t pc) {
         jit_compile(pc, 0x4000);
     }
     auto e = jit_tables[pc].get();
-    if(setjmp(cpu.ex) == 0) {
+    if(setjmp(ex_buf) == 0) {
         (*e->exec)((pc - e->begin) >> 1);
     } else {
-        handle_exception(cpu.ex_n);
+        handle_exception(ex_n);
         cpu.bus_lock = false;
     }
 }

@@ -34,6 +34,6 @@ BOOST_AUTO_TEST_CASE(traced) {
     cpu.A[7] = 0x1000;
     cpu.T = 1;
     run_test(0);
-	BOOST_TEST(cpu.ex_n == EXCEPTION_NUMBER::TRACE );
+	BOOST_TEST(ex_n == EXCEPTION_NUMBER::TRACE );
 }
 BOOST_AUTO_TEST_SUITE_END()

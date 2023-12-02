@@ -21,7 +21,7 @@ BOOST_FIXTURE_TEST_SUITE(FRESTORE, Prepare, *boost::unit_test::fixture<F_FRESTOR
 BOOST_AUTO_TEST_CASE(err) {
     cpu.S = false;
     run_test(0);
-    BOOST_TEST(cpu.ex_n == EXCEPTION_NUMBER::PRIV_ERR);
+    BOOST_TEST(ex_n == EXCEPTION_NUMBER::PRIV_ERR);
 }
 BOOST_AUTO_TEST_SUITE(normal)
 BOOST_AUTO_TEST_CASE(reset) {
@@ -38,7 +38,7 @@ BOOST_AUTO_TEST_CASE(busy) {
     cpu.A[2] = 0x100;
     TEST::SET_L(0x100, 0x41600000);
     run_test(0);
-    BOOST_TEST(cpu.ex_n == EXCEPTION_NUMBER::NO_ERR);
+    BOOST_TEST(ex_n == EXCEPTION_NUMBER::NO_ERR);
 }
 
 BOOST_AUTO_TEST_CASE(unimpl) {
@@ -46,7 +46,7 @@ BOOST_AUTO_TEST_CASE(unimpl) {
     cpu.A[2] = 0x100;
     TEST::SET_W(0, 0171522);
     run_test(0);
-    BOOST_TEST(cpu.ex_n == EXCEPTION_NUMBER::NO_ERR);
+    BOOST_TEST(ex_n == EXCEPTION_NUMBER::NO_ERR);
 }
 
 BOOST_AUTO_TEST_CASE(idle) {
@@ -54,7 +54,7 @@ BOOST_AUTO_TEST_CASE(idle) {
     cpu.A[2] = 0x100;
     TEST::SET_L(0x100, 0x41000000);
     run_test(0);
-    BOOST_TEST(cpu.ex_n == EXCEPTION_NUMBER::NO_ERR);
+    BOOST_TEST(ex_n == EXCEPTION_NUMBER::NO_ERR);
 }
 
 BOOST_AUTO_TEST_CASE(ferr1) {
@@ -62,7 +62,7 @@ BOOST_AUTO_TEST_CASE(ferr1) {
     cpu.A[2] = 0x100;
     TEST::SET_L(0x100, 0x20000000);
     run_test(0);
-    BOOST_TEST(cpu.ex_n == EXCEPTION_NUMBER::FORMAT_ERR);
+    BOOST_TEST(ex_n == EXCEPTION_NUMBER::FORMAT_ERR);
 }
 
 BOOST_AUTO_TEST_CASE(ferr2) {
@@ -70,7 +70,7 @@ BOOST_AUTO_TEST_CASE(ferr2) {
     cpu.A[2] = 0x100;
     TEST::SET_L(0x100, 0x41550000);
     run_test(0);
-    BOOST_TEST(cpu.ex_n == EXCEPTION_NUMBER::FORMAT_ERR);
+    BOOST_TEST(ex_n == EXCEPTION_NUMBER::FORMAT_ERR);
 }
 
 BOOST_AUTO_TEST_SUITE_END()
@@ -78,7 +78,7 @@ BOOST_AUTO_TEST_SUITE(Incr)
 BOOST_AUTO_TEST_CASE(err) {
     cpu.S = false;
     run_test(4);
-    BOOST_TEST(cpu.ex_n == EXCEPTION_NUMBER::PRIV_ERR);
+    BOOST_TEST(ex_n == EXCEPTION_NUMBER::PRIV_ERR);
 }
 
 BOOST_AUTO_TEST_CASE(reset) {
@@ -89,7 +89,7 @@ BOOST_AUTO_TEST_CASE(reset) {
     run_test(4);
     BOOST_TEST(cpu.A[2] == 0x104);
     BOOST_TEST(mpfr_nan_p(cpu.FP[2]));
-    BOOST_TEST(cpu.ex_n == EXCEPTION_NUMBER::NO_ERR);
+    BOOST_TEST(ex_n == EXCEPTION_NUMBER::NO_ERR);
 }
 
 BOOST_AUTO_TEST_CASE(busy) {
@@ -98,7 +98,7 @@ BOOST_AUTO_TEST_CASE(busy) {
     TEST::SET_L(0x100, 0x41600000);
     run_test(4);
     BOOST_TEST(cpu.A[2] == 0x160);
-    BOOST_TEST(cpu.ex_n == EXCEPTION_NUMBER::NO_ERR);
+    BOOST_TEST(ex_n == EXCEPTION_NUMBER::NO_ERR);
 }
 
 BOOST_AUTO_TEST_CASE(unimpl) {
@@ -107,7 +107,7 @@ BOOST_AUTO_TEST_CASE(unimpl) {
     TEST::SET_L(0x100, 0x41300000);
     run_test(4);
     BOOST_TEST(cpu.A[2] == 0x130);
-    BOOST_TEST(cpu.ex_n == EXCEPTION_NUMBER::NO_ERR);
+    BOOST_TEST(ex_n == EXCEPTION_NUMBER::NO_ERR);
 }
 
 BOOST_AUTO_TEST_CASE(idle) {
@@ -116,7 +116,7 @@ BOOST_AUTO_TEST_CASE(idle) {
     TEST::SET_L(0x100, 0x41000000);
     run_test(4);
     BOOST_TEST(cpu.A[2] == 0x104);
-    BOOST_TEST(cpu.ex_n == EXCEPTION_NUMBER::NO_ERR);
+    BOOST_TEST(ex_n == EXCEPTION_NUMBER::NO_ERR);
 }
 
 BOOST_AUTO_TEST_CASE(ferr2) {
@@ -124,7 +124,7 @@ BOOST_AUTO_TEST_CASE(ferr2) {
     cpu.A[2] = 0x100;
     TEST::SET_L(0x100, 0x41550000);
     run_test(4);
-    BOOST_TEST(cpu.ex_n == EXCEPTION_NUMBER::FORMAT_ERR);
+    BOOST_TEST(ex_n == EXCEPTION_NUMBER::FORMAT_ERR);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

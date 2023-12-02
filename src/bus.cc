@@ -10,39 +10,39 @@ template <class T> struct bus_trait {};
 template <> struct bus_trait<const uint8_t> {
     static uint8_t memDo(const uint8_t *p, uint8_t) { return *p; }
     static uint8_t ioDo(const uint32_t addr, uint8_t) {
-         return io->Read(addr & 0x0FFFFFFF);
+         return io->readB(addr & 0x0FFFFFFF);
     }
 };
 template <> struct bus_trait<uint8_t> {
     static void memDo(uint8_t *p, uint8_t v) { *p = v; }
     static void ioDo(const uint32_t addr, uint8_t v) {
-        io->Write(addr & 0x0FFFFFFF, v);
+        io->writeB(addr & 0x0FFFFFFF, v);
     }
 };
 
 template <> struct bus_trait<const uint16_t> {
     static uint16_t memDo(const uint8_t *p, uint16_t) { return readBE16(p); }
     static uint16_t ioDo(const uint32_t addr, uint16_t) {
-        return io->Read(addr & 0x0FFFFFFF);
+        return io->readW(addr & 0x0FFFFFFF);
     }
 };
 template <> struct bus_trait<uint16_t> {
     static void memDo(uint8_t *p, uint16_t v) { writeBE16(p, v); }
     static void ioDo(const uint32_t addr, uint16_t v) {
-        io->Write(addr & 0x0FFFFFFF, v);
+        io->writeW(addr & 0x0FFFFFFF, v);
     }
 };
 
 template <> struct bus_trait<const uint32_t> {
     static uint32_t memDo(const uint8_t *p, uint32_t) { return readBE32(p); }
     static uint32_t ioDo(const uint32_t addr, uint32_t) {
-        return io->Read(addr & 0x0FFFFFFF);
+        return io->readL(addr & 0x0FFFFFFF);
     }
 };
 template <> struct bus_trait<uint32_t> {
     static void memDo(uint8_t *p, uint32_t v) { writeBE32(p, v); }
     static void ioDo(const uint32_t addr, uint32_t v) {
-        io->Write(addr & 0x0FFFFFFF, v);
+        io->writeL(addr & 0x0FFFFFFF, v);
     }
 };
 

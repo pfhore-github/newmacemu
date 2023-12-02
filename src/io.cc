@@ -1,4 +1,5 @@
 #include "io.hpp"
+#include "bus.hpp"
 #include "chip/iifx.hpp"
 #include "chip/iop.hpp"
 #include "chip/rbv.hpp"
@@ -14,7 +15,6 @@
 #include "mb/oss.hpp"
 #include "mb/v8.hpp"
 #include "memory.hpp"
-#include "bus.hpp"
 #include <optional>
 
 extern std::shared_ptr<VIA1> via1;
@@ -23,7 +23,7 @@ extern std::shared_ptr<ASC> asc;
 extern std::shared_ptr<ASC> asc;
 uint8_t *pds = nullptr;
 
-uint32_t GLUE::Read(uint32_t addr) {
+uint8_t GLUE::readB(uint32_t addr) {
     if(addr & 0x8000000) {
         if(pds) {
             return pds[addr & 0x7ffffff];
@@ -52,7 +52,7 @@ uint32_t GLUE::Read(uint32_t addr) {
     throw BusError{};
 }
 
-void GLUE::Write(uint32_t addr, uint32_t value) {
+void GLUE::writeB(uint32_t addr, uint8_t value) {
     if(addr & 0x8000000) {
         if(pds) {
             pds[addr & 0x7ffffff] = value;
@@ -89,7 +89,7 @@ void GLUE::Write(uint32_t addr, uint32_t value) {
     throw BusError{};
 }
 
-uint32_t MDU::Read(uint32_t addr) {
+uint8_t MDU::readB(uint32_t addr) {
     if(addr & 0x8000000) {
         if(pds) {
             return pds[addr & 0x7ffffff];
@@ -120,7 +120,7 @@ uint32_t MDU::Read(uint32_t addr) {
     throw BusError{};
 }
 
-void MDU::Write(uint32_t addr, uint32_t value) {
+void MDU::writeB(uint32_t addr, uint8_t value) {
     if(addr & 0x8000000) {
         if(pds) {
             pds[addr & 0x7ffffff] = value;
@@ -159,8 +159,14 @@ void MDU::Write(uint32_t addr, uint32_t value) {
     }
     throw BusError{};
 }
-
-uint32_t OSS::Read(uint32_t addr) {
+uint32_t OSS::readL(uint32_t addr) {
+    switch((addr >> 13) & 0x1f) {
+    case 4:
+        return scsi_dma.read(addr & 0x1fff);
+    }
+    return IO_BUS::readL(addr);
+}
+uint8_t OSS::readB(uint32_t addr) {
     if(addr & 0x8000000) {
         if(pds) {
             return pds[addr & 0x7ffffff];
@@ -173,8 +179,6 @@ uint32_t OSS::Read(uint32_t addr) {
         return via1->read(addr >> 9 & 0xf);
     case 2:
         return iop_scc.read(addr >> 1 & 0x1f);
-    case 4:
-        return scsi_dma.read(addr & 0x1fff);
     case 8:
         return asc->read(addr & 0xfff);
     case 9:
@@ -188,7 +192,15 @@ uint32_t OSS::Read(uint32_t addr) {
     }
     throw BusError{};
 }
-void OSS::Write(uint32_t addr, uint32_t value) {
+void OSS::writeL(uint32_t addr, uint32_t value) {
+    switch((addr >> 13) & 0x1f) {
+    case 4:
+        scsi_dma.write(addr >> 4 & 3, value);
+        return;
+    }
+    IO_BUS::writeL(addr, value);
+}
+void OSS::writeB(uint32_t addr, uint8_t value) {
     if(addr & 0x8000000) {
         if(pds) {
             pds[addr & 0x7ffffff] = value;
@@ -202,9 +214,6 @@ void OSS::Write(uint32_t addr, uint32_t value) {
         return;
     case 2:
         iop_scc.write(addr >> 1 & 0x1f, value);
-        return;
-    case 4:
-        scsi_dma.write(addr >> 4 & 3, value);
         return;
     case 8:
         asc->write(addr & 0xfff, value);
@@ -225,8 +234,7 @@ void OSS::Write(uint32_t addr, uint32_t value) {
     throw BusError{};
 }
 
-
-uint32_t V8::Read(uint32_t addr) {
+uint8_t V8::readB(uint32_t addr) {
     if(addr > 0xF80000) {
         if(pds) {
             return pds[addr & 0x7ffff];
@@ -260,7 +268,7 @@ uint32_t V8::Read(uint32_t addr) {
     throw BusError{};
 }
 
-void V8::Write(uint32_t addr, uint32_t value) {
+void V8::writeB(uint32_t addr, uint8_t value) {
     if(addr > 0xF80000) {
         if(pds) {
             pds[addr & 0x7ffff] = value;
@@ -303,7 +311,14 @@ void V8::Write(uint32_t addr, uint32_t value) {
     throw BusError{};
 }
 
-uint32_t MCU_Q900::Read(uint32_t addr) {
+uint32_t MCU_Q900::readL(uint32_t addr) {
+    switch((addr >> 13) & 0x1f) {
+    case 7:
+        return mcu.read(addr & 0x1fff);
+    }
+    return IO_BUS::readL(addr);
+}
+uint8_t MCU_Q900::readB(uint32_t addr) {
     if(addr & 0x8000000) {
         if(pds) {
             return pds[addr & 0x7ffffff];
@@ -318,8 +333,6 @@ uint32_t MCU_Q900::Read(uint32_t addr) {
         return via2->read(addr >> 9 & 0xf);
     case 6:
         return iop_scc.read(addr >> 1 & 0x1f);
-    case 7:
-        return mcu.read(addr & 0x1fff);
     case 10:
         return asc->read(addr & 0xfff);
     case 15:
@@ -327,7 +340,15 @@ uint32_t MCU_Q900::Read(uint32_t addr) {
     }
     throw BusError{};
 }
-void MCU_Q900::Write(uint32_t addr, uint32_t value) {
+void MCU_Q900::writeL(uint32_t addr, uint32_t value) {
+    switch((addr >> 13) & 0x1f) {
+    case 7:
+        mcu.write(addr & 0x1fff, value);
+        return;
+    }
+    IO_BUS::writeL(addr, value);
+}
+void MCU_Q900::writeB(uint32_t addr, uint8_t value) {
     if(addr & 0x8000000) {
         if(pds) {
             pds[addr & 0x7ffffff] = value;
@@ -345,9 +366,7 @@ void MCU_Q900::Write(uint32_t addr, uint32_t value) {
     case 6:
         iop_scc.write(addr >> 1 & 0x1f, value);
         return;
-    case 7:
-        mcu.write(addr & 0x1fff, value);
-        return;
+
     case 10:
         asc->write(addr & 0xfff, value);
         return;
@@ -357,9 +376,14 @@ void MCU_Q900::Write(uint32_t addr, uint32_t value) {
     }
     throw BusError{};
 }
-
-
-uint32_t MCU_Q700::Read(uint32_t addr) {
+uint32_t MCU_Q700::readL(uint32_t addr) {
+    switch((addr >> 13) & 0x1f) {
+    case 7:
+        return mcu.read(addr & 0x1fff);
+    }
+    return IO_BUS::readL(addr);
+}
+uint8_t MCU_Q700::readB(uint32_t addr) {
     if(addr & 0x8000000) {
         if(pds) {
             return pds[addr & 0x7ffffff];
@@ -383,7 +407,15 @@ uint32_t MCU_Q700::Read(uint32_t addr) {
     }
     throw BusError{};
 }
-void MCU_Q700::Write(uint32_t addr, uint32_t value) {
+void MCU_Q700::writeL(uint32_t addr, uint32_t value) {
+    switch((addr >> 13) & 0x1f) {
+    case 7:
+        mcu.write(addr & 0x1fff, value);
+        return;
+    }
+    return IO_BUS::writeL(addr, value);
+}
+void MCU_Q700::writeB(uint32_t addr, uint8_t value) {
     if(addr & 0x8000000) {
         if(pds) {
             pds[addr & 0x7ffffff] = value;
@@ -401,9 +433,6 @@ void MCU_Q700::Write(uint32_t addr, uint32_t value) {
     case 6:
         scc.write(addr >> 1 & 0x1f, value);
         return;
-    case 7:
-        mcu.write(addr & 0x1fff, value);
-        return;
     case 10:
         asc->write(addr & 0xfff, value);
         return;
@@ -414,7 +443,7 @@ void MCU_Q700::Write(uint32_t addr, uint32_t value) {
     throw BusError{};
 }
 
-uint32_t JAWS::Read(uint32_t addr) {
+uint8_t JAWS::readB(uint32_t addr) {
     if(addr & 0x8000000) {
         if(pds) {
             return pds[addr & 0x7ffffff];
@@ -448,7 +477,7 @@ uint32_t JAWS::Read(uint32_t addr) {
     throw BusError{};
 }
 
-void JAWS::Write(uint32_t addr, uint32_t value) {
+void JAWS::writeB(uint32_t addr, uint8_t value) {
     if(addr & 0x8000000) {
         if(pds) {
             pds[addr & 0x7ffffff] = value;

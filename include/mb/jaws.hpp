@@ -20,7 +20,7 @@ struct JAWS : public IO_BUS {
     SCSI_pDMA scsi_pdma;
     SWIM swim;
     JAWS_CTL jaws;
-    uint32_t Read(uint32_t addr)  override;
-    void Write(uint32_t addr, uint32_t value) override;
+    uint8_t readB(uint32_t addr)  override;
+    void writeB(uint32_t addr, uint8_t value) override;
 };
 #endif

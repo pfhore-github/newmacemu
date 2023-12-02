@@ -20,12 +20,12 @@ void debug_activate();
 void run_op();
 void cpu_thread() {
 	for(;;) {
-		if( setjmp(cpu.ex) == 0 ) {
+		if( setjmp(ex_buf) == 0 ) {
 			for(;;) {
 				run_op();
 			}
 		} else {
-			handle_exception(cpu.ex_n);
+			handle_exception(ex_n);
             cpu.bus_lock = false;
 		}
 	}

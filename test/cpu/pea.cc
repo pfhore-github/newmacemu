@@ -18,9 +18,8 @@ BOOST_FIXTURE_TEST_SUITE(PEA, Prepare, *boost::unit_test::fixture<F_PEA>())
 
 BOOST_AUTO_TEST_CASE(execute) {
     cpu.A[3] = 0x200;
-    cpu.A[7] = 0x104;
     run_test(0);
-    BOOST_TEST(TEST::GET_L(0x100) == 0x200);
-    BOOST_TEST(cpu.A[7] == 0x100);
+    BOOST_TEST(TEST::GET_L(0x5FFC) == 0x200);
+    BOOST_TEST(cpu.A[7] == 0x5FFC);
 }
 BOOST_AUTO_TEST_SUITE_END()

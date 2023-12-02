@@ -4,19 +4,26 @@
 #include "SDL_log.h"
 #include "inline.hpp"
 #include "memory.hpp"
+#include "mmu.hpp"
 #include <expected>
 #include <fmt/core.h>
 [[noreturn]] void double_fault() {
 #ifdef CI
+    struct TestEnd {};
     fmt::print("double buf fault:{:x}", cpu.PC);
+    throw TestEnd{};
 #else
     // Double Bus Fault
-    SDL_LogError(SDL_LOG_CATEGORY_ERROR, "double bus fault:%08x", cpu.PC);
-#endif
+    SDL_LogError(SDL_LOG_CATEGORY_ERROR, "double bus fault:%08x\n", cpu.PC);
     exit(1);
+#endif
 }
 std::expected<void, uint16_t> WriteWImpl(uint32_t addr, uint16_t w);
-std::expected<uint32_t, uint16_t> ReadLImpl(uint32_t addr);
+std::expected<uint32_t, uint16_t> ReadLImpl(uint32_t addr, bool lock);
+
+jmp_buf ex_buf;
+uint32_t ex_addr;
+EXCEPTION_NUMBER ex_n;
 
 inline void ex_PUSH16(uint16_t v) {
     if(auto x = WriteWImpl(cpu.A[7] -= 2, v); !x) {
@@ -29,18 +36,25 @@ inline void ex_PUSH32(uint32_t v) {
 }
 
 inline uint32_t ex_READL(uint32_t addr) {
-    auto p = ReadLImpl(addr);
+    auto p = ReadLImpl(addr, false);
     if(p) {
         return *p;
     } else {
         double_fault();
     }
 }
+
+inline void ex_JUMP(uint32_t addr) {
+    if(addr & 1) {
+        double_fault();
+    }
+    cpu.PC = addr;
+}
 void EXCEPTION0(int n, uint32_t nextpc, uint16_t sr) {
     ex_PUSH16(n << 2);
     ex_PUSH32(nextpc);
     ex_PUSH16(sr);
-    JUMP(ex_READL(cpu.VBR + (n << 2)));
+    ex_JUMP(ex_READL(cpu.VBR + (n << 2)));
 }
 
 void EXCEPTION2(int n, uint32_t addr, uint32_t nextpc, uint16_t sr) {
@@ -48,7 +62,7 @@ void EXCEPTION2(int n, uint32_t addr, uint32_t nextpc, uint16_t sr) {
     ex_PUSH16(0x2 << 12 | n << 2);
     ex_PUSH32(nextpc);
     ex_PUSH16(sr);
-    JUMP(ex_READL(cpu.VBR + (n << 2)));
+    ex_JUMP(ex_READL(cpu.VBR + (n << 2)));
 }
 
 void EXCEPTION3(int n, uint16_t sr) {
@@ -56,7 +70,7 @@ void EXCEPTION3(int n, uint16_t sr) {
     ex_PUSH16(0x3 << 12 | n << 2);
     ex_PUSH32(cpu.PC);
     ex_PUSH16(sr);
-    JUMP(ex_READL(cpu.VBR + (n << 2)));
+    ex_JUMP(ex_READL(cpu.VBR + (n << 2)));
 }
 
 void handle_exception(EXCEPTION_NUMBER n) {
@@ -70,7 +84,7 @@ void handle_exception(EXCEPTION_NUMBER n) {
         break;
     case EXCEPTION_NUMBER::AFAULT:
         cpu.A[7] -= 4 * 9;
-        ex_PUSH32(cpu.ex_addr);
+        ex_PUSH32(ex_addr);
         cpu.A[7] -= 2 * 3;
         if(cpu.must_trace) {
             cpu.fault_SSW |= SSW_CT;
@@ -88,7 +102,7 @@ void handle_exception(EXCEPTION_NUMBER n) {
         JUMP(ex_READL(cpu.VBR + (2 << 2)));
         break;
     case EXCEPTION_NUMBER::ADDR_ERR:
-        EXCEPTION2(3, cpu.ex_addr & ~1, cpu.oldpc, sr);
+        EXCEPTION2(3, ex_addr & ~1, cpu.oldpc, sr);
         break;
     case EXCEPTION_NUMBER::ILLEGAL_OP:
     case EXCEPTION_NUMBER::PRIV_ERR:
@@ -151,16 +165,16 @@ void handle_exception(EXCEPTION_NUMBER n) {
             ex_PUSH32(cpu.PC);
             ex_PUSH16(sr);
         }
-        JUMP(ex_READL(cpu.VBR + (int(n) << 2)));
+        ex_JUMP(ex_READL(cpu.VBR + (int(n) << 2)));
         break;
     }
 }
 [[noreturn]] static inline void RAISE(EXCEPTION_NUMBER n) {
-    cpu.ex_n = n;
-    longjmp(cpu.ex, 1);
+    ex_n = n;
+    longjmp(ex_buf, 1);
 }
 void ACCESS_FAULT(uint32_t a, SIZ sz, bool rw, TM m, uint16_t tt) {
-    cpu.ex_addr = a;
+    ex_addr = a;
     if(cpu.movem_run) {
         cpu.fault_SSW |= SSW_CM;
     }
@@ -172,7 +186,7 @@ void ACCESS_FAULT(uint32_t a, SIZ sz, bool rw, TM m, uint16_t tt) {
     RAISE(EXCEPTION_NUMBER::AFAULT);
 }
 void ADDRESS_ERROR(uint32_t addr) {
-    cpu.ex_addr = addr;
+    ex_addr = addr;
     RAISE(EXCEPTION_NUMBER::ADDR_ERR);
 }
 
@@ -266,6 +280,12 @@ void RESET() {
     cpu.DTTR[1].E = 0;
     cpu.ITTR[0].E = 0;
     cpu.ITTR[1].E = 0;
+    for(int i = 0; i < 2; ++i) {
+        for(int k = 0; k < 16; ++k) {
+            i_atc[i][k].V = false;
+            d_atc[i][k].V = false;
+        }
+    }
     LoadSP();
     cpu.A[7] = ex_READL(0);
     JUMP(ex_READL(4));

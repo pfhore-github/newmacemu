@@ -13,7 +13,7 @@ struct GLUE : public IO_BUS {
     SCSI_NORMAL scsi;
     SCSI_pDMA scsi_pdma;
     SWIM swim;
-    uint32_t Read(uint32_t addr)  override;
-    void Write(uint32_t addr, uint32_t value) override;
+    uint8_t readB(uint32_t addr)  override;
+    void writeB(uint32_t addr, uint8_t value) override;
 };
 #endif

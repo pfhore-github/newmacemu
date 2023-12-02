@@ -30,23 +30,23 @@ struct PrepareROM : Prepare {
 };
 BOOST_FIXTURE_TEST_SUITE(init, PrepareROM)
 struct BadIO : public IO_BUS {
-    uint32_t Read(uint32_t) { return 0; }
-    void Write(uint32_t, uint32_t) {}
+    uint8_t readB(uint32_t) { return 0; }
+    void writeB(uint32_t, uint8_t) {}
 };
 struct BadIO2 : public IO_BUS {
-    uint32_t Read(uint32_t) { throw BusError{}; }
-    void Write(uint32_t, uint32_t) {}
+    uint8_t readB(uint32_t) { throw BusError{}; }
+    void writeB(uint32_t, uint8_t) {}
 };
 struct BadIO3 : public IO_BUS {
     RBV rbv;
-    uint32_t Read(uint32_t addr) {
+    uint8_t readB(uint32_t addr) {
         switch((addr >> 13) & 0x1f) {
         case 19:
             return rbv.read(addr & 0xff);
         }
         throw BusError{};
     }
-    void Write(uint32_t, uint32_t) {}
+    void writeB(uint32_t, uint8_t) {}
 };
 BOOST_AUTO_TEST_SUITE(_3060)
 auto CheckVIA(bool t) {
@@ -352,8 +352,8 @@ BOOST_AUTO_TEST_CASE(fail1) {
     BOOST_TEST(!cpu.Z);
 }
 struct BadIIfx2_2 : public IO_BUS {
-    uint32_t Read(uint32_t) { return 1; }
-    void Write(uint32_t, uint32_t) {}
+    uint8_t readB(uint32_t) { return 1; }
+    void writeB(uint32_t, uint8_t) {}
 };
 BOOST_AUTO_TEST_CASE(fail2) {
     cpu.A[2] = 0x50F1E000;
@@ -373,8 +373,8 @@ BOOST_AUTO_TEST_CASE(success) {
     BOOST_TEST(cpu.Z);
 }
 struct BadVIA : public IO_BUS {
-    uint32_t Read(uint32_t) { throw BusError{}; }
-    void Write(uint32_t, uint32_t) {}
+    uint8_t readB(uint32_t) { throw BusError{}; }
+    void writeB(uint32_t, uint8_t) {}
 };
 BOOST_AUTO_TEST_CASE(fail1) {
     cpu.A[2] = 0x50F01C00;
@@ -401,7 +401,7 @@ BOOST_AUTO_TEST_CASE(fail2) {
 struct BadVIA2 : public IO_BUS {
     VIA1 via1;
     VIA2 via2;
-    uint32_t Read(uint32_t addr) {
+    uint8_t readB(uint32_t addr) {
         switch((addr >> 13) & 0x1f) {
         case 0:
             return via1.read(addr >> 9 & 0xf);
@@ -410,7 +410,7 @@ struct BadVIA2 : public IO_BUS {
         }
         return 0;
     }
-    void Write(uint32_t, uint32_t) {}
+    void writeB(uint32_t, uint8_t) {}
 };
 BOOST_AUTO_TEST_CASE(fail3) {
     cpu.A[2] = 0x50F01C00;
@@ -422,7 +422,7 @@ BOOST_AUTO_TEST_CASE(fail3) {
 
 struct BadVIA3 : public IO_BUS {
     VIA1 via1;
-    uint32_t Read(uint32_t addr) override {
+    uint8_t readB(uint32_t addr) override {
         switch((addr >> 13) & 0x1f) {
         case 0:
             return via1.read(addr >> 9 & 0xf);
@@ -431,7 +431,7 @@ struct BadVIA3 : public IO_BUS {
         }
         return 0;
     }
-    void Write(uint32_t addr, uint32_t v) override {
+    void writeB(uint32_t addr, uint8_t v) override {
         switch((addr >> 13) & 0x1f) {
         case 0:
             return via1.write(addr >> 9 & 0xf, v);
@@ -556,8 +556,8 @@ BOOST_AUTO_TEST_CASE(fail1) {
 }
 
 struct DummyIOP2 : public IO_BUS {
-    uint32_t Read(uint32_t) override { return 0; }
-    void Write(uint32_t, uint32_t) override {}
+    uint8_t readB(uint32_t) override { return 0; }
+    void writeB(uint32_t, uint8_t) override {}
 };
 
 BOOST_AUTO_TEST_CASE(fail2) {

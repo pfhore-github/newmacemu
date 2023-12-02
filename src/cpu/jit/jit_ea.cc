@@ -25,15 +25,15 @@ static void parseExt_jit(int reg) {
     }
     if(!(next & 1 << 8)) {
         int8_t d = next & 0xff;
-        as->lea(x86::rsi,
-                x86::ptr(x86::r10, x86::rax, ri_c, static_cast<int32_t>(d)));
+        as->lea(x86::esi,
+                x86::ptr(x86::r10d, x86::eax, ri_c, static_cast<int32_t>(d)));
         return;
     }
     if(next & 1 << 7) {
-        as->xor_(x86::r10, x86::r10);
+        as->xor_(x86::r10d, x86::r10d);
     }
     if(next & 1 << 6) {
-        as->xor_(x86::rax, x86::rax);
+        as->xor_(x86::eax, x86::eax);
     }
     int32_t bd = 0;
     switch(next >> 4 & 3) {
@@ -49,8 +49,8 @@ static void parseExt_jit(int reg) {
     int32_t od_v = 0;
     switch(next & 3) {
     case 0:
-        as->lea(x86::rsi,
-                x86::ptr(x86::r10, x86::rax, ri_c, static_cast<int32_t>(bd)));
+        as->lea(x86::esi,
+                x86::ptr(x86::r10d, x86::eax, ri_c, static_cast<int32_t>(bd)));
         return;
     case 1:
         break;
@@ -62,15 +62,15 @@ static void parseExt_jit(int reg) {
         break;
     }
     if(!(next & 1 << 2)) {
-        as->lea(x86::r11,
-                x86::ptr(x86::r10, x86::rax, ri_c, static_cast<int32_t>(bd)));
+        as->lea(x86::r11d,
+                x86::ptr(x86::r10d, x86::eax, ri_c, static_cast<int32_t>(bd)));
         jit_readL(x86::r11d);
-        as->lea(x86::rsi, x86::ptr(x86::rax, od_v));
+        as->lea(x86::esi, x86::ptr(x86::eax, od_v));
     } else {
-        as->mov(x86::r12, x86::rax);
-        as->lea(x86::r11, x86::ptr(x86::r10, static_cast<int32_t>(bd)));
+        as->mov(x86::r12d, x86::eax);
+        as->lea(x86::r11d, x86::ptr(x86::r10d, static_cast<int32_t>(bd)));
         jit_readL(x86::r11d);
-        as->lea(x86::rsi, x86::ptr(x86::r12, x86::rax, ri_c, od_v));
+        as->lea(x86::esi, x86::ptr(x86::r12d, x86::eax, ri_c, od_v));
     }
 }
 void ea_getaddr_jit(int type, int reg, int sz) {
@@ -83,7 +83,7 @@ void ea_getaddr_jit(int type, int reg, int sz) {
             sz = 2;
         }
         as->mov(x86::esi, AR_L(reg));
-        as->lea(x86::rax, x86::ptr(x86::rsi, sz));
+        as->lea(x86::eax, x86::ptr(x86::esi, sz));
         as->mov(AR_L(reg), x86::eax);
         break;
     case 4:
@@ -96,7 +96,7 @@ void ea_getaddr_jit(int type, int reg, int sz) {
     case 5: {
         int16_t d = FETCH();
         as->mov(x86::esi, AR_L(reg));
-        as->lea(x86::rsi, x86::ptr(x86::rsi, d));
+        as->lea(x86::esi, x86::ptr(x86::esi, d));
         break;
     }
     case 6:

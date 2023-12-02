@@ -5,6 +5,7 @@
 #include "exception.hpp"
 #include "jit.hpp"
 #include "memory.hpp"
+#include "mmu.hpp"
 #include "test.hpp"
 #include <boost/test/unit_test.hpp>
 #include <errno.h>
@@ -17,20 +18,56 @@ Cpu cpu;
 extern run_t run_table[0x10000];
 const double sg_v[] = {-1.0, 1.0};
 const mpfr_rnd_t RND_MODES[4] = {MPFR_RNDN, MPFR_RNDZ, MPFR_RNDU, MPFR_RNDD};
-
 void initBus();
 void init_fpu();
 void jit_init();
 volatile bool testing;
+/* TEST MEM TABLE
+    (pysical)
+    0x0000-0x0FFF: CODE AREA
+    0x1000-0x1FFF: USER-SCRATCH
+    0x2000-0x2FFF: SYS-SCRATCH
+    0x3000-0x3FFF: GUARD AREA(read only)
+    0x4000-0x4FFF: GUARD AREA(system only)
+    0x5000-0x5FFF: USER-STACK
+    0x6000-0x6FFF: SYS-STACK
+    0x7000-0x7FFF: EXCEPTION TABLE
+    0x8000-0x8FFF: USER-pTABLE
+    0x9000-0x9FFF: SYS-pTABLE
+    0xA000-0xAFFF: I-STACK
+
+    (user-logical)
+    0x0000-0x0FFF: CODE AREA
+    0x1000-0x1FFF: SCRATCH
+    0x2000-0x2FFF: GUARD AREA(read only)
+    0x3000-0x3FFF: GUARD AREA(system only)
+    0x4000-0x4FFF: NON-RESIENT
+    0x5000-0x5FFF: STACK
+
+    (sys-logical)
+    0x0000-0x0FFF: CODE AREA
+    0x1000-0x1FFF: USER-SCRATCH
+    0x2000-0x2FFF: GUARD AREA(read only)
+    0x3000-0x3FFF: GUARD AREA(system only)
+    0x4000-0x4FFF: NON-RESIENT
+    0x5000-0x5FFF: USER-STACK
+    0x6000-0x6FFF: EXCEPTION TABLE
+    0x7000-0x7FFF: SYS-SCRATCH
+    0x8000-0x8FFF: SYS-STACK
+    0x9000-0x9FFF: I-STACK
+*/
 Prepare::Prepare() {
     reset_fpu();
     for(int i = 0; i < 8; ++i) {
         cpu.D[i] = cpu.A[i] = 0;
     }
-    cpu.ISP = cpu.USP = cpu.MSP = cpu.A[7] = 0xC00;
+    cpu.ISP = 0xA000;
+    cpu.MSP = 0x9000;
+    cpu.USP = cpu.A[7] = 0x6000;
     cpu.oldpc = 0;
     cpu.Z = cpu.X = cpu.V = cpu.C = cpu.N = false;
-    cpu.S = true;
+    cpu.S = false;
+    cpu.M = true;
     cpu.T = 0;
     cpu.PC = 0;
     cpu.EA = 0;
@@ -40,28 +77,46 @@ Prepare::Prepare() {
     cpu.TCR_P = false;
     cpu.must_trace = false;
     for(int i = 0; i < 2; ++i) {
-        cpu.l_atc[i].clear();
-        cpu.g_atc[i].clear();
+        for(int k = 0; k < 16; ++k) {
+            d_atc[i][k].V = false;
+            i_atc[i][k].V = false;
+        }
     }
     cpu.DTTR[0].E = false;
     cpu.DTTR[1].E = false;
     cpu.ITTR[0].E = false;
     cpu.ITTR[1].E = false;
     // EXCEPTION TABLE
-    cpu.VBR = 0x4000;
+    cpu.VBR = 0x6000;
     for(int i = 0; i < 64; ++i) {
-        TEST::SET_L(0x4000 + (i << 2), 0x1000 + (i << 2));
+        TEST::SET_L(0x7000 + (i << 2), 0x3000 + (i << 2));
     }
-    cpu.URP = cpu.SRP = 0x8000;
+    cpu.URP = 0x8000;
+    cpu.SRP = 0x9000;
     TEST::SET_L(0x8000, 0x8202); // ROOT-dsc
     TEST::SET_L(0x8200, 0x8302); // Ptr-dsc
-    TEST::SET_L(0x8300, 0x0419); // TEST Area
-    TEST::SET_L(0x8304, 0x1405); // Write protected
-    TEST::SET_L(0x8308, 0x2481); // System only
-    TEST::SET_L(0x830C, 0x3000); // Invalid Area
-    TEST::SET_L(0x8310, 0x4481); // EX-TABLE
+    TEST::SET_L(0x8300, 0x040D); // CODE AREA
+    TEST::SET_L(0x8304, 0x1019); // SCRATCH
+    TEST::SET_L(0x8308, 0x340D); // Write protected
+    TEST::SET_L(0x830C, 0x4489); // System only
+    TEST::SET_L(0x8310, 0x0000); // Invalid Area
+    TEST::SET_L(0x8314, 0x5019); // Stack
+
+    TEST::SET_L(0x9000, 0x9202); // ROOT-dsc
+    TEST::SET_L(0x9200, 0x9302); // Ptr-dsc
+    TEST::SET_L(0x9300, 0x040D); // CODE AREA
+    TEST::SET_L(0x9304, 0x1019); // U-SCRATCH
+    TEST::SET_L(0x9308, 0x340D); // Write protected
+    TEST::SET_L(0x930C, 0x4489); // System only
+    TEST::SET_L(0x9310, 0x0000); // Invalid Area
+    TEST::SET_L(0x9314, 0x5019); // user-Stack
+    TEST::SET_L(0x9318, 0x7085); // EXCEPTION TABLE
+    TEST::SET_L(0x931C, 0x2099); // SYS-SCRATCH
+    TEST::SET_L(0x9320, 0x6099); // SYS-STACK
+    TEST::SET_L(0x9324, 0xA099); // I-STACK
+
     cpu.I = 0;
-    cpu.ex_n = EXCEPTION_NUMBER::NO_ERR;
+    ex_n = EXCEPTION_NUMBER::NO_ERR;
     cpu.fault_SSW = 0;
 }
 void init_run_table();
@@ -81,7 +136,7 @@ extern std::unordered_map<uint32_t, std::shared_ptr<jit_cache>> jit_tables;
 void run_test(uint32_t pc) {
     cpu.PC = pc;
     testing = true;
-    if(setjmp(cpu.ex) == 0) {
+    if(setjmp(ex_buf) == 0) {
         while(testing) {
 #ifndef TEST_JIT
             run_op();
@@ -96,6 +151,6 @@ void run_test(uint32_t pc) {
         }
     } else {
         cpu.bus_lock = false;
-        handle_exception(cpu.ex_n);
+        handle_exception(ex_n);
     }
 }

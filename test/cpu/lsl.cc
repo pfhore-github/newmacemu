@@ -8,43 +8,43 @@
 namespace bdata = boost::unit_test::data;
 struct F_LSL {
     F_LSL() {
-        // LSR.B #3, %D2
+        // LSL.B #3, %D2
 		TEST::SET_W(0, 0160410 | 3 << 9 | 2);
         TEST::SET_W(2, TEST_BREAK);
 
-		// LSR.B #8, %D2
+		// LSL.B #8, %D2
 		TEST::SET_W(4, 0160410 | 0 << 9 | 2);
         TEST::SET_W(6, TEST_BREAK);
 
-		// LSR.B %D3, %D2
+		// LSL.B %D3, %D2
 		TEST::SET_W(8, 0160450 | 3 << 9 | 2);
         TEST::SET_W(10, TEST_BREAK);
 
-		// LSR.W #3, %D2
+		// LSL.W #3, %D2
 		TEST::SET_W(12, 0160510 | 3 << 9 | 2);
         TEST::SET_W(14, TEST_BREAK);
 
-		// LSR.W #8, %D2
+		// LSL.W #8, %D2
 		TEST::SET_W(16, 0160510 | 0 << 9 | 2);
         TEST::SET_W(18, TEST_BREAK);
 
-		// LSR.W %D3, %D2
+		// LSL.W %D3, %D2
 		TEST::SET_W(20, 0160550 | 3 << 9 | 2);
         TEST::SET_W(22, TEST_BREAK);
 
-		// LSR.L #3, %D2
+		// LSL.L #3, %D2
 		TEST::SET_W(24, 0160610 | 3 << 9 | 2);
         TEST::SET_W(26, TEST_BREAK);
 
-		// LSR.L #8, %D2
+		// LSL.L #8, %D2
 		TEST::SET_W(28, 0160610 | 0 << 9 | 2);
         TEST::SET_W(30, TEST_BREAK);
 
-		// LSR.L %D3, %D2
+		// LSL.L %D3, %D2
 		TEST::SET_W(32, 0160650 | 3 << 9 | 2);
         TEST::SET_W(34, TEST_BREAK);
 
-		// LSR.W (%A2)
+		// LSL.W (%A2)
 		TEST::SET_W(36, 0161720 | 2);
         TEST::SET_W(38, TEST_BREAK);
 		jit_compile(0, 40);
@@ -389,10 +389,10 @@ BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE(EA)
 
 BOOST_AUTO_TEST_CASE(value) {
-    cpu.A[2] = 0x100;
-	TEST::SET_W(0x100, 0x2000);
+    cpu.A[2] = 0x1000;
+	TEST::SET_W(0x1000, 0x2000);
     run_test(36);
-    BOOST_TEST(TEST::GET_W(0x100) == 0x4000);
+    BOOST_TEST(TEST::GET_W(0x1000) == 0x4000);
     BOOST_TEST(!cpu.Z);
     BOOST_TEST(!cpu.V);
     BOOST_TEST(!cpu.C);
@@ -402,15 +402,15 @@ BOOST_AUTO_TEST_CASE(value) {
 
 
 BOOST_AUTO_TEST_CASE(Z) {
-    cpu.A[2] = 0x100;
-	TEST::SET_W(0x100, 0);
+    cpu.A[2] = 0x1000;
+	TEST::SET_W(0x1000, 0);
     run_test(36);
     BOOST_TEST(cpu.Z);
 }
 
 BOOST_AUTO_TEST_CASE(CX) {
-    cpu.A[2] = 0x100;
-	TEST::SET_W(0x100, 0x8000);
+    cpu.A[2] = 0x1000;
+	TEST::SET_W(0x1000, 0x8000);
     run_test(36);
     BOOST_TEST(cpu.C);
     BOOST_TEST(cpu.X);

@@ -23,8 +23,10 @@ struct MCU_Q900 : public IO_BUS {
     Sonic sonic;
     VDAC vdac;
     MCU_ctl mcu;
-    uint32_t Read(uint32_t addr)  override;
-    void Write(uint32_t addr, uint32_t value) override;
+    uint8_t readB(uint32_t addr)  override;
+    void writeB(uint32_t addr, uint8_t value) override;
+    uint32_t readL(uint32_t addr)  override;
+    void writeL(uint32_t addr, uint32_t value) override;
 };
 
 struct MCU_Q700 : public IO_BUS {
@@ -33,8 +35,10 @@ struct MCU_Q700 : public IO_BUS {
     Sonic sonic;
     VDAC vdac;
     MCU_ctl mcu;
-    uint32_t Read(uint32_t addr)  override;
-    void Write(uint32_t addr, uint32_t value) override;
+    uint8_t readB(uint32_t addr)  override;
+    void writeB(uint32_t addr, uint8_t value) override;
+    uint32_t readL(uint32_t addr)  override;
+    void writeL(uint32_t addr, uint32_t value) override;
 };
 
 #endif

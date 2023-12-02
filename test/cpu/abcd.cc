@@ -99,14 +99,14 @@ BOOST_AUTO_TEST_SUITE(Mem)
 BOOST_DATA_TEST_CASE(value, bdata::xrange(2), old_x) {
     cpu.X = old_x;
     cpu.Z = true;
-    RAM[0x100] = 0x22;
-    RAM[0x110] = 0x34;
-    cpu.A[3] = 0x101;
-    cpu.A[1] = 0x111;
+    RAM[0x1000] = 0x22;
+    RAM[0x1010] = 0x34;
+    cpu.A[3] = 0x1001;
+    cpu.A[1] = 0x1011;
     run_test(4);
-    BOOST_TEST(RAM[0x100] == 0x56 + old_x);
-    BOOST_TEST(cpu.A[3] == 0x100);
-    BOOST_TEST(cpu.A[1] == 0x110);
+    BOOST_TEST(RAM[0x1000] == 0x56 + old_x);
+    BOOST_TEST(cpu.A[3] == 0x1000);
+    BOOST_TEST(cpu.A[1] == 0x1010);
     BOOST_TEST(!cpu.Z);
     BOOST_TEST(!cpu.X);
     BOOST_TEST(!cpu.C);
@@ -114,10 +114,10 @@ BOOST_DATA_TEST_CASE(value, bdata::xrange(2), old_x) {
 
 BOOST_AUTO_TEST_CASE(CX) {
     cpu.X = false;
-    RAM[0x100] = 0x77;
-    RAM[0x110] = 0x44;
-    cpu.A[3] = 0x101;
-    cpu.A[1] = 0x111;
+    RAM[0x1000] = 0x77;
+    RAM[0x1010] = 0x44;
+    cpu.A[3] = 0x1001;
+    cpu.A[1] = 0x1011;
     run_test(4);
     BOOST_TEST(cpu.X);
     BOOST_TEST(cpu.C);
@@ -126,10 +126,10 @@ BOOST_AUTO_TEST_CASE(CX) {
 BOOST_AUTO_TEST_CASE(Z) {
     cpu.X = false;
     cpu.Z = true;
-    RAM[0x100] = 0;
-    RAM[0x110] = 0;
-    cpu.A[3] = 0x101;
-    cpu.A[1] = 0x111;
+    RAM[0x1000] = 0;
+    RAM[0x1010] = 0;
+    cpu.A[3] = 0x1001;
+    cpu.A[1] = 0x1011;
     run_test(4);
     BOOST_TEST(cpu.Z);
 }

@@ -2,13 +2,15 @@
 #include "68040.hpp"
 #include "SDL_net.h"
 #include "bus.hpp"
-#include "memory.hpp"
 #include "inline.hpp"
+#include "memory.hpp"
 #include <deque>
 #include <fmt/format.h>
 #include <signal.h>
 #include <thread>
 #include <unordered_set>
+#include <expected>
+std::expected<void, uint16_t> WriteBImpl(uint32_t addr, uint8_t b) ;
 static TCPsocket recv;
 static std::string nextPacket() {
     char c[2] = {};
@@ -41,7 +43,6 @@ static void sendPacket(const std::string &str) {
         cc += (uint8_t)c;
     }
     auto re = fmt::format("${}#{:02x}", str, cc);
-    fmt::print("DEBUG:response={}\n", re);
     lastTransmission = str;
     SDLNet_TCP_Send(recv, re.data(), re.size());
 }
@@ -71,12 +72,13 @@ int get_signum(EXCEPTION_NUMBER con) {
     switch(con) {
     case EXCEPTION_NUMBER::AFAULT:
     case EXCEPTION_NUMBER::ADDR_ERR:
-        return SIGBUS;
+        return 10;
     case EXCEPTION_NUMBER::ILLEGAL_OP:
-    case EXCEPTION_NUMBER::PRIV_ERR:
     case EXCEPTION_NUMBER::ALINE:
     case EXCEPTION_NUMBER::FLINE:
-        return SIGILL;
+        return 4;
+    case EXCEPTION_NUMBER::PRIV_ERR:
+        return 11;
     case EXCEPTION_NUMBER::DIV0:
     case EXCEPTION_NUMBER::FP_UNORDER:
     case EXCEPTION_NUMBER::FP_INEX:
@@ -86,13 +88,18 @@ int get_signum(EXCEPTION_NUMBER con) {
     case EXCEPTION_NUMBER::FP_OVFL:
     case EXCEPTION_NUMBER::FP_SNAN:
     case EXCEPTION_NUMBER::FP_UNIMPL_TYPE:
-        return SIGFPE;
     case EXCEPTION_NUMBER::CHK_FAIL:
     case EXCEPTION_NUMBER::TRAPx:
     case EXCEPTION_NUMBER::TRACE:
-        return SIGTRAP;
+        return 8;
+    case EXCEPTION_NUMBER::IRQ_LV7:
+        return 2;
+    case EXCEPTION_NUMBER::TRAP1:
+        return 5;
+    case EXCEPTION_NUMBER::TRAP8:
+        return 8;
     default:
-        return 0;
+        return 7;
     }
 }
 static std::string lastStopped;
@@ -119,13 +126,13 @@ void debug_cpu(std::stop_token stoken) {
             }
             continue;
         }
-        if( setjmp(cpu.ex) == 0) {
+        if(setjmp(ex_buf) == 0) {
             run_op();
         } else {
             // EXCEPTION
             cpu.bus_lock = false;
             cpu.PC = cpu.oldpc;
-            stop_cpu(fmt::format("S{:02x}", get_signum(cpu.ex_n)));
+            stop_cpu(fmt::format("S{:02x}", get_signum(ex_n)));
         }
     }
 }
@@ -164,8 +171,8 @@ bool gdb_cmd(const char *c) {
         if(*nx == ';') {
             cpu.PC = strtoul(nx + 1, nullptr, 16);
         }
-        if( sig == get_signum(cpu.ex_n)) {
-            handle_exception(cpu.ex_n);
+        if(sig == get_signum(ex_n)) {
+            handle_exception(ex_n);
         } else {
             // TODO: convert to another exception?
         }
@@ -199,13 +206,10 @@ bool gdb_cmd(const char *c) {
         int length = strtoul(next + 1, &next, 16);
         next++;
         for(int i = addr; i < addr + length; ++i) {
-            try {
-                char bb[3] = {next[0], next[1], 0};
-                next += 2;
-                uint8_t v = strtoul(bb, nullptr, 16);
-                WriteB(i, v);
-            } catch(BusError &) {
-            }
+            char bb[3] = {next[0], next[1], 0};
+            next += 2;
+            uint8_t v = strtoul(bb, nullptr, 16);
+            WriteBImpl(i, v);
         }
         sendPacket("OK");
         break;
@@ -216,22 +220,19 @@ bool gdb_cmd(const char *c) {
         int length = strtoul(next + 1, &next, 16);
         next++;
         for(int i = addr; i < addr + length; ++i) {
-            try {
-                WriteB(i, *next++);
-            } catch(BusError &) {
-            }
+            WriteBImpl(i, *next++);
         }
         sendPacket("OK");
         break;
     }
     case 's':
-        if(setjmp(cpu.ex) == 0) {
+        if(setjmp(ex_buf) == 0) {
             run_op();
             sendPacket("S00");
         } else {
             cpu.bus_lock = false;
             cpu.PC = cpu.oldpc;
-            lastStopped = fmt::format("S{:02x}", get_signum(cpu.ex_n));
+            lastStopped = fmt::format("S{:02x}", get_signum(ex_n));
             sendPacket(lastStopped);
         }
         break;

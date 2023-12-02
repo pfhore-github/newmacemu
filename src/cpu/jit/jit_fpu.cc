@@ -264,13 +264,13 @@ void jit_loadFP(int type, int reg, bool rm, int src) {
             as->mov(x86::r13w, x86::ax);
 
             as->mov(x86::esi, EA);
-            as->add(x86::esi, 4);
+            as->lea(x86::esi, x86::dword_ptr(x86::esi, 4));
             jit_readL(x86::esi);
             as->mov(x86::r14d, x86::eax);
-            as->ror(x86::r14, 32);
+            as->sal(x86::r14, 32);
 
             as->mov(x86::esi, EA);
-            as->add(x86::esi, 8);
+            as->lea(x86::esi, x86::dword_ptr(x86::esi, 8));
             jit_readL(x86::esi);
             as->mov(x86::eax, x86::eax);
             as->or_(x86::r14, x86::rax);
@@ -312,10 +312,10 @@ void jit_loadFP(int type, int reg, bool rm, int src) {
 
             jit_readL(EA);
             as->mov(x86::r14d, x86::eax);
-            as->ror(x86::r14, 32);
+            as->sal(x86::r14, 32);
 
             as->mov(x86::esi, EA);
-            as->add(x86::esi, 4);
+            as->lea(x86::esi, x86::dword_ptr(x86::esi, 4));
             jit_readL(x86::esi);
 
             as->or_(x86::r14, x86::rax);
@@ -338,11 +338,11 @@ void jit_loadFP(int type, int reg, bool rm, int src) {
         as->lea(ARG1, FP_N(src));
         as->lea(ARG2, FP_TMP);
         as->call(mpfr_swap);
-        as->mov(x86::rax, x86::qword_ptr(x86::rbx, offsetof(Cpu, FP_nan) +
+        as->lea(x86::rsi, x86::qword_ptr(x86::rbx, offsetof(Cpu, FP_nan) +
                                                        sizeof(int64_t) * src));
-        as->xchg(x86::rax, x86::qword_ptr(x86::rbx, offsetof(Cpu, fp_tmp_nan)));
-        as->xchg(x86::rax, x86::qword_ptr(x86::rbx, offsetof(Cpu, FP_nan) +
-                                                        sizeof(int64_t) * src));
+        as->mov(x86::rax, x86::qword_ptr(x86::rsi));
+        as->xchg(x86::rax, CPU_DLONG(fp_tmp_nan));
+        as->xchg(x86::rax, x86::qword_ptr(x86::rsi));
     }
 }
 constexpr auto TMP_TV = CPU_LONG(fp_tmp_tv);
@@ -1044,7 +1044,7 @@ void jit_fpu_store(int t, int type, int reg, int fpn, int k) {
         as->ror(ARG2, 32);
         jit_writeL(EA, ARG2.r32());
         as->mov(x86::esi, EA);
-        as->add(x86::esi, 4);
+        as->lea(x86::esi, x86::dword_ptr(x86::esi, 4));
         jit_writeL(x86::esi, x86::r13d);
         break;
     case FP_SIZE::BYTE:
@@ -1087,13 +1087,13 @@ void jit_fmove_to_fpcc(int type, int reg, unsigned int regs) {
             jit_readL(x86::r12d);
             as->mov(ARG1.r16(), x86::ax);
             as->call(Set_FPCR);
-            as->add(x86::r12d, 4);
+            as->lea(x86::r12d, x86::dword_ptr(x86::r12d, 4));
         }
         if(regs & 2) {
             jit_readL(x86::r12d);
             as->mov(ARG1.r32(), x86::eax);
             as->call(Set_FPSR);
-            as->add(x86::r12d, 4);
+            as->lea(x86::r12d, x86::dword_ptr(x86::r12d, 4));
         }
         if(regs & 1) {
             jit_readL(x86::r12d);
@@ -1128,12 +1128,12 @@ void jit_fmove_from_fpcc(int type, int reg, unsigned int regs) {
             as->call(Get_FPCR);
             as->movzx(x86::eax, x86::ax);
             jit_writeL(x86::r12d, x86::eax);
-            as->add(x86::r12d, 4);
+            as->lea(x86::r12d, x86::dword_ptr(x86::r12d, 4));
         }
         if(regs & 2) {
             as->call(Get_FPSR);
             jit_writeL(x86::r12d, x86::eax);
-            as->add(x86::r12d, 4);
+            as->lea(x86::r12d, x86::dword_ptr(x86::r12d, 4));
         }
         if(regs & 1) {
             jit_writeL(x86::r12d, CPU_LONG(FPIAR));

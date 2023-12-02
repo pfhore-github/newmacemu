@@ -19,18 +19,16 @@ BOOST_FIXTURE_TEST_SUITE(BSR, Prepare, *boost::unit_test::fixture<F_BSR>())
 
 
 BOOST_AUTO_TEST_CASE(traced) {
-    cpu.A[7] = 0x404;
     cpu.T = 1;
     run_test(0);
-	BOOST_TEST(cpu.ex_n == EXCEPTION_NUMBER::TRACE );
+	BOOST_TEST(ex_n == EXCEPTION_NUMBER::TRACE );
 }
 
 BOOST_AUTO_TEST_CASE(not_traced) {
-    cpu.A[7] = 0x404;
     run_test(0);
     BOOST_TEST(cpu.PC == 6);
-    BOOST_TEST(TEST::GET_L(0x400) == 0x2);
-    BOOST_TEST(cpu.A[7] == 0x400);
+    BOOST_TEST(TEST::GET_L(0x5FFC) == 0x2);
+    BOOST_TEST(cpu.A[7] == 0x5FFC);
 }
 
 
