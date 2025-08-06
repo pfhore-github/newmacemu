@@ -2,7 +2,7 @@
 #include "68040.hpp"
 #include "test.hpp"
 
-#include "SDL.h"
+#include "SDL3/SDL.h"
 #include "bus.hpp"
 #include "chip/via.hpp"
 #include "ebus/adb.hpp"

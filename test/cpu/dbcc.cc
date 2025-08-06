@@ -4,7 +4,6 @@
 #include <boost/test/data/monomorphic.hpp>
 #include <boost/test/data/test_case.hpp>
 #include <boost/test/unit_test.hpp>
-#include <fmt/core.h>
 namespace bdata = boost::unit_test::data;
 struct F_DBcc {
     F_DBcc() {

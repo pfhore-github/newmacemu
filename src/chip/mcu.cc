@@ -1,5 +1,5 @@
 #include "mb/mcu.hpp"
-#include "SDL.h"
+#include "SDL3/SDL.h"
 #include "memory.hpp"
 #include <stdint.h>
 uint32_t MCU_ctl::read(uint32_t addr) {

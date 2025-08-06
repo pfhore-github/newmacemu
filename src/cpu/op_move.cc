@@ -3,7 +3,6 @@
 #include "exception.hpp"
 #include "memory.hpp"
 #include "inline.hpp"
-#include <fmt/format.h>
 #include <memory>
 uint32_t ea_getaddr(int type, int reg, int sz, bool rw);
 

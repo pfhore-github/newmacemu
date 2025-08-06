@@ -1,7 +1,7 @@
 #include "chip/via.hpp"
 #include "memory.hpp"
-#include "SDL.h"
-#include "SDL_timer.h"
+#include "SDL3/SDL.h"
+#include "SDL3/SDL_timer.h"
 #include "chip/rbv.hpp"
 #include "bus.hpp"
 #include <deque>
@@ -10,6 +10,7 @@
 std::shared_ptr<VIA1> via1;
 std::shared_ptr<VIA2> via2;
 void do_irq(int i);
+bool scc_wait_req();
 inline int64_t GetVIACounter() {
     return SDL_GetPerformanceCounter() * 1'276'600 /
            SDL_GetPerformanceFrequency();
@@ -38,8 +39,9 @@ void VIA::recieve_ca1() {
 }
 
 void nanosleep(uint32_t nanos) {
+    uint64_t nextp = nanos * 1000000000LL / SDL_GetPerformanceFrequency();
     uint64_t ex = SDL_GetPerformanceCounter();
-    uint64_t next = ex + nanos * 1000000000LL / SDL_GetPerformanceFrequency();
+    uint64_t next = ex + nextp;
     while(SDL_GetPerformanceCounter() < next) {
         __builtin_ia32_pause();
     }
@@ -130,7 +132,7 @@ void VIA::irq(VIA_IRQ i) {
 }
 
 void VIA::irq_off(VIA_IRQ i) { IF[int(i)] = false; }
-uint32_t via_timer1_callback(uint32_t, void *t) {
+uint32_t via_timer1_callback(void *t, SDL_TimerID, uint32_t) {
     auto v = static_cast<VIA *>(t);
     v->timer1_base = GetVIACounter();
     v->irq(VIA_IRQ::TIMER1);
@@ -140,7 +142,7 @@ uint32_t via_timer1_callback(uint32_t, void *t) {
     return v->ACR.T1_REP ? v->timer1_cnt : 0;
 }
 
-uint32_t via_timer2_callback(uint32_t, void *t) {
+uint32_t via_timer2_callback(void *t, SDL_TimerID, uint32_t) {
     auto v = static_cast<VIA *>(t);
     v->timer2_base = GetVIACounter();
     v->irq(VIA_IRQ::TIMER2);
@@ -258,7 +260,6 @@ bool MACHINE_CODE[2] = {
 bool MACHINE_CODE2[4] = {false, false, false, true};
 // TODO
 
-bool scc_wait_req() { return false; }
 bool VIA1::readPA(int n) {
     switch(n) {
     case 0:
@@ -312,7 +313,16 @@ void transmitAdb(uint8_t adbState, uint8_t v);
 void send_rtc(bool v);
 bool recv_rtc();
 uint8_t recieveAdb(uint8_t adbState);
-
+void VIA1::change_state(int s) {
+	if(std::exchange(old_state, s) != s) {
+		if(ACR.sr_c != SR_C::DISABLED && !(int(ACR.sr_c) & 4)) {
+			via1->recieve_sr();
+			sr = recieveAdb(s);
+		} else {
+			transmitAdb(s, sr);
+		}
+	}
+}	
 void VIA1::writePB(int n, bool v) {
     switch(n) {
     case 4:
@@ -320,15 +330,8 @@ void VIA1::writePB(int n, bool v) {
         break;
     case 5: {
         adb_state[1] = v;
-        int newstate = adb_state[1] << 1 | adb_state[0];
-        if(std::exchange(old_state, newstate) != newstate) {
-            if(ACR.sr_c != SR_C::DISABLED && !(int(ACR.sr_c) & 4)) {
-                via1->recieve_sr();
-                sr = recieveAdb(newstate);
-            } else {
-                transmitAdb(newstate, sr);
-            }
-        }
+    	int s = adb_state[1] << 1 | adb_state[0];
+		change_state(s);
         break;
     }
     case 2:

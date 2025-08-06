@@ -2,7 +2,7 @@
 #include "68040.hpp"
 #include "test.hpp"
 
-#include "SDL.h"
+#include "SDL3/SDL.h"
 #include <boost/test/data/monomorphic.hpp>
 #include <boost/test/data/test_case.hpp>
 #include <boost/test/unit_test.hpp>
@@ -20,12 +20,6 @@ void test_rom(
     to |= 0x40800000;
     cpu.S = true;
     called.clear();
-#if 0
-    if(trace) {
-        cpu.PC = from;
-        debug_activate();
-    }
-#endif
     for(cpu.PC = from; cpu.PC != to;) {
         if(trace) {
             printf("%X:%08x\n", cpu.PC, cpu.D[0]);

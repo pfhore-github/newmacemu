@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <atomic>
 #include "io.hpp"
+#include "chip/scc.hpp"
 struct IOP {
     virtual uint8_t readBase(uint8_t reg) = 0;
     virtual void writeBase(uint8_t reg, uint8_t value) = 0;
@@ -24,7 +25,10 @@ struct IOP_SWIM : public IOP {
 
 // TODO
 struct IOP_SCC : public IOP {
-     uint8_t readBase(uint8_t /* reg */) override { return 0; }
-    void writeBase(uint8_t /* reg */, uint8_t /* value */) override { }
+    IOP_SCC() :scc(::scc) {}
+    std::shared_ptr<SCC> scc;
+     uint8_t readBase(uint8_t reg) override { return scc->read(reg); }
+    void writeBase(uint8_t reg, uint8_t value) override { scc->write(reg, value);}
 };
+extern std::shared_ptr<IOP_SCC> iop_scc;
 #endif

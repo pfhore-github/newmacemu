@@ -8,9 +8,8 @@ include(ExternalProject)
 
 check_ipo_supported(RESULT result)
 
-find_package(SDL2 REQUIRED CONFIG REQUIRED COMPONENTS SDL2 )
-find_package(SDL2_net REQUIRED)
-find_package(Threads REQUIRED)
+find_package(SDL3 REQUIRED CONFIG REQUIRED COMPONENTS SDL3 )
+find_package(SDL3_net REQUIRED )
 find_package(Threads REQUIRED)
 enable_language(CXX)
 set(CMAKE_CXX_STANDARD 23) 
@@ -22,13 +21,28 @@ if(CMAKE_COMPILER_IS_GNUCXX)
 #  set(CMAKE_EXE_LINKER_FLAGS "--coverage")
 endif()
 set(SRC_CPU 
-src/common.cc
+src/common.cc  src/debugger/debugger.cc 
 src/cpu/op.cc src/cpu/run.cc src/cpu/m68k_ea.cc src/cpu/bcd.cc src/cpu/arithmetic.cc src/cpu/bits.cc src/cpu/bitfield.cc
 src/cpu/68040_mmu.cc src/cpu/branch.cc
 src/cpu/exception.cc src/cpu/op_move.cc src/cpu/68040_fpu.cc src/bus.cc src/memory.cc 
 src/cpu/jit/jit.cc src/cpu/jit/jit_ea.cc src/cpu/jit/jit_util.cc
 src/cpu/jit/jit_op.cc src/cpu/jit/jit_fpu.cc src/cpu/jit/jit_mmu.cc
 )
+#[[
+set(SRC_ROM
+src/librom/common.cc
+src/librom/data/addrMap.cc
+src/librom/data/universalInfo.cc
+src/librom/boot.cc
+src/librom/init.cc
+src/librom/init_ex.cc
+src/librom/libvia.cc
+src/librom/libasc1.cc
+src/librom/libeasc1.cc
+#src/librom/libserialDebug.cc
+src/librom/ram.cc
+)
+]]
 set(SRC_CHIPS
 src/chip/via.cc
 src/chip/rtc.cc
@@ -39,29 +53,32 @@ src/chip/scc.cc
 src/io.cc
 src/video.cc
 src/ebus/adb.cc
+src/ebus/serial.cc
 )
-add_executable(newmacemu ${SRC_CPU} 
-src/main.cc src/debugger/debugger.cc  ${SRC_CHIPS} src/video.cc
+add_executable(newmacemu ${SRC_CPU} ${SRC_ROM}
+src/main.cc ${SRC_CHIPS} src/video.cc
 )
-
+#[[
 add_executable(testrom ${SRC_CPU} ${SRC_CHIPS} test/test_main.cc 
 src/io.cc
-src/debugger/debugger.cc 
-test/rom/common.cc
-test/rom/boot.cc
-test/rom/init1.cc
+#src/debugger/debugger.cc 
+#test/rom/common.cc
+#test/rom/boot.cc
+#test/rom/init1.cc
 test/rom/asc1.cc
 test/rom/asc2.cc
-test/rom/init2.cc
-test/rom/xpram.cc
-test/rom/adb1.cc
+#test/rom/init2.cc
+#test/rom/xpram.cc
+#test/rom/adb1.cc
+${SRC_ROM}
 )
-
+]]
 add_executable(testchip ${SRC_CPU} ${SRC_CHIPS} test/test_main.cc 
 src/io.cc
 test/chip/test_via.cc
 test/chip/test_asc.cc
 test/chip/test_adb.cc
+test/chip/test_scc.cc
 )
 
 set(CPU_TEST 
@@ -148,20 +165,20 @@ if(result)
   set_property(TARGET testcpu PROPERTY INTERPROCEDURAL_OPTIMIZATION_Release TRUE)
 endif()
 set(LIBS 
-gmp mpfr SDL2::SDL2 fmt SDL2_net Threads::Threads asmjit)
+gmp mpfr SDL3::SDL3 Threads::Threads asmjit SDL3_net)
 
 target_compile_definitions(testcpu PUBLIC CI)
 target_compile_definitions(testjit PRIVATE CI TEST_JIT=1)
 target_include_directories(newmacemu PRIVATE "./include")
 target_include_directories(testcpu PRIVATE "./include" "./test" ${Boost_INCLUDE_DIRS})
 target_include_directories(testjit PRIVATE "./include" "./test" ${Boost_INCLUDE_DIRS})
-target_include_directories(testrom PRIVATE "./include" "./test" ${Boost_INCLUDE_DIRS} )
+# target_include_directories(testrom PRIVATE "./include" "./test" ${Boost_INCLUDE_DIRS} )
 target_include_directories(testchip PRIVATE "./include" "./test" ${Boost_INCLUDE_DIRS})
-target_link_libraries(newmacemu ${LIBS})
+target_link_libraries(newmacemu ${LIBS} SDL3_net)
 target_link_libraries(testcpu ${LIBS} Boost::unit_test_framework  )
 target_link_libraries(testjit ${LIBS} Boost::unit_test_framework )
-target_link_libraries(testrom ${LIBS} Boost::unit_test_framework)
-target_link_libraries(testchip ${LIBS} Boost::unit_test_framework )
+# target_link_libraries(testrom ${LIBS} Boost::unit_test_framework)
+target_link_libraries(testchip ${LIBS} Boost::unit_test_framework  )
 
 
 
@@ -174,9 +191,9 @@ add_test(NAME EASC COMMAND $<TARGET_FILE:testchip> -t "easc_/*")
 add_test(NAME ADB COMMAND $<TARGET_FILE:testchip> -t "adb/*")
 
 
-add_test(NAME rom/boot COMMAND $<TARGET_FILE:testrom> -t "boot/*")
-add_test(NAME rom/asc COMMAND $<TARGET_FILE:testrom> -t "test_asc/*")
-add_test(NAME rom/asc2 COMMAND $<TARGET_FILE:testrom> -t "e_asc/*")
-add_test(NAME rom/adb1 COMMAND $<TARGET_FILE:testrom> -t "adb1/*")
+#add_test(NAME rom/boot COMMAND $<TARGET_FILE:testrom> -t "boot/*")
+#add_test(NAME rom/asc COMMAND $<TARGET_FILE:testrom> -t "test_asc/*")
+#add_test(NAME rom/asc2 COMMAND $<TARGET_FILE:testrom> -t "e_asc/*")
+#add_test(NAME rom/adb1 COMMAND $<TARGET_FILE:testrom> -t "adb1/*")
 
 

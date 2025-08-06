@@ -2,7 +2,7 @@
 #include "68040.hpp"
 #include "test.hpp"
 
-#include "SDL.h"
+#include "SDL3/SDL.h"
 #include <boost/test/data/monomorphic.hpp>
 #include <boost/test/data/test_case.hpp>
 #include <boost/test/unit_test.hpp>

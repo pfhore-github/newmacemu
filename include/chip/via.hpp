@@ -1,6 +1,6 @@
 #ifndef VIA_HPP_
 #define VIA_HPP_
-#include "SDL_timer.h"
+#include "SDL3/SDL_timer.h"
 #include "io.hpp"
 #include <bitset>
 #include <stdint.h>
@@ -24,9 +24,6 @@ enum class C2_CTL {
     LOW_OUTPUT,
     HIGH_OUTPUT,
 };
-namespace boot::_2EBC {
-class Via1;
-}
 enum class VIA_IRQ {
     CA2,
     CA1,
@@ -100,6 +97,7 @@ struct VIA1 : public VIA {
     void writePB(int n, bool v) override;
     // TODO: may vary with machine?
     int irqNum() override { return 1; }
+	void change_state(int s);
 };
 struct VIA2 : public VIA {
     bool readPA(int n) override;

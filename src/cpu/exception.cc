@@ -1,16 +1,16 @@
 #include "exception.hpp"
 #include "68040.hpp"
-#include "SDL_events.h"
-#include "SDL_log.h"
+#include "SDL3/SDL_events.h"
+#include "SDL3/SDL_log.h"
 #include "inline.hpp"
 #include "memory.hpp"
 #include "mmu.hpp"
 #include <expected>
-#include <fmt/core.h>
+#include <print>
 [[noreturn]] void double_fault() {
 #ifdef CI
     struct TestEnd {};
-    fmt::print("double buf fault:{:x}", cpu.PC);
+    std::print("double bus fault:{:x}", cpu.PC);
     throw TestEnd{};
 #else
     // Double Bus Fault
@@ -18,15 +18,17 @@
     exit(1);
 #endif
 }
-std::expected<void, uint16_t> WriteWImpl(uint32_t addr, uint16_t w);
-std::expected<uint32_t, uint16_t> ReadLImpl(uint32_t addr, bool lock);
+void WriteWImpl(uint32_t addr, uint16_t w);
+uint32_t ReadLImpl(uint32_t addr);
 
 jmp_buf ex_buf;
 uint32_t ex_addr;
 EXCEPTION_NUMBER ex_n;
 
 inline void ex_PUSH16(uint16_t v) {
-    if(auto x = WriteWImpl(cpu.A[7] -= 2, v); !x) {
+	try {
+		WriteWImpl(cpu.A[7] -= 2, v);
+	} catch(PTestError&) {
         double_fault();
     }
 }
@@ -36,10 +38,9 @@ inline void ex_PUSH32(uint32_t v) {
 }
 
 inline uint32_t ex_READL(uint32_t addr) {
-    auto p = ReadLImpl(addr, false);
-    if(p) {
-        return *p;
-    } else {
+    try {
+		return ReadLImpl(addr, false);
+	} catch(PTestError& e) {
         double_fault();
     }
 }

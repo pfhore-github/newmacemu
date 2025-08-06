@@ -9,7 +9,6 @@
 struct OSS : public IO_BUS {
     SCSI_DMA scsi_dma;
     IOP_SWIM iop_swim;
-    IOP_SCC iop_scc;
     OSS_ctrl oss;
     IIfxExp0 exp0;
     IIfxExp1 exp1;

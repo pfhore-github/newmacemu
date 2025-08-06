@@ -1,6 +1,6 @@
 #include "chip/iop.hpp"
-#include "SDL_timer.h"
-
+#include "SDL3/SDL_timer.h"
+std::shared_ptr<IOP_SCC> iop_scc;
 uint8_t IOP::read(uint32_t addr) {
     switch(addr) {
     case 0:

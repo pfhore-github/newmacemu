@@ -1,7 +1,7 @@
 #define BOOST_TEST_MODULE test
 #define BOOST_TEST_DYN_LINK
 #include "68040.hpp"
-#include "SDL.h"
+#include "SDL3/SDL.h"
 #include "exception.hpp"
 #include "jit.hpp"
 #include "memory.hpp"

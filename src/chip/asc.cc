@@ -1,5 +1,5 @@
 #include "chip/asc.hpp"
-#include "SDL_timer.h"
+#include "SDL3/SDL_timer.h"
 #include "chip/via.hpp"
 #include <algorithm>
 #include <utility>
@@ -7,25 +7,84 @@
 std::shared_ptr<ASC> asc;
 constexpr int DEFAULT_FREQ = 22257;
 void asc_reset() { asc->reset(); }
+void ASC::do_wave(int additional_amount) {
+    std::vector<int8_t> buf(additional_amount);
+    for(int i = 0; i < additional_amount; i++) {
+        for(int ch = 0; ch < 4; ch++) {
+            if(wav_run & (1 << ch)) {
+                phase[ch] = (phase[ch] + incr[ch]) & 0xffffff;
+            }
+        }
+        int16_t mix = chA.FIFO[phase[0] >> 15] ^ 0x80;
+        mix += chA.FIFO[phase[1] >> 15 | 0x200] ^ 0x80;
+        mix += chB.FIFO[phase[2] >> 15] ^ 0x80;
+        mix += chB.FIFO[phase[3] >> 15 | 0x200] ^ 0x80;
+        buf[i] = static_cast<int8_t>(mix * volume / 2048);
+    }
+    SDL_PutAudioStreamData(wavStream, buf.data(), buf.size());
+}
+static void asc_wave_read(void *ascp, SDL_AudioStream *, int additional_amount,
+                          int) {
+    if(additional_amount > 0) {
+        ASC *asc = static_cast<ASC *>(ascp);
+        asc->do_wave(additional_amount);
+    }
+}
 
+ASC::ASC(bool isEASC_) :isEASC(isEASC_) {
+
+    speaker = SDL_OpenAudioDevice(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, nullptr);
+    SDL_GetAudioDeviceFormat(speaker, &speakerSpec, nullptr);
+    mic = SDL_OpenAudioDevice(SDL_AUDIO_DEVICE_DEFAULT_RECORDING, nullptr);
+    SDL_GetAudioDeviceFormat(mic, &micSpec, nullptr);
+    SDL_PauseAudioDevice(mic);
+
+    SDL_AudioSpec want, want2;
+    want.format = SDL_AUDIO_S16;
+    want.channels = 2;
+    want.freq = DEFAULT_FREQ;
+    want2.format = SDL_AUDIO_S8;
+    want2.channels = 1;
+    want2.freq = DEFAULT_FREQ;
+    wavStream = SDL_CreateAudioStream(&want2, &want);
+    SDL_PauseAudioStreamDevice(wavStream);
+    SDL_SetAudioStreamGetCallback(wavStream,asc_wave_read, this );
+    chA.chStream = SDL_CreateAudioStream(&want, &want);
+    chB.chStream = SDL_CreateAudioStream(&want, &want);
+
+    SDL_AudioStream* p[] = { wavStream, chA.chStream, chB.chStream};
+    SDL_BindAudioStreams(speaker, p, 3);
+
+    SDL_AudioSpec macMicSpec;
+    macMicSpec.freq = 22050;
+    macMicSpec.format = SDL_AUDIO_S8;
+    macMicSpec.channels = 1;
+    micStream = SDL_CreateAudioStream(&macMicSpec, &micSpec);
+    SDL_BindAudioStream(mic, micStream);
+    
+}
 ASC::~ASC() {
+    SDL_DestroyAudioStream(wavStream);
+    SDL_DestroyAudioStream(micStream);
     SDL_CloseAudioDevice(speaker);
     SDL_CloseAudioDevice(mic);
 }
 void ASC::reset() {
-    SDL_LockAudioDevice(speaker);
     chA.reset();
     chB.reset();
     for(int i = 0; i < 4; ++i) {
         phase[i] = incr[i] = 0;
     }
-    SDL_PauseAudioDevice(speaker, true);
-    SDL_UnlockAudioDevice(speaker);
+    SDL_PauseAudioDevice(speaker);
     if(mic) {
-        SDL_PauseAudioDevice(mic, true);
+        SDL_PauseAudioDevice(mic);
     }
+    SDL_PauseAudioStreamDevice(wavStream);
+}
+ASC_CH::ASC_CH() {
 }
 void ASC_CH::reset() {
+    SDL_LockAudioStream(chStream);
     memset(FIFO, 0, 0x400);
     FIFO_READP = 0;
     FIFO_WRITEP = 0;
@@ -34,7 +93,8 @@ void ASC_CH::reset() {
     fifo_half.store(false);
     fifo_full.store(false);
     xa_last[0] = xa_last[1] = 0;
-    SDL_AudioStreamClear(chStream);
+    SDL_ClearAudioStream(chStream);
+    SDL_UnlockAudioStream(chStream);
 }
 void ASC_CH::fifo_write(uint8_t v) {
     FIFO[FIFO_WRITEP] = v ^ 0x80;
@@ -49,7 +109,17 @@ void ASC_CH::fifo_write(uint8_t v) {
         FIFO_SIZE = 0;
         fifo_full.store(true);
         via2->irq(VIA_IRQ::CB1);
-        SDL_AudioStreamPut(chStream, FIFO, 0x400);
+        int16_t p[0x400 * 2];
+        for(int i = 0; i < 0x400; i++) {
+            int16_t cha_v = FIFO[i];
+            int32_t left = cha_v * left_vol;
+            int32_t right = cha_v * right_vol;
+            p[2 * i] = std::clamp(left * asc->volume / 65536, -32768, 32767);
+            p[2 * i + 1] =
+                std::clamp(right * asc->volume / 65536, -32768, 32767);
+        }
+        set_fifotimer(); 
+        SDL_PutAudioStreamData(chStream, p, sizeof(int16_t)*0x800);
     }
 }
 
@@ -79,45 +149,35 @@ uint8_t ASC_CH::read_reg(int t) {
     }
     return 0;
 }
-static void do_fifo(void *p, uint8_t *stream, int len) {
-    SDL_memset(stream, 0, len);
-    auto asc = static_cast<ASC *>(p);
-    asc->fifo_play(stream, len);
-}
 
-static void do_wave(void *p, uint8_t *stream, int len) {
-    SDL_memset(stream, 0, len);
-    auto asc = static_cast<ASC *>(p);
-    asc->wave_play(stream, len);
-}
-
-ASC::ASC() {
-    speakerSpec.freq = DEFAULT_FREQ;
-    speakerSpec.format = AUDIO_S16SYS;
-    speakerSpec.channels = 2;
-    speakerSpec.samples = 0x200;
-    speakerSpec.callback = do_fifo;
-    speakerSpec.userdata = this;
-
-    speaker =
-        SDL_OpenAudioDevice(nullptr, false, &speakerSpec, &speakerSpec, 0);
-    SDL_PauseAudioDevice(speaker, 1);
-
-    wavSpec.freq = 22257;
-    wavSpec.format = AUDIO_S8;
-    wavSpec.channels = 1;
-    wavSpec.samples = 4096;
-    wavSpec.callback = do_wave;
-    wavSpec.userdata = this;
-
-    speakerW = SDL_OpenAudioDevice(nullptr, false, &wavSpec, &wavSpec, 0);
-    SDL_PauseAudioDevice(speakerW, 1);
-
-    micSpec.freq = 22050;
-    micSpec.format = AUDIO_U8;
-    micSpec.channels = 1;
-    micSpec.samples = 1024;
-    micSpec.callback = nullptr;
+void ASC_CH::set_fifotimer() {
+    int half = 512.0 * 1000 / SAMPLE_RATE;
+    timerH = SDL_AddTimer(
+        half,
+        [](void *data, SDL_TimerID, uint32_t) -> uint32_t {
+            ASC_CH *a = static_cast<ASC_CH *>(data);
+            a->fifo_half.store(true);
+            a->fifo_half.notify_one();
+            if(a->IRQ_CTL) {
+                via2->irq(VIA_IRQ::CB1);
+            }
+            a->timerH = 0;
+            return 0;
+        },
+        this);
+    timerF = SDL_AddTimer(
+        half * 2,
+        [](void *data, SDL_TimerID, uint32_t) -> uint32_t {
+            ASC_CH *a = static_cast<ASC_CH *>(data);
+            a->fifo_full.store(true);
+            a->fifo_full.notify_one();
+            if(a->IRQ_CTL) {
+                via2->irq(VIA_IRQ::CB1);
+            }
+            a->timerF = 0;
+            return 0;
+        },
+        this);
 }
 
 uint8_t ASC::read(uint32_t addr) {
@@ -127,7 +187,7 @@ uint8_t ASC::read(uint32_t addr) {
             chA.FIFO_READP = (chA.FIFO_READP + 1) & 0x3ff;
             // TODO: mic?
             if(chA_is_mic && chA.FIFO_READP == 0) {
-                SDL_DequeueAudio(mic, chA.FIFO, 1024);
+                SDL_GetAudioStreamData(micStream, chA.FIFO, 1024);
             }
             return v ^ 0x80;
         } else {
@@ -196,20 +256,18 @@ uint8_t ASC::read(uint32_t addr) {
     }
     return 0;
 }
+void ASC_CH::setSampleRate(uint16_t rate) {
+    SAMPLE_RATE = rate;
+    SDL_SetAudioStreamFrequencyRatio(chStream, SAMPLE_RATE / DEFAULT_FREQ);
+}
 
 void ASC_CH::write_reg(int t, uint8_t v) {
     switch(t) {
     case 4:
-        SAMPLE_RATE = SET_B1_W(SAMPLE_RATE, v);
-        SDL_FreeAudioStream(chStream);
-        chStream = SDL_NewAudioStream(AUDIO_S8, 1, SAMPLE_RATE, AUDIO_S16SYS, 1,
-                                      DEFAULT_FREQ);
+        setSampleRate(SET_B1_W(SAMPLE_RATE, v));
         return;
     case 5:
-        SAMPLE_RATE = SET_B2_W(SAMPLE_RATE, v);
-        SDL_FreeAudioStream(chStream);
-        chStream = SDL_NewAudioStream(AUDIO_S8, 1, SAMPLE_RATE, AUDIO_S16SYS, 1,
-                                      DEFAULT_FREQ);
+        setSampleRate(SET_B2_W(SAMPLE_RATE, v));
         return;
     case 6:
         left_vol = v;
@@ -276,50 +334,12 @@ int8_t ASC_CH::fifo_read() {
         }
         if(FIFO_SIZE == 0) {
             fifo_full.store(true);
+            fifo_full.notify_one();
             via2->irq(VIA_IRQ::CB1);
         }
         return v;
-    } 
+    }
     return 0;
-}
-
-void ASC::fifo_play(uint8_t *dstp, int len) {
-    int ln = len / 4;
-    if(SDL_AudioStreamAvailable(chA.chStream) == 0 &&
-       SDL_AudioStreamAvailable(chB.chStream) == 0) {
-        overflow.store(true);
-        chA.fifo_half.store(true);
-        chB.fifo_half.store(true);
-        chA.fifo_full.store(true);
-        chB.fifo_full.store(true);
-        via2->irq(VIA_IRQ::CB1);
-        return;
-    }
-
-    std::vector<int16_t> v1(ln), v2(ln);
-    SDL_AudioStreamGet(chA.chStream, v1.data(), v1.size() * 2);
-    if(SDL_AudioStreamAvailable(chA.chStream) < 0x400) {
-        chA.fifo_half.store(true);
-        if(chA.IRQ_CTL) {
-            via2->irq(VIA_IRQ::CB1);
-        }
-    }
-    SDL_AudioStreamGet(chB.chStream, v2.data(), v2.size() * 2);
-    if(SDL_AudioStreamAvailable(chB.chStream) < 0x400) {
-        chB.fifo_half.store(true);
-        if(chB.IRQ_CTL) {
-            via2->irq(VIA_IRQ::CB1);
-        }
-    }
-    int16_t *p = reinterpret_cast<int16_t *>(dstp);
-    for(int i = 0; i < ln; i++) {
-        int16_t cha_v = v1[i];
-        int16_t chb_v = v2[i];
-        int32_t left = cha_v * chA.left_vol + chb_v * chB.left_vol;
-        int32_t right = cha_v * chA.right_vol + chb_v * chB.right_vol;
-        *p++ = std::clamp(left * volume / 65536, -32768, 32767);
-        *p++ = std::clamp(right * volume / 65536, -32768, 32767);
-    }
 }
 
 void ASC::write(uint32_t addr, uint8_t v) {
@@ -336,26 +356,46 @@ void ASC::write(uint32_t addr, uint8_t v) {
             chB.FIFO[addr & 0x3ff] = v;
         }
     } else if((addr & 0xF30) == 0xF00) {
-        SDL_LockAudioDevice(speaker);
+        SDL_LockAudioStream(chA.chStream);
         chA.write_reg(addr & 0x1F, v);
-        SDL_UnlockAudioDevice(speaker);
+        SDL_UnlockAudioStream(chA.chStream);
     } else if((addr & 0xF30) == 0xF20) {
-        SDL_LockAudioDevice(speaker);
+        SDL_LockAudioStream(chB.chStream);
         chB.write_reg(addr & 0x1F, v);
-        SDL_UnlockAudioDevice(speaker);
+        SDL_UnlockAudioStream(chB.chStream);
     } else {
         switch(addr & 0x3f) {
         case 1:
             mode = v;
-            SDL_PauseAudioDevice(speaker, mode != 1);
-            SDL_PauseAudioDevice(speakerW, mode != 2);
+            switch(mode) {
+            case 0:
+                SDL_PauseAudioDevice(speaker);
+                if(!isEASC) {
+                    SDL_PauseAudioStreamDevice(wavStream);
+                }
+                SDL_RemoveTimer( chA.timerH );
+                SDL_RemoveTimer( chA.timerF );
+                SDL_RemoveTimer( chB.timerH );
+                SDL_RemoveTimer( chB.timerF );
+                break;
+            case 1:
+                SDL_ResumeAudioDevice(speaker);
+                if(!isEASC) {
+                    SDL_PauseAudioStreamDevice(wavStream);
+                }
+                break;
+            case 2:
+                if(!isEASC) {
+                    SDL_PauseAudioDevice(speaker);
+                    SDL_ResumeAudioStreamDevice(wavStream);
+                }
+                break;
+            }
             break;
         case 3:
             if(v & 1 << 7) {
-                SDL_LockAudioDevice(speaker);
                 chA.reset();
                 chB.reset();
-                SDL_UnlockAudioDevice(speaker);
             }
             break;
         case 4:
@@ -376,20 +416,17 @@ void ASC::write(uint32_t addr, uint8_t v) {
                     return;
                 }
                 freq = v;
-                SDL_CloseAudioDevice(speakerW);
                 static const int vv[] = {22257, 0, 22050, 44100};
-                wavSpec.freq = vv[v & 3];
-                speakerW =
-                    SDL_OpenAudioDevice(nullptr, false, &wavSpec, &wavSpec, 0);
+                SDL_SetAudioStreamFrequencyRatio(wavStream,
+                                                 vv[v & 3] / 22257.0);
             }
             break;
         case 0xA:
-            SDL_CloseAudioDevice(mic);
             chA_is_mic = v & 1;
             chA_is_22 = v & 2;
             if(chA_is_mic) {
-                micSpec.freq = chA_is_22 ? 22050 : 11025;
-                mic = SDL_OpenAudioDevice(nullptr, true, &micSpec, &micSpec, 0);
+                SDL_SetAudioStreamFrequencyRatio(micStream,
+                                                 chA_is_22 ? 1.0 : 0.5);
             }
             break;
         case 0x10:
@@ -441,20 +478,5 @@ void ASC::write(uint32_t addr, uint8_t v) {
             incr[3] = SET_Bn(incr[3], v, addr & 3);
             break;
         }
-    }
-}
-
-void ASC::wave_play(uint8_t *dst, int len) {
-    for(int i = 0; i < len; i++) {
-        for(int ch = 0; ch < 4; ch++) {
-            if(wav_run & (1 << ch)) {
-                phase[ch] = (phase[ch] + incr[ch]) & 0xffffff;
-            }
-        }
-        int16_t mix = chA.FIFO[phase[0] >> 15] ^ 0x80;
-        mix += chA.FIFO[phase[1] >> 15 | 0x200] ^ 0x80;
-        mix += chB.FIFO[phase[2] >> 15] ^ 0x80;
-        mix += chB.FIFO[phase[3] >> 15 | 0x200] ^ 0x80;
-        *dst++ = static_cast<int8_t>(mix * volume / 2048);
     }
 }

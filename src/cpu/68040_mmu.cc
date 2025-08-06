@@ -181,21 +181,20 @@ mmu_result ptest(uint32_t addr, bool sys, bool code, bool W) {
     re.paddr = entry->paddr;
     return re;
 }
-std::expected<uint32_t, uint16_t> ptest_and_check(uint32_t addr, bool code,
-                                                  bool W) {
+uint32_t ptest_and_check(uint32_t addr, bool code, bool W) {
     auto ret = ptest(addr >> 12, cpu.S, code, W);
     uint32_t base = ret.paddr << 12;
     if(ret.B) {
-        return std::unexpected{0};
+		throw PTestError{0};
     }
     if(!ret.R) {
-        return std::unexpected{SSW_ATC};
+        throw PTestError{SSW_ATC};
     }
     if(ret.W && W) {
-        return std::unexpected{SSW_ATC};
+        throw PTestError{SSW_ATC};
     }
     if(ret.S && !cpu.S) {
-        return std::unexpected{SSW_ATC};
+		throw PTestError{SSW_ATC};
     }
     return cpu.TCR_P ? (base & ~1) | (addr & 0x1fff) : base | (addr & 0xfff);
 }

@@ -4,3 +4,8 @@ build/*
 *.rom
 rom/**
 unifont.otf
+CMakeFiles/*
+CMakeCache.txt
+*.cmake
+Testing/*
+newmacemu

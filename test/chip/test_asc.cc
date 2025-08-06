@@ -2,7 +2,7 @@
 #include "68040.hpp"
 #include "test.hpp"
 
-#include "SDL.h"
+#include "SDL3/SDL.h"
 #include "bus.hpp"
 #include "chip/asc.hpp"
 #include "chip/via.hpp"
@@ -239,7 +239,7 @@ BOOST_DATA_TEST_CASE(play, bdata::xrange(4), p) {
     do {
         ret = asc->read(0x804);
         SDL_Delay(0);
-    } while(ret != 0xF);
+    } while(!(ret & 10));
     asc->write(0x801, 0);
 }
 

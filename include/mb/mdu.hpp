@@ -11,7 +11,6 @@
 // IIci, IIsi
 struct MDU : public IO_BUS {
     RBV rbv;
-    SCC scc;
     SCSI_HANDSHAKE scsi_handshake;
     SCSI_NORMAL scsi;
     SCSI_pDMA scsi_pdma;

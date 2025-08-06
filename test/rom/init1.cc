@@ -2,7 +2,7 @@
 #include "68040.hpp"
 #include "test.hpp"
 
-#include "SDL.h"
+#include "SDL3/SDL.h"
 #include "chip/iifx.hpp"
 #include "chip/iop.hpp"
 #include "chip/rbv.hpp"
@@ -20,6 +20,7 @@
 #include <boost/test/data/test_case.hpp>
 #include <boost/test/unit_test.hpp>
 #include <vector>
+void check_glue() ;
 extern uint32_t io_mask;
 namespace bdata = boost::unit_test::data;
 uint32_t test_addr[] = {0x2f58, 0x2f64};
@@ -369,6 +370,7 @@ BOOST_AUTO_TEST_CASE(success) {
     cpu.A[2] = 0x50F01C00;
     cpu.D[2] = 0x20000;
     io = std::make_unique<GLUE>();
+//    check_glue();
     test_rom(0x46AA, 0x46D4, {});
     BOOST_TEST(cpu.Z);
 }

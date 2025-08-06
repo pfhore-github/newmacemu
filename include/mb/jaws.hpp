@@ -14,7 +14,6 @@ struct JAWS_CTL  {
 };
 // PowerBook 170
 struct JAWS : public IO_BUS {
-    SCC scc;
     SCSI_HANDSHAKE scsi_handshake;
     SCSI_NORMAL scsi;
     SCSI_pDMA scsi_pdma;

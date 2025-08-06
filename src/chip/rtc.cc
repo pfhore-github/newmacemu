@@ -1,8 +1,7 @@
-#include "SDL.h"
-#include "SDL_timer.h"
+#include "SDL3/SDL.h"
+#include "SDL3/SDL_timer.h"
 #include "chip/via.hpp"
 #include <deque>
-#include <fmt/core.h>
 #include <time.h>
 #include <vector>
 void do_irq(int i);
@@ -31,6 +30,32 @@ uint8_t xpram_read(uint8_t reg) {
     return XPRAM[reg];
 }
 void xpram_write(uint8_t reg, uint8_t v) { XPRAM[reg] = v; }
+
+uint8_t do_rtc(uint8_t cmd, uint8_t v0, uint8_t v1) {
+    if((cmd & 0xB8) == 0xB8) {
+        // XPRAM READ
+        uint8_t param = v0;
+        uint8_t reg = ((cmd << 5) & 0xe0) | ((param >> 2) & 0x1f);
+        return xpram_read(reg);
+    } else if((cmd & 0xB8) == 0x38) {
+        // XPRAM WRITE
+        uint8_t param = v0;
+        uint8_t value = v1;
+        uint8_t reg = ((cmd << 5) & 0xe0) | ((param >> 2) & 0x1f);
+        xpram_write(reg, value);
+        return 0;
+    } else {
+        // PRAM, RTC and other clock registers
+        uint8_t reg = (cmd >> 2) & 0x1f;
+        bool is_read = cmd & 0x80;
+        if(is_read) {
+            return xpram_read(reg);
+        } else {
+            xpram_write(reg, v0);
+            return 0;
+        }
+    }
+}
 void send_rtc(bool v) {
     rtc_cmd = rtc_cmd | v << (rtc_cnt_w++);
     rtc_cnt_w &= 7;
@@ -39,31 +64,22 @@ void send_rtc(bool v) {
         rtc_cmd = 0;
         if((rtc_lists[0] & 0xB8) == 0xB8 && rtc_lists.size() == 2) {
             // XPRAM READ
-            uint8_t cmd = rtc_lists[0];
-            uint8_t param = rtc_lists[1];
-            uint8_t reg = ((cmd << 5) & 0xe0) | ((param >> 2) & 0x1f);
-            rtc_val = xpram_read(reg);
+            rtc_val = do_rtc(rtc_lists[0], rtc_lists[1], 0);
             rtc_cnt_r = 0;
             rtc_lists.clear();
         } else if((rtc_lists[0] & 0xB8) == 0x38 && rtc_lists.size() == 3) {
             // XPRAM WRITE
-            uint8_t cmd = rtc_lists[0];
-            uint8_t param = rtc_lists[1];
-            uint8_t value = rtc_lists[2];
-            uint8_t reg = ((cmd << 5) & 0xe0) | ((param >> 2) & 0x1f);
-            xpram_write(reg, value);
+            do_rtc(rtc_lists[0], rtc_lists[1], rtc_lists[2]);
             rtc_lists.clear();
         } else {
             // PRAM, RTC and other clock registers
-            uint8_t cmd = rtc_lists[0];
-            uint8_t reg = (cmd >> 2) & 0x1f;
             bool is_read = rtc_lists[0] & 0x80;
             if(is_read && rtc_lists.size() == 1) {
+                rtc_val = do_rtc(rtc_lists[0], 0, 0);
                 rtc_cnt_r = 0;
-                rtc_val = xpram_read(reg);
                 rtc_lists.clear();
             } else if(rtc_lists.size() == 2) {
-                xpram_write(reg, rtc_lists[1]);
+                do_rtc(rtc_lists[0], rtc_lists[1], 0);
                 rtc_lists.clear();
             }
         }
@@ -73,7 +89,7 @@ bool recv_rtc() {
     rtc_cnt_r &= 7;
     return rtc_val >> (rtc_cnt_r++) & 1;
 }
-uint32_t rtc_callback(uint32_t, void *) {
+uint32_t rtc_callback(void*, SDL_TimerID, uint32_t) {
     via1->irq(VIA_IRQ::CA2);
     return 1000;
 }

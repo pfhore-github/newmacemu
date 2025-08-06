@@ -17,9 +17,6 @@
 #include "memory.hpp"
 #include <optional>
 
-extern std::shared_ptr<VIA1> via1;
-extern std::shared_ptr<VIA2> via2;
-extern std::shared_ptr<ASC> asc;
 extern std::shared_ptr<ASC> asc;
 uint8_t *pds = nullptr;
 
@@ -37,7 +34,7 @@ uint8_t GLUE::readB(uint32_t addr) {
     case 1:
         return via2->read(addr >> 9 & 0xf);
     case 2:
-        return scc.read(addr >> 1 & 3);
+        return scc->read(addr >> 1 & 3);
     case 3:
         return scsi_handshake.read(addr >> 4 & 3);
     case 8:
@@ -68,7 +65,7 @@ void GLUE::writeB(uint32_t addr, uint8_t value) {
         via2->write(addr >> 9 & 0xf, value);
         return;
     case 2:
-        scc.write(addr >> 1 & 3, value);
+        scc->write(addr >> 1 & 3, value);
         return;
     case 3:
         scsi_handshake.write(addr >> 4 & 3, value);
@@ -101,7 +98,7 @@ uint8_t MDU::readB(uint32_t addr) {
     case 0:
         return via1->read(addr >> 9 & 0xf);
     case 2:
-        return scc.read(addr >> 1 & 3);
+        return scc->read(addr >> 1 & 3);
     case 3:
         return scsi_handshake.read(addr >> 4 & 3);
     case 8:
@@ -133,7 +130,7 @@ void MDU::writeB(uint32_t addr, uint8_t value) {
         via1->write(addr >> 9 & 0xf, value);
         return;
     case 2:
-        scc.write(addr >> 1 & 3, value);
+        scc->write(addr >> 1 & 3, value);
         return;
     case 3:
         scsi_handshake.write(addr >> 4 & 3, value);
@@ -178,7 +175,7 @@ uint8_t OSS::readB(uint32_t addr) {
     case 0:
         return via1->read(addr >> 9 & 0xf);
     case 2:
-        return iop_scc.read(addr >> 1 & 0x1f);
+        return iop_scc->read(addr >> 1 & 0x1f);
     case 8:
         return asc->read(addr & 0xfff);
     case 9:
@@ -213,7 +210,7 @@ void OSS::writeB(uint32_t addr, uint8_t value) {
         via1->write(addr >> 9 & 0xf, value);
         return;
     case 2:
-        iop_scc.write(addr >> 1 & 0x1f, value);
+        iop_scc->write(addr >> 1 & 0x1f, value);
         return;
     case 8:
         asc->write(addr & 0xfff, value);
@@ -249,7 +246,7 @@ uint8_t V8::readB(uint32_t addr) {
     case 0:
         return via1->read(addr >> 9 & 0xf);
     case 2:
-        return scc.read(addr >> 1 & 3);
+        return scc->read(addr >> 1 & 3);
     case 3:
         return scsi_handshake.read(addr >> 4 & 3);
     case 8:
@@ -284,7 +281,7 @@ void V8::writeB(uint32_t addr, uint8_t value) {
         via1->write(addr >> 9 & 0xf, value);
         return;
     case 2:
-        scc.write(addr >> 1 & 3, value);
+        scc->write(addr >> 1 & 3, value);
         return;
     case 3:
         scsi_handshake.write(addr >> 4 & 3, value);
@@ -332,7 +329,7 @@ uint8_t MCU_Q900::readB(uint32_t addr) {
     case 1:
         return via2->read(addr >> 9 & 0xf);
     case 6:
-        return iop_scc.read(addr >> 1 & 0x1f);
+        return iop_scc->read(addr >> 1 & 0x1f);
     case 10:
         return asc->read(addr & 0xfff);
     case 15:
@@ -364,7 +361,7 @@ void MCU_Q900::writeB(uint32_t addr, uint8_t value) {
         via2->write(addr >> 9 & 0xf, value);
         return;
     case 6:
-        iop_scc.write(addr >> 1 & 0x1f, value);
+        iop_scc->write(addr >> 1 & 0x1f, value);
         return;
 
     case 10:
@@ -397,7 +394,7 @@ uint8_t MCU_Q700::readB(uint32_t addr) {
     case 1:
         return via2->read(addr >> 9 & 0xf);
     case 6:
-        return scc.read(addr >> 1 & 0x1f);
+        return scc->read(addr >> 1 & 0x1f);
     case 7:
         return mcu.read(addr & 0x1fff);
     case 10:
@@ -431,7 +428,7 @@ void MCU_Q700::writeB(uint32_t addr, uint8_t value) {
         via2->write(addr >> 9 & 0xf, value);
         return;
     case 6:
-        scc.write(addr >> 1 & 0x1f, value);
+        scc->write(addr >> 1 & 0x1f, value);
         return;
     case 10:
         asc->write(addr & 0xfff, value);
@@ -457,7 +454,7 @@ uint8_t JAWS::readB(uint32_t addr) {
     case 1:
         return via2->read(addr >> 9 & 0xf);
     case 2:
-        return scc.read(addr >> 1 & 3);
+        return scc->read(addr >> 1 & 3);
     case 3:
         return scsi_handshake.read(addr >> 4 & 3);
     case 8:
@@ -493,7 +490,7 @@ void JAWS::writeB(uint32_t addr, uint8_t value) {
         via2->write(addr >> 9 & 0xf, value);
         return;
     case 2:
-        scc.write(addr >> 1 & 3, value);
+        scc->write(addr >> 1 & 3, value);
         return;
     case 3:
         scsi_handshake.write(addr >> 4 & 3, value);
@@ -522,19 +519,24 @@ void JAWS::writeB(uint32_t addr, uint8_t value) {
 void rtc_reset();
 void adb_reset();
 void asc_reset();
+void scc_reset();
 void initBus() {
     // chips initilize
     asc = std::make_shared<ASC>();
     via1 = std::make_shared<VIA1>();
     via2 = std::make_shared<VIA2>();
     io = std::make_unique<MCU_Q900>();
+    scc = std::make_shared<SCC>();
+    iop_scc = std::make_shared<IOP_SCC>();
 }
 // for test
 bool is_reset = false;
+
 void bus_reset() {
     rtc_reset();
     adb_reset();
     asc_reset();
+    scc_reset();
     is_reset = true;
 }
 

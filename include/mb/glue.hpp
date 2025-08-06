@@ -8,7 +8,6 @@
 #include "io.hpp"
 // SE/30, IIcx
 struct GLUE : public IO_BUS {
-    SCC scc;
     SCSI_HANDSHAKE scsi_handshake;
     SCSI_NORMAL scsi;
     SCSI_pDMA scsi_pdma;

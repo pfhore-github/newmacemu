@@ -1,6 +1,7 @@
 #ifndef IO_HPP_
 #define IO_HPP_
 #include "bus.hpp"
+#include "memory.hpp"
 #include <memory>
 #include <stdint.h>
 #include <unordered_map>

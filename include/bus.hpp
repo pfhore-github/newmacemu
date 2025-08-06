@@ -1,7 +1,6 @@
 #ifndef BUS_HPP_
 #define BUS_HPP_ 1
 #include <stdint.h>
-struct BusError {};
 uint8_t BusReadB(uint32_t addr);
 uint16_t BusReadW(uint32_t addr);
 uint32_t BusReadL(uint32_t addr);

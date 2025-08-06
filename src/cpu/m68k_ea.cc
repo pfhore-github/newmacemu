@@ -3,7 +3,6 @@
 #include "memory.hpp"
 #include "inline.hpp"
 #include <errno.h>
-#include <fmt/format.h>
 #include <memory>
 #include <tuple>
 #include <utility>

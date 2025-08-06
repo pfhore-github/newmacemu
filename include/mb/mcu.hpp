@@ -9,7 +9,6 @@
 #include "chip/via.hpp"
 #include "chip/vdac.hpp"
 #include "io.hpp"
-extern std::shared_ptr<ASC> asc;
 struct MCU_ctl {
     uint32_t value;
     uint32_t ctls[64];
@@ -19,7 +18,6 @@ struct MCU_ctl {
 // Quadra 9x0
 struct MCU_Q900 : public IO_BUS {
     IOP_SWIM iop_swim;
-    IOP_SCC iop_scc;
     Sonic sonic;
     VDAC vdac;
     MCU_ctl mcu;
@@ -31,7 +29,6 @@ struct MCU_Q900 : public IO_BUS {
 
 struct MCU_Q700 : public IO_BUS {
     SWIM swim;
-    SCC scc;
     Sonic sonic;
     VDAC vdac;
     MCU_ctl mcu;

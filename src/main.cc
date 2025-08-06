@@ -1,7 +1,6 @@
 #include "68040.hpp"
-#include "SDL.h"
-#include "SDL_net.h"
-#include "SDL_thread.h"
+#include "SDL3/SDL.h"
+#include "SDL3/SDL_thread.h"
 #include "exception.hpp"
 #include "memory.hpp"
 #include "inline.hpp"
@@ -17,19 +16,8 @@ Cpu cpu;
 void RESET();
 
 void debug_activate();
-void run_op();
-void cpu_thread() {
-	for(;;) {
-		if( setjmp(ex_buf) == 0 ) {
-			for(;;) {
-				run_op();
-			}
-		} else {
-			handle_exception(ex_n);
-            cpu.bus_lock = false;
-		}
-	}
-}
+void run_cpu();
+
 void do_poweroff() { quick_exit(0); }
 void debug_activate();
 void video_update();
@@ -51,7 +39,8 @@ int main(int argc, char **argv) {
             quick_exit(0);
         }
     }
-    std::thread th{cpu_thread};
+    std::thread th{ run_cpu };
+    th.detach();
     SDL_Event e;
     for(;;) {
         if(cpu.inturrupt.load()) {
@@ -61,13 +50,13 @@ int main(int argc, char **argv) {
         video_update();
         while(SDL_PollEvent(&e)) {
             switch(e.type) {
-            case SDL_KEYDOWN:
+            case SDL_EVENT_KEY_DOWN:
                 keydown(&e.key);
                 break;
-            case SDL_KEYUP:
+            case SDL_EVENT_KEY_UP:
                 keyup(&e.key);
                 break;
-            case SDL_QUIT:
+            case SDL_EVENT_QUIT:
                 quick_exit(0);
             }
         }

@@ -1,6 +1,6 @@
 #include "ebus/adb.hpp"
-#include "SDL.h"
-#include "SDL_scancode.h"
+#include "SDL3/SDL.h"
+#include "SDL3/SDL_scancode.h"
 #include "chip/via.hpp"
 #include <algorithm>
 #include <deque>
@@ -170,7 +170,7 @@ class ADBMouse : public ADBDev {
         std::deque<uint8_t> ret;
         switch(reg) {
         case 0: {
-            int x, y;
+            float x, y;
             auto btn = SDL_GetMouseState(&x, &y);
             int dx = x - old_mx;
             int dy = y - old_my;
@@ -251,19 +251,19 @@ class ADBKeyboard : public ADBDev {
             auto kbd = SDL_GetKeyboardState(nullptr);
             uint8_t reg2hi = 0xff;
             uint8_t reg2lo = reg2[1] | 0xf8;
-            if(mod & KMOD_SCROLL) // Scroll Lock
+            if(mod & SDL_KMOD_SCROLL) // Scroll Lock
                 reg2lo &= ~0x40;
-            if(mod & KMOD_NUM) // Num Lock
+            if(mod & SDL_KMOD_NUM) // Num Lock
                 reg2lo &= ~0x80;
-            if(mod & KMOD_LGUI) // Command
+            if(mod & SDL_KMOD_LGUI) // Command
                 reg2hi &= ~0x01;
-            if(mod & KMOD_LALT) // Option
+            if(mod & SDL_KMOD_LALT) // Option
                 reg2hi &= ~0x02;
-            if(mod & KMOD_LSHIFT) // Shift
+            if(mod & SDL_KMOD_LSHIFT) // Shift
                 reg2hi &= ~0x04;
-            if(mod & KMOD_LCTRL) // Control
+            if(mod & SDL_KMOD_LCTRL) // Control
                 reg2hi &= ~0x08;
-            if(mod & KMOD_CAPS) // Caps Lock
+            if(mod & SDL_KMOD_CAPS) // Caps Lock
                 reg2hi &= ~0x20;
             if(kbd[SDL_SCANCODE_DELETE]) // Delete
                 reg2hi &= ~0x40;
@@ -318,12 +318,12 @@ void adb_run(const std::vector<uint8_t>& b) {
         return;
     }
     if(v == 7) {
-        // RTC weite
-        xpram_write(b[2], b[3]);
+        // RTC write
+        xpram_write(b[1] << 8 | b[2], b[3]);
         return;
     } else if(v == 12) {
         // RTC read
-        buf = {1, 0, 0, 7, xpram_read(b[2]), 0};
+        buf = {1, 0, 0, 7, xpram_read(b[1] << 8 | b[2]), 0};
         do_adb_irq();
         return;
     }
@@ -389,17 +389,17 @@ void transmitAdb(uint8_t adbState, uint8_t v) {
     }
 }
 void keydown(const SDL_KeyboardEvent *e) {
-    if(mac_keys.contains(e->keysym.scancode)) {
-        keys.push_back(mac_keys[e->keysym.scancode]);
+    if(mac_keys.contains(e->scancode)) {
+        keys.push_back(mac_keys[e->scancode]);
     }
 
     do_adb_irq();
 }
 
 void keyup(const SDL_KeyboardEvent *e) {
-    if(mac_keys.contains(e->keysym.scancode)) {
+    if(mac_keys.contains(e->scancode)) {
         auto ret =
-            std::find(keys.begin(), keys.end(), mac_keys[e->keysym.scancode]);
+            std::find(keys.begin(), keys.end(), mac_keys[e->scancode]);
         if(ret != keys.end()) {
             keys.erase(ret);
         }

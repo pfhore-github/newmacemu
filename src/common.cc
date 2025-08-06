@@ -1,6 +1,6 @@
 #include "68040.hpp"
-#include "SDL.h"
-#include "SDL_net.h"
+#include "SDL3/SDL.h"
+#include "SDL3_net/SDL_net.h"
 #include "exception.hpp"
 #include "memory.hpp"
 #include "inline.hpp"
@@ -11,6 +11,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <thread>
+#include <new>
 uint8_t *RAM;
 size_t RAMSize;
 uint8_t *ROM;
@@ -29,17 +30,16 @@ void init_fpu();
 void jit_init();
 void init_emu() {
 #ifndef CI
-    SDL_Init(SDL_INIT_EVERYTHING);
+    SDL_Init(SDL_INIT_AUDIO | SDL_INIT_VIDEO | SDL_INIT_EVENTS);
     at_quick_exit(SDL_Quit);
-    SDLNet_Init();
-    atexit(SDLNet_Quit);
-    w = SDL_CreateWindow("macintosh", SDL_WINDOWPOS_UNDEFINED,
-                         SDL_WINDOWPOS_UNDEFINED, 640, 480,
+    w = SDL_CreateWindow("macintosh", 640, 480,
                          0); // TODO: We should use GL shader?
-    r = SDL_CreateRenderer(w, -1, SDL_RENDERER_ACCELERATED);
+    r = SDL_CreateRenderer(w, nullptr);
+    NET_Init();
+    at_quick_exit(NET_Quit);
 #endif
     RAMSize = 64 * 1024 * 1024;
-    RAM = new uint8_t[RAMSize];
+    RAM = new (std::align_val_t(4096)) uint8_t[RAMSize];
     int fd = open("../quadra950.rom", O_RDONLY);
     if(fd == -1) {
         perror("cannot open rom");
@@ -52,7 +52,7 @@ void init_emu() {
     }
     ROMSize = sb.st_size;
     ROMMask = ROMSize - 1;
-    ROM = new uint8_t[ROMSize];
+    ROM = new (std::align_val_t(4096)) uint8_t[ROMSize];
     read(fd, ROM, ROMSize);
 
     // instead overlay, just copy

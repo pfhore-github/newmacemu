@@ -9,7 +9,6 @@
 // LC
 struct V8 : public IO_BUS {
     RBV rbv;
-    SCC scc;
     SCSI_HANDSHAKE scsi_handshake;
     SCSI_NORMAL scsi;
     SCSI_pDMA scsi_pdma;

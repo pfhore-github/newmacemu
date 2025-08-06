@@ -1,5 +1,5 @@
-#include "SDL.h"
-#include "SDL_render.h"
+#include "SDL3/SDL.h"
+#include "SDL3/SDL_render.h"
 #include <stdint.h>
 #include <vector>
 std::vector<uint32_t> clut;

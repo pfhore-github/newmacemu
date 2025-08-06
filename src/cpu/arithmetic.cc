@@ -124,7 +124,7 @@ void CMP_L(uint32_t a, uint32_t b) {
 }
 
 uint64_t MULU_LL(uint32_t a, uint32_t b) {
-    uint64_t v = static_cast<uint64_t>(a) * b;
+    uint64_t v = static_cast<uint64_t>(a) * static_cast<uint64_t>(b);
     cpu.V = cpu.C = false;
     cpu.Z = (v == 0);
     cpu.N = (static_cast<int64_t>(v) < 0);
@@ -132,7 +132,7 @@ uint64_t MULU_LL(uint32_t a, uint32_t b) {
 }
 
 int64_t MULS_LL(int32_t a, int32_t b) {
-    int64_t v = static_cast<int64_t>(a) * b;
+    int64_t v = static_cast<int64_t>(a) * static_cast<int64_t>(b);
     cpu.V = cpu.C = false;
     cpu.Z = (v == 0);
     cpu.N = (v < 0);
