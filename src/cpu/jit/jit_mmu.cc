@@ -4,12 +4,14 @@
 #include <memory>
 #include <unordered_map>
 #include <utility>
+#include <setjmp.h>
 using namespace asmjit;
 extern CpuFeatures feature;
 void jit_postop();
 extern volatile bool testing;
 extern std::unordered_map<uint32_t, Label> jumpMap;
 using jit_op = void (*)(uint16_t op);
+extern jmp_buf ex_buf;
 extern jit_op jit_compile_op[0x10000];
 void cinvl_d(uint32_t base);
 void cinvp_d(uint32_t base);
@@ -36,6 +38,10 @@ void jit_trace_branch();
 void jit_priv_check();
 
 #ifdef __x86_64__
+void stop_jit() {
+    cpu.inJit = false;
+    longjmp(ex_buf, 2);
+}
 void cinvl_dc(uint16_t op) {
     jit_priv_check();
     as->mov(ARG1.r32(), AR_L(REG(op)));
@@ -77,8 +83,8 @@ void cinvl_ic(uint16_t op) {
     as->call(cinvl_i);
     jit_trace_branch();
     jit_postop();
-    as->jmp(end_lbl);
-	
+    as->mov(c_pc, cpu.PC);
+    as->call(stop_jit);	
 }
 void cinvp_ic(uint16_t op) {
     jit_priv_check();
@@ -86,14 +92,16 @@ void cinvp_ic(uint16_t op) {
     as->call(cinvp_i);
     jit_trace_branch();
     jit_postop();
-    as->jmp(end_lbl);
+    as->mov(c_pc, cpu.PC);
+    as->call(stop_jit);	
 }
 void cinva_ic(uint16_t) {
     jit_priv_check();
     as->call(cinva_i);
     jit_trace_branch();
     jit_postop();
-    as->jmp(end_lbl);
+    as->mov(c_pc, cpu.PC);
+    as->call(stop_jit);	
 }
 void cpushl_ic(uint16_t op) {
     jit_priv_check();
@@ -101,7 +109,8 @@ void cpushl_ic(uint16_t op) {
     as->call(cpushl_i);
     jit_trace_branch();
     jit_postop();
-    as->jmp(end_lbl);
+    as->mov(c_pc, cpu.PC);
+    as->call(stop_jit);	
 }
 void cpushp_ic(uint16_t op) {
     jit_priv_check();
@@ -109,14 +118,16 @@ void cpushp_ic(uint16_t op) {
     as->call(cpushp_i);
     jit_trace_branch();
     jit_postop();
-    as->jmp(end_lbl);
+    as->mov(c_pc, cpu.PC);
+    as->call(stop_jit);	
 }
 void cpusha_ic(uint16_t) {
     jit_priv_check();
     as->call(cpusha_i);
     jit_trace_branch();
     jit_postop();
-    as->jmp(end_lbl);
+    as->mov(c_pc, cpu.PC);
+    as->call(stop_jit);	
 }
 
 void cinvl_bc(uint16_t op) {
@@ -128,8 +139,8 @@ void cinvl_bc(uint16_t op) {
     as->call(cinvl_i);
     jit_trace_branch();
     jit_postop();
-    as->jmp(end_lbl);
-	
+    as->mov(c_pc, cpu.PC);
+    as->call(stop_jit);		
 }
 void cinvp_bc(uint16_t op) {
     jit_priv_check();
@@ -140,7 +151,8 @@ void cinvp_bc(uint16_t op) {
     as->call(cinvp_i);
     jit_trace_branch();
     jit_postop();
-    as->jmp(end_lbl);
+    as->mov(c_pc, cpu.PC);
+    as->call(stop_jit);	
 }
 void cinva_bc(uint16_t) {
     jit_priv_check();
@@ -148,7 +160,8 @@ void cinva_bc(uint16_t) {
     as->call(cinva_i);
     jit_trace_branch();
     jit_postop();
-    as->jmp(end_lbl);
+    as->mov(c_pc, cpu.PC);
+    as->call(stop_jit);	
 }
 void cpushl_bc(uint16_t op) {
     jit_priv_check();
@@ -159,7 +172,8 @@ void cpushl_bc(uint16_t op) {
     as->call(cpushl_i);
     jit_trace_branch();
     jit_postop();
-    as->jmp(end_lbl);
+    as->mov(c_pc, cpu.PC);
+    as->call(stop_jit);	
 }
 void cpushp_bc(uint16_t op) {
     jit_priv_check();
@@ -170,7 +184,8 @@ void cpushp_bc(uint16_t op) {
     as->call(cpushp_i);
     jit_trace_branch();
     jit_postop();
-    as->jmp(end_lbl);
+    as->mov(c_pc, cpu.PC);
+    as->call(stop_jit);	
 }
 void cpusha_bc(uint16_t) {
     jit_priv_check();
@@ -178,7 +193,8 @@ void cpusha_bc(uint16_t) {
     as->call(cpusha_i);
     jit_trace_branch();
     jit_postop();
-    as->jmp(end_lbl);
+    as->mov(c_pc, cpu.PC);
+    as->call(stop_jit);	
 }
 
 void pflushn(uint16_t op) {
@@ -236,6 +252,7 @@ void init_jit_table_mmu() {
         jit_compile_op[0172160 | r] = JIT_OP::cpushp_dc;
         jit_compile_op[0172170 | r] = JIT_OP::cpusha_dc;
 
+        // Cache reset is broken in JIT
         jit_compile_op[0172210 | r] = JIT_OP::cinvl_ic;
         jit_compile_op[0172220 | r] = JIT_OP::cinvp_ic;
         jit_compile_op[0172230 | r] = JIT_OP::cinva_ic;

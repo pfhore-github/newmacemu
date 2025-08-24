@@ -283,6 +283,7 @@ void eori_w_sr(uint16_t) {
     as->mov(ARG1.r32(), x86::eax);
     as->call(SetSR);
     jit_trace_branch();
+    jit_postop();
 }
 
 void subi_b(uint16_t op) {
@@ -2040,21 +2041,22 @@ void sbcd_d(uint16_t op) {
     as->cmovnz(x86::cx, x86::dx);
     as->sub(x86::al, x86::cl);
     jit_if(COND::TRUE, [] { as->mov(CC_Z, 0); });
-    as->mov(DR_B(reg), x86::al);
+    as->mov(DR_B(dn), x86::al);
 }
 
 void sbcd_m(uint16_t op) {
     int reg = REG(op);
+    int dn = DN(op);
     as->mov(x86::r12d, AR_L(reg));
     as->lea(x86::r12d, x86::ptr(x86::r12d, -1));
     as->mov(AR_L(reg), x86::r12d);
     jit_readB(x86::r12d);
     as->mov(x86::r11b, x86::al);
 
-    as->mov(x86::esi, AR_L(DN(op)));
+    as->mov(x86::esi, AR_L(dn));
     as->lea(x86::esi, x86::ptr(x86::esi, -1));
 
-    as->mov(AR_L(DN(op)), x86::esi);
+    as->mov(AR_L(dn), x86::esi);
     jit_readB(x86::esi);
 
     as->mov(x86::dl, x86::al);
@@ -2078,7 +2080,7 @@ void sbcd_m(uint16_t op) {
     as->cmova(x86::cx, x86::dx);
     as->sub(x86::al, x86::cl);
     jit_if(COND::TRUE, [] { as->mov(CC_Z, 0); });
-    jit_writeB(x86::r12d, x86::al);
+    jit_writeB(x86::esi, x86::al);
 }
 
 void or_b_to_ea(uint16_t op) {

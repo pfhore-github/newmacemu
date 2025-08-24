@@ -7,7 +7,6 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <memory>
-#include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <thread>
@@ -18,23 +17,22 @@ uint8_t *ROM;
 size_t ROMSize;
 size_t ROMMask;
 extern SDL_Window *w;
-extern SDL_Renderer *r;
 void do_irq(int i) {
-    cpu.sleeping.store(false);
-    cpu.sleeping.notify_one();
+    cpu.run.resume();
     cpu.inturrupt.store(i);
 }
 void init_run_table();
 void initBus();
 void init_fpu();
 void jit_init();
+void init_video();
 void init_emu() {
 #ifndef CI
     SDL_Init(SDL_INIT_AUDIO | SDL_INIT_VIDEO | SDL_INIT_EVENTS);
     at_quick_exit(SDL_Quit);
     w = SDL_CreateWindow("macintosh", 640, 480,
                          0); // TODO: We should use GL shader?
-    r = SDL_CreateRenderer(w, nullptr);
+    init_video();
     NET_Init();
     at_quick_exit(NET_Quit);
 #endif
@@ -58,8 +56,9 @@ void init_emu() {
     // instead overlay, just copy
     memcpy(RAM, ROM, ROMSize);
 
+    cpu.fpu = createFPU(FPU_TYPE::M68040_FULL);
+    cpu.fpu->init();
     init_run_table();
     initBus();
-    init_fpu();
     jit_init();
 }

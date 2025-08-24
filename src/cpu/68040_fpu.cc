@@ -1,10 +1,11 @@
 #include "68040.hpp"
+#include "68040fpu.hpp"
 #include "bus.hpp"
 #include "exception.hpp"
 #include "gmp.h"
+#include "inline.hpp"
 #include "memory.hpp"
 #include "mpfr.h"
-#include "inline.hpp"
 #include <memory>
 #include <string.h>
 #include <utility>
@@ -13,17 +14,20 @@ using std::make_unique;
 using std::string;
 void reset_fpu();
 
-void init_fpu() {
+std::unique_ptr<Fpu> createFPU(FPU_TYPE) {
+    return std::make_unique<M68040FpuFull>();
+}
+void M68040FpuFull::init() {
     for(int i = 0; i < 8; ++i) {
-        mpfr_init2(cpu.FP[i], 64);
+        mpfr_init2(FP[i], 64);
     }
-    mpfr_init2(cpu.fp_tmp, 64);
+    mpfr_init2(fp_tmp, 64);
     mpfr_set_default_prec(64);
-    cpu.fp_tmp_nan = 0;
-    cpu.FPCR.RND = MPFR_RNDN;
+    fp_tmp_nan = 0;
+    FPCR.RND = MPFR_RNDN;
 }
 
-void normalize_fp(FPU_PREC p) {
+void M68040FpuFull::normalize_fp(FPU_PREC p) {
     switch(p) {
     case FPU_PREC::AUTO:
         __builtin_unreachable();
@@ -40,105 +44,105 @@ void normalize_fp(FPU_PREC p) {
         mpfr_set_emax(128);
         break;
     }
-    cpu.fp_tmp_tv = mpfr_check_range(cpu.fp_tmp, cpu.fp_tmp_tv, cpu.FPCR.RND);
-    cpu.fp_tmp_tv = mpfr_subnormalize(cpu.fp_tmp, cpu.fp_tmp_tv, cpu.FPCR.RND);
+    fp_tmp_tv = mpfr_check_range(fp_tmp, fp_tmp_tv, FPCR.RND);
+    fp_tmp_tv = mpfr_subnormalize(fp_tmp, fp_tmp_tv, FPCR.RND);
     switch(p) {
     case FPU_PREC::AUTO:
         __builtin_unreachable();
     case FPU_PREC::X:
-        cpu.fp_tmp_tv = mpfr_prec_round(cpu.fp_tmp, 64, cpu.FPCR.RND);
+        fp_tmp_tv = mpfr_prec_round(fp_tmp, 64, FPCR.RND);
         break;
     case FPU_PREC::D:
-        cpu.fp_tmp_tv = mpfr_prec_round(cpu.fp_tmp, 53, cpu.FPCR.RND);
+        fp_tmp_tv = mpfr_prec_round(fp_tmp, 53, FPCR.RND);
         break;
     case FPU_PREC::S:
-        cpu.fp_tmp_tv = mpfr_prec_round(cpu.fp_tmp, 24, cpu.FPCR.RND);
+        fp_tmp_tv = mpfr_prec_round(fp_tmp, 24, FPCR.RND);
         break;
     }
     mpfr_set_emin(-32768);
     mpfr_set_emax(32767);
 }
 
-void fpu_testex() {
-    cpu.FPSR.OPERR = mpfr_nanflag_p() || mpfr_erangeflag_p();
-    cpu.FPSR.OVFL = mpfr_overflow_p();
-    cpu.FPSR.UNFL = mpfr_underflow_p();
-    cpu.FPSR.DZ = mpfr_divby0_p();
-    cpu.FPSR.INEX2 = mpfr_inexflag_p();
+void M68040FpuFull::testex() {
+    FPSR.OPERR = mpfr_nanflag_p() || mpfr_erangeflag_p();
+    FPSR.OVFL = mpfr_overflow_p();
+    FPSR.UNFL = mpfr_underflow_p();
+    FPSR.DZ = mpfr_divby0_p();
+    FPSR.INEX2 = mpfr_inexflag_p();
 
-    cpu.FPSR.EXC_IOP |= (cpu.FPSR.S_NAN || cpu.FPSR.OPERR);
-    cpu.FPSR.EXC_OVFL |= (cpu.FPSR.OVFL);
-    cpu.FPSR.EXC_UNFL |= (cpu.FPSR.UNFL || cpu.FPSR.INEX2);
-    cpu.FPSR.EXC_DZ |= (cpu.FPSR.DZ);
-    cpu.FPSR.EXC_INEX |= (cpu.FPSR.INEX1 || cpu.FPSR.INEX2 || cpu.FPSR.OVFL);
+    FPSR.EXC_IOP |= (FPSR.S_NAN || FPSR.OPERR);
+    FPSR.EXC_OVFL |= (FPSR.OVFL);
+    FPSR.EXC_UNFL |= (FPSR.UNFL || FPSR.INEX2);
+    FPSR.EXC_DZ |= (FPSR.DZ);
+    FPSR.EXC_INEX |= (FPSR.INEX1 || FPSR.INEX2 || FPSR.OVFL);
 
-    if(cpu.FPSR.S_NAN && cpu.FPCR.S_NAN) {
+    if(FPSR.S_NAN && FPCR.S_NAN) {
         FP_EX_SNAN();
     }
-    if(cpu.FPSR.OPERR && cpu.FPCR.OPERR) {
+    if(FPSR.OPERR && FPCR.OPERR) {
         FP_EX_OPERR();
     }
-    if(cpu.FPSR.OVFL && cpu.FPCR.OVFL) {
+    if(FPSR.OVFL && FPCR.OVFL) {
         FP_EX_OVFL();
     }
-    if(cpu.FPSR.UNFL && cpu.FPCR.UNFL) {
+    if(FPSR.UNFL && FPCR.UNFL) {
         FP_EX_UNFL();
     }
-    if(cpu.FPSR.DZ && cpu.FPCR.DZ) {
+    if(FPSR.DZ && FPCR.DZ) {
         FP_EX_DIV0();
     }
-    if(cpu.FPSR.INEX1 && cpu.FPCR.INEX1) {
+    if(FPSR.INEX1 && FPCR.INEX1) {
         FP_EX_INEX();
     }
-    if(cpu.FPSR.INEX2 && cpu.FPCR.INEX2) {
+    if(FPSR.INEX2 && FPCR.INEX2) {
         FP_EX_INEX();
     }
 }
 
-void store_fpr(int fpn, FPU_PREC p = FPU_PREC::AUTO) {
-    cpu.FPSR.CC_NAN = mpfr_nan_p(cpu.fp_tmp);
-    if(cpu.FPSR.CC_NAN) {
-        if(!(cpu.fp_tmp_nan & 1LL << 62)) {
-            cpu.FPSR.S_NAN = true;
-            cpu.fp_tmp_nan |= (1LL << 62);
+void M68040FpuFull::store_fpr(int fpn, FPU_PREC p) {
+    FPSR.CC_NAN = mpfr_nan_p(fp_tmp);
+    if(FPSR.CC_NAN) {
+        if(!(fp_tmp_nan & 1LL << 62)) {
+            FPSR.S_NAN = true;
+            fp_tmp_nan |= (1LL << 62);
         }
     }
-    FPU_PREC pp = p == FPU_PREC::AUTO ? cpu.FPCR.PREC : p;
+    FPU_PREC pp = p == FPU_PREC::AUTO ? FPCR.PREC : p;
     normalize_fp(pp);
     if(fpn != -1) {
-        mpfr_swap(cpu.FP[fpn], cpu.fp_tmp);
-        std::swap(cpu.FP_nan[fpn], cpu.fp_tmp_nan);
+        mpfr_swap(FP[fpn], fp_tmp);
+        std::swap(FP_nan[fpn], fp_tmp_nan);
     }
-    cpu.FPSR.CC_I = mpfr_inf_p(cpu.fp_tmp);
-    cpu.FPSR.CC_Z = mpfr_zero_p(cpu.fp_tmp);
-    cpu.FPSR.CC_N = mpfr_sgn(cpu.fp_tmp) < 0;
+    FPSR.CC_I = mpfr_inf_p(fp_tmp);
+    FPSR.CC_Z = mpfr_zero_p(fp_tmp);
+    FPSR.CC_N = mpfr_sgn(fp_tmp) < 0;
 
-    fpu_testex();
+    testex();
 }
 
-bool test_NAN1() {
-    if(mpfr_nan_p(cpu.fp_tmp)) {
-        cpu.FPSR.OPERR = true;
+bool M68040FpuFull::test_NAN1() {
+    if(mpfr_nan_p(fp_tmp)) {
+        FPSR.OPERR = true;
         return false;
     }
     return true;
 }
 
-bool test_NAN2(int fpn) {
-    if(mpfr_nan_p(cpu.FP[fpn]) && !mpfr_nan_p(cpu.fp_tmp)) {
-        cpu.FPSR.OPERR = true;
-        mpfr_set_nan(cpu.fp_tmp);
-        cpu.fp_tmp_nan = cpu.FP_nan[fpn];
+bool M68040FpuFull::test_NAN2(int fpn) {
+    if(mpfr_nan_p(FP[fpn]) && !mpfr_nan_p(fp_tmp)) {
+        FPSR.OPERR = true;
+        mpfr_set_nan(fp_tmp);
+        fp_tmp_nan = FP_nan[fpn];
         return false;
-    } else if(mpfr_nan_p(cpu.fp_tmp)) {
-        cpu.FPSR.OPERR = true;
+    } else if(mpfr_nan_p(fp_tmp)) {
+        FPSR.OPERR = true;
         return false;
     }
     return true;
 }
-void fpu_prologue() {
+void M68040FpuFull::prologue() {
     mpfr_clear_flags();
-    cpu.FPIAR = cpu.oldpc;
+    FPIAR = cpu.oldpc;
 }
 
 inline uint64_t loadLL(uint32_t addr) {
@@ -151,56 +155,56 @@ inline void WriteLL(uint32_t addr, uint64_t v) {
     WriteL(addr, v >> 32);
     WriteL(addr + 4, v);
 }
-void load_fpS(uint32_t v) {
+void M68040FpuFull::loadS(uint32_t v) {
     uint16_t exp = v >> 23 & 0xff;
     uint64_t frac = v & 0x7FFFFF;
     // test NAN
     if(exp == 0xff && frac) {
-        mpfr_set_nan(cpu.fp_tmp);
-        cpu.fp_tmp_nan = frac << 41;
+        mpfr_set_nan(fp_tmp);
+        fp_tmp_nan = frac << 41;
     } else {
         auto f = std::bit_cast<float>(v);
-        mpfr_set_flt(cpu.fp_tmp, f, cpu.FPCR.RND);
+        mpfr_set_flt(fp_tmp, f, FPCR.RND);
     }
 }
 
-void load_fpD(uint64_t v) {
+void M68040FpuFull::loadD(uint64_t v) {
     uint16_t exp = v >> 52 & 0x7ff;
     uint64_t frac = v & 0xFFFFFFFFFFFFFLLU;
     // test NAN
     if(exp == 0x7FF && frac) {
-        mpfr_set_nan(cpu.fp_tmp);
-        cpu.fp_tmp_nan = frac << 12;
+        mpfr_set_nan(fp_tmp);
+        fp_tmp_nan = frac << 12;
     } else {
         double d = std::bit_cast<double>(v);
-        mpfr_set_d(cpu.fp_tmp, d, cpu.FPCR.RND);
+        mpfr_set_d(fp_tmp, d, FPCR.RND);
     }
 }
 
-void load_fpX(uint64_t frac, uint16_t exp) {
+void M68040FpuFull::loadX(uint64_t frac, uint16_t exp) {
     bool sign = exp & 0x8000;
     exp &= 0x7fff;
     // consider special number
     if(exp == 0 && frac == 0) {
         // zero
-        mpfr_set_zero(cpu.fp_tmp, sign ? -1 : 1);
+        mpfr_set_zero(fp_tmp, sign ? -1 : 1);
         return;
     } else if(exp == 0x7fff) {
         if(frac == 0) {
             // infinity
-            mpfr_set_inf(cpu.fp_tmp, sign ? -1 : 1);
+            mpfr_set_inf(fp_tmp, sign ? -1 : 1);
         } else {
             // NAN
-            mpfr_set_nan(cpu.fp_tmp);
-            cpu.fp_tmp_nan = frac;
+            mpfr_set_nan(fp_tmp);
+            fp_tmp_nan = frac;
         }
         return;
     }
-    mpfr_set_uj_2exp(cpu.fp_tmp, frac, exp - 16383 - 63, cpu.FPCR.RND);
-    mpfr_setsign(cpu.fp_tmp, cpu.fp_tmp, sign, cpu.FPCR.RND);
+    mpfr_set_uj_2exp(fp_tmp, frac, exp - 16383 - 63, FPCR.RND);
+    mpfr_setsign(fp_tmp, fp_tmp, sign, FPCR.RND);
 }
 
-void load_fpP(uint32_t addr) {
+void M68040FpuFull::loadP(uint32_t addr) {
     uint32_t exp = ReadL(addr);
     bool sm = exp & 0x80000000;
     bool se = exp & 0x40000000;
@@ -213,16 +217,16 @@ void load_fpP(uint32_t addr) {
     if(yy == 3 && exp == 0xfff) {
         if(frac == 0) {
             // infinity
-            mpfr_set_inf(cpu.fp_tmp, sm ? -1 : 1);
+            mpfr_set_inf(fp_tmp, sm ? -1 : 1);
         } else {
             // NAN
-            mpfr_set_nan(cpu.fp_tmp);
-            cpu.fp_tmp_nan = frac;
+            mpfr_set_nan(fp_tmp);
+            fp_tmp_nan = frac;
         }
         return;
     } else if(exp == 0 && frac == 0) {
         // zero
-        mpfr_set_zero(cpu.fp_tmp, sm ? -1.0 : 1.0);
+        mpfr_set_zero(fp_tmp, sm ? -1.0 : 1.0);
         return;
     }
     char s[25];
@@ -238,13 +242,13 @@ void load_fpP(uint32_t addr) {
     s[22] = '0' + (exp >> 4 & 0xF);
     s[23] = '0' + (exp & 0xF);
     s[24] = '\0';
-    cpu.fp_tmp_tv = mpfr_strtofr(cpu.fp_tmp, s, nullptr, 10, cpu.FPCR.RND);
-    cpu.FPSR.INEX1 = (cpu.fp_tmp_tv != 0);
+    fp_tmp_tv = mpfr_strtofr(fp_tmp, s, nullptr, 10, FPCR.RND);
+    FPSR.INEX1 = (fp_tmp_tv != 0);
 }
 
-uint16_t Get_FPCR() {
+uint16_t FPCR_t::value() const noexcept {
     uint16_t v = 0;
-    switch(cpu.FPCR.RND) {
+    switch(RND) {
     case MPFR_RNDN:
         v = 0 << 4;
         break;
@@ -260,7 +264,7 @@ uint16_t Get_FPCR() {
     default:
         __builtin_unreachable();
     }
-    switch(cpu.FPCR.PREC) {
+    switch(PREC) {
     case FPU_PREC::X:
         v |= 0 << 6;
         break;
@@ -273,47 +277,67 @@ uint16_t Get_FPCR() {
     default:
         __builtin_unreachable();
     }
-    return v | cpu.FPCR.INEX1 << 8 | cpu.FPCR.INEX2 << 9 | cpu.FPCR.DZ << 10 |
-           cpu.FPCR.UNFL << 11 | cpu.FPCR.OVFL << 12 | cpu.FPCR.OPERR << 13 |
-           cpu.FPCR.S_NAN << 14 | cpu.FPCR.BSUN << 15;
+    return v | INEX1 << 8 | INEX2 << 9 | DZ << 10 |
+           UNFL << 11 | OVFL << 12 | OPERR << 13 |
+           S_NAN << 14 | BSUN << 15;
 }
 
 static mpfr_rnd_t MPFR_RNDs[] = {MPFR_RNDN, MPFR_RNDZ, MPFR_RNDD, MPFR_RNDU};
 static FPU_PREC MPFR_PRECs[] = {FPU_PREC::X, FPU_PREC::S, FPU_PREC::D,
                                 FPU_PREC::X};
-void Set_FPCR(uint16_t v) {
-    cpu.FPCR.RND = MPFR_RNDs[v >> 4 & 3];
-    cpu.FPCR.PREC = MPFR_PRECs[v >> 6 & 3];
-    cpu.FPCR.INEX1 = v & 1 << 8;
-    cpu.FPCR.INEX2 = v & 1 << 9;
-    cpu.FPCR.DZ = v & 1 << 10;
-    cpu.FPCR.UNFL = v & 1 << 11;
-    cpu.FPCR.OVFL = v & 1 << 12;
-    cpu.FPCR.OPERR = v & 1 << 13;
-    cpu.FPCR.S_NAN = v & 1 << 14;
-    cpu.FPCR.BSUN = v & 1 << 15;
+void FPCR_t::set(uint16_t v) noexcept {
+    RND = MPFR_RNDs[v >> 4 & 3];
+    PREC = MPFR_PRECs[v >> 6 & 3];
+    INEX1 = v & 1 << 8;
+    INEX2 = v & 1 << 9;
+    DZ = v & 1 << 10;
+    UNFL = v & 1 << 11;
+    OVFL = v & 1 << 12;
+    OPERR = v & 1 << 13;
+    S_NAN = v & 1 << 14;
+    BSUN = v & 1 << 15;
 }
-uint32_t Get_FPSR() {
-    return cpu.FPSR.CC_N << 27 | cpu.FPSR.CC_Z << 26 | cpu.FPSR.CC_I << 25 |
-           cpu.FPSR.CC_NAN << 24 | cpu.FPSR.QuatSign << 23 |
-           cpu.FPSR.Quat << 16 | cpu.FPSR.BSUN << 15 | cpu.FPSR.S_NAN << 14 |
-           cpu.FPSR.OPERR << 13 | cpu.FPSR.OVFL << 12 | cpu.FPSR.UNFL << 11 |
-           cpu.FPSR.DZ << 10 | cpu.FPSR.INEX2 << 9 | cpu.FPSR.INEX1 << 8 |
-           cpu.FPSR.EXC_IOP << 7 | cpu.FPSR.EXC_OVFL << 6 |
-           cpu.FPSR.EXC_UNFL << 5 | cpu.FPSR.EXC_DZ << 4 |
-           cpu.FPSR.EXC_INEX << 3;
+uint32_t FPSR_t::value() const noexcept {
+    return CC_N << 27 | CC_Z << 26 | CC_I << 25 |
+           CC_NAN << 24 | QuatSign << 23 | Quat << 16 |
+           BSUN << 15 | S_NAN << 14 | OPERR << 13 |
+           OVFL << 12 | UNFL << 11 | DZ << 10 | INEX2 << 9 |
+           INEX1 << 8 | EXC_IOP << 7 | EXC_OVFL << 6 |
+           EXC_UNFL << 5 | EXC_DZ << 4 | EXC_INEX << 3;
 }
 
-void test_bsun() {
-    if(cpu.FPSR.CC_NAN) {
-        cpu.FPSR.BSUN = true;
-        if(cpu.FPCR.BSUN) {
+void FPSR_t::set(uint32_t v) noexcept {
+    CC_N = v & 1 << 27;
+    CC_Z = v & 1 << 26;
+    CC_I = v & 1 << 25;
+    CC_NAN = v & 1 << 24;
+    QuatSign = v & 1 << 23;
+    Quat = v >> 16 & 0x7f;
+    BSUN = v & 1 << 15;
+    S_NAN = v & 1 << 14;
+    OPERR = v & 1 << 13;
+    OVFL = v & 1 << 12;
+    UNFL = v & 1 << 11;
+    DZ = v & 1 << 10;
+    INEX2 = v & 1 << 9;
+    INEX1 = v & 1 << 8;
+    EXC_IOP = v & 1 << 7;
+    EXC_OVFL = v & 1 << 6;
+    EXC_UNFL = v & 1 << 5;
+    EXC_DZ = v & 1 << 4;
+    EXC_INEX = v & 1 << 3;
+}
+
+void M68040FpuFull::test_bsun() {
+    if(FPSR.CC_NAN) {
+        FPSR.BSUN = true;
+        if(FPCR.BSUN) {
             FP_EX_BSUN();
         }
     }
 }
 
-bool test_Fcc(uint8_t v) {
+bool M68040FpuFull::test_Fcc(uint8_t v) {
     switch(v) {
     // (S)F
     case 0B0000:
@@ -323,107 +347,87 @@ bool test_Fcc(uint8_t v) {
         return true;
     case 0B0001:
         // (S)EQ
-        return cpu.FPSR.CC_Z;
+        return FPSR.CC_Z;
     case 0B1110:
         // (S)NE
-        return !cpu.FPSR.CC_Z;
+        return !FPSR.CC_Z;
     case 0B0010:
         // (O)GT
-        return !(cpu.FPSR.CC_NAN || cpu.FPSR.CC_Z || cpu.FPSR.CC_N);
+        return !(FPSR.CC_NAN || FPSR.CC_Z || FPSR.CC_N);
     case 0B1101:
         // NGT/ULE
-        return (cpu.FPSR.CC_NAN || cpu.FPSR.CC_Z || cpu.FPSR.CC_N);
+        return (FPSR.CC_NAN || FPSR.CC_Z || FPSR.CC_N);
     case 0B0011:
         // (O)GE
-        return (cpu.FPSR.CC_Z || !(cpu.FPSR.CC_NAN || cpu.FPSR.CC_N));
+        return (FPSR.CC_Z || !(FPSR.CC_NAN || FPSR.CC_N));
     case 0B1100:
         // NGE/ULT
-        return (cpu.FPSR.CC_NAN || (cpu.FPSR.CC_N && !cpu.FPSR.CC_Z));
+        return (FPSR.CC_NAN || (FPSR.CC_N && !FPSR.CC_Z));
     case 0B0100:
         // (O)LT
-        return (cpu.FPSR.CC_N && !(cpu.FPSR.CC_NAN || cpu.FPSR.CC_Z));
+        return (FPSR.CC_N && !(FPSR.CC_NAN || FPSR.CC_Z));
     case 0B1011:
         // NLT/UGE
-        return (cpu.FPSR.CC_NAN || (cpu.FPSR.CC_Z && !cpu.FPSR.CC_N));
+        return (FPSR.CC_NAN || (FPSR.CC_Z && !FPSR.CC_N));
     case 0B0101:
         // (O)LE
-        return (cpu.FPSR.CC_Z || (cpu.FPSR.CC_N && !cpu.FPSR.CC_NAN));
+        return (FPSR.CC_Z || (FPSR.CC_N && !FPSR.CC_NAN));
     case 0B1010:
         // NLE/UGT
-        return (cpu.FPSR.CC_NAN || (cpu.FPSR.CC_Z && !cpu.FPSR.CC_N));
+        return (FPSR.CC_NAN || (FPSR.CC_Z && !FPSR.CC_N));
     case 0B0110:
         // O(GL)
-        return !(cpu.FPSR.CC_NAN || cpu.FPSR.CC_Z);
+        return !(FPSR.CC_NAN || FPSR.CC_Z);
     case 0B1001:
         // NGL/UEQ
-        return (cpu.FPSR.CC_NAN || cpu.FPSR.CC_Z);
+        return (FPSR.CC_NAN || FPSR.CC_Z);
     case 0B0111:
         // GLE/OR
-        return !cpu.FPSR.CC_NAN;
+        return !FPSR.CC_NAN;
     case 0B1000:
         // NGL/UN
-        return cpu.FPSR.CC_NAN;
+        return FPSR.CC_NAN;
     }
     return false;
 }
-void Set_FPSR(uint32_t v) {
-    cpu.FPSR.CC_N = v & 1 << 27;
-    cpu.FPSR.CC_Z = v & 1 << 26;
-    cpu.FPSR.CC_I = v & 1 << 25;
-    cpu.FPSR.CC_NAN = v & 1 << 24;
-    cpu.FPSR.QuatSign = v & 1 << 23;
-    cpu.FPSR.Quat = v >> 16 & 0x7f;
-    cpu.FPSR.BSUN = v & 1 << 15;
-    cpu.FPSR.S_NAN = v & 1 << 14;
-    cpu.FPSR.OPERR = v & 1 << 13;
-    cpu.FPSR.OVFL = v & 1 << 12;
-    cpu.FPSR.UNFL = v & 1 << 11;
-    cpu.FPSR.DZ = v & 1 << 10;
-    cpu.FPSR.INEX2 = v & 1 << 9;
-    cpu.FPSR.INEX1 = v & 1 << 8;
-    cpu.FPSR.EXC_IOP = v & 1 << 7;
-    cpu.FPSR.EXC_OVFL = v & 1 << 6;
-    cpu.FPSR.EXC_UNFL = v & 1 << 5;
-    cpu.FPSR.EXC_DZ = v & 1 << 4;
-    cpu.FPSR.EXC_INEX = v & 1 << 3;
-}
 
-std::tuple<uint64_t, uint16_t> store_fpX(int i) {
+std::pair<uint64_t, uint16_t> M68040FpuFull::storeX() {
     normalize_fp(FPU_PREC::X);
-    auto self = cpu.FP[i];
-    if(mpfr_nan_p(self)) {
+    if(mpfr_nan_p(fp_tmp)) {
         // NAN
-        return {cpu.FP_nan[i], static_cast<uint16_t>(0x7FFF)};
+        return {fp_tmp_nan, static_cast<uint16_t>(0x7FFF)};
     }
-    uint16_t e = (!!mpfr_signbit(self)) << 15;
-    if(mpfr_inf_p(cpu.fp_tmp)) {
+    uint16_t e = (!!mpfr_signbit(fp_tmp)) << 15;
+    if(mpfr_inf_p(fp_tmp)) {
         return {0, e | 0x7FFF};
     }
-    if(mpfr_zero_p(cpu.fp_tmp)) {
+    if(mpfr_zero_p(fp_tmp)) {
         return {0, e};
     }
     mpfr_exp_t exp;
-    mpfr_frexp(&exp, cpu.fp_tmp, self, cpu.FPCR.RND);
-    mpfr_abs(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
+    mpfr_frexp(&exp, fp_tmp, fp_tmp, FPCR.RND);
+    mpfr_abs(fp_tmp, fp_tmp, FPCR.RND);
     exp--;
     if(exp > -16383) {
         // normal
-        mpfr_mul_2si(cpu.fp_tmp, cpu.fp_tmp, 64, cpu.FPCR.RND);
-        uint64_t frac = mpfr_get_uj(cpu.fp_tmp, cpu.FPCR.RND);
+        mpfr_mul_2si(fp_tmp, fp_tmp, 64, FPCR.RND);
+        uint64_t frac = mpfr_get_uj(fp_tmp, FPCR.RND);
         return {frac, e | (exp + 16383)};
     } else {
         int sn = -exp - 16383;
-        mpfr_mul_2si(cpu.fp_tmp, cpu.fp_tmp, 64 - sn, cpu.FPCR.RND);
-        uint64_t frac = mpfr_get_uj(cpu.fp_tmp, cpu.FPCR.RND);
+        mpfr_mul_2si(fp_tmp, fp_tmp, 64 - sn, FPCR.RND);
+        uint64_t frac = mpfr_get_uj(fp_tmp, FPCR.RND);
         return {frac, e};
     }
 }
 
-uint32_t fmovem_from_reg_rev(uint32_t base, uint8_t regs) {
+uint32_t M68040FpuFull::fmovem_from_reg_rev(uint32_t base, uint8_t regs) {
     for(int i = 7; i >= 0; --i) {
         if(regs & 1 << i) {
             base -= 12;
-            auto [frac, exp] = store_fpX(i);
+            mpfr_set(fp_tmp, FP[i], MPFR_RNDN);
+            fp_tmp_nan = FP_nan[i];
+            auto [frac, exp] = storeX();
             WriteW(base, exp);
             WriteLL(base + 4, frac);
         }
@@ -431,10 +435,12 @@ uint32_t fmovem_from_reg_rev(uint32_t base, uint8_t regs) {
     return base;
 }
 
-uint32_t fmovem_from_reg(uint32_t base, uint8_t regs) {
+uint32_t M68040FpuFull::fmovem_from_reg(uint32_t base, uint8_t regs) {
     for(int i = 0; i < 8; ++i) {
         if(regs & 1 << (7 - i)) {
-            auto [frac, exp] = store_fpX(i);
+            mpfr_set(fp_tmp, FP[i], MPFR_RNDN);
+            fp_tmp_nan = FP_nan[i];
+            auto [frac, exp] = storeX();
             WriteW(base, exp);
             WriteLL(base + 4, frac);
             base += 12;
@@ -443,25 +449,25 @@ uint32_t fmovem_from_reg(uint32_t base, uint8_t regs) {
     return base;
 }
 
-uint32_t fmovem_to_reg(uint32_t base, uint8_t regs) {
+uint32_t M68040FpuFull::fmovem_to_reg(uint32_t base, uint8_t regs) {
     for(int i = 0; i < 8; ++i) {
         if(regs & 1 << (7 - i)) {
             uint16_t exp = ReadW(base);
             uint64_t frac = loadLL(base + 4);
-            load_fpX(frac, exp);
-            mpfr_swap(cpu.fp_tmp, cpu.FP[i]);
-            std::swap(cpu.fp_tmp_nan, cpu.FP_nan[i]);
+            loadX(frac, exp);
+            mpfr_swap(fp_tmp, FP[i]);
+            std::swap(fp_tmp_nan, FP_nan[i]);
             base += 12;
         }
     }
     return base;
 }
 
-int32_t fpu_storeL() {
-    if(mpfr_get_exp(cpu.fp_tmp) < -1022) {
+int32_t M68040FpuFull::storeL() {
+    if(mpfr_get_exp(fp_tmp) < -1022) {
         mpfr_set_erangeflag();
     }
-    auto v = mpfr_get_sj(cpu.fp_tmp, cpu.FPCR.RND);
+    auto v = mpfr_get_sj(fp_tmp, FPCR.RND);
     if(v > std::numeric_limits<int32_t>::max()) {
         mpfr_set_erangeflag();
         return std::numeric_limits<int32_t>::max();
@@ -473,11 +479,11 @@ int32_t fpu_storeL() {
     }
 }
 
-int16_t fpu_storeW() {
-    if(mpfr_get_exp(cpu.fp_tmp) < -1022) {
+int16_t M68040FpuFull::storeW() {
+    if(mpfr_get_exp(fp_tmp) < -1022) {
         mpfr_set_underflow();
     }
-    auto v = mpfr_get_sj(cpu.fp_tmp, cpu.FPCR.RND);
+    auto v = mpfr_get_sj(fp_tmp, FPCR.RND);
     if(v > std::numeric_limits<int16_t>::max()) {
         mpfr_set_erangeflag();
         return std::numeric_limits<int16_t>::max();
@@ -489,11 +495,11 @@ int16_t fpu_storeW() {
     }
 }
 
-int8_t fpu_storeB() {
-    if(mpfr_get_exp(cpu.fp_tmp) < -1022) {
+int8_t M68040FpuFull::storeB() {
+    if(mpfr_get_exp(fp_tmp) < -1022) {
         mpfr_set_underflow();
     }
-    auto v = mpfr_get_sj(cpu.fp_tmp, cpu.FPCR.RND);
+    auto v = mpfr_get_sj(fp_tmp, FPCR.RND);
     if(v > std::numeric_limits<int8_t>::max()) {
         mpfr_set_erangeflag();
         return std::numeric_limits<int8_t>::max();
@@ -507,27 +513,27 @@ int8_t fpu_storeB() {
 
 void normalize_fp(FPU_PREC p);
 
-uint32_t store_fpS() {
+uint32_t M68040FpuFull::storeS() {
     normalize_fp(FPU_PREC::S);
-    if(mpfr_nan_p(cpu.fp_tmp)) {
+    if(mpfr_nan_p(fp_tmp)) {
         // NAN
-        return 0x7F800000 | (cpu.fp_tmp_nan >> 41);
+        return 0x7F800000 | (fp_tmp_nan >> 41);
     }
-    return std::bit_cast<uint32_t>(mpfr_get_flt(cpu.fp_tmp, cpu.FPCR.RND));
+    return std::bit_cast<uint32_t>(mpfr_get_flt(fp_tmp, FPCR.RND));
 }
 
-uint64_t store_fpD() {
+uint64_t M68040FpuFull::storeD() {
     normalize_fp(FPU_PREC::D);
-    if(mpfr_nan_p(cpu.fp_tmp)) {
+    if(mpfr_nan_p(fp_tmp)) {
         // NAN
-        return 0x7FF0000000000000LLU | (cpu.fp_tmp_nan >> 12);
+        return 0x7FF0000000000000LLU | (fp_tmp_nan >> 12);
     }
-    return std::bit_cast<uint64_t>(mpfr_get_d(cpu.fp_tmp, cpu.FPCR.RND));
+    return std::bit_cast<uint64_t>(mpfr_get_d(fp_tmp, FPCR.RND));
 }
-uint32_t do_frestore_common() {
+static uint32_t do_frestore_common(M68040FpuFull *fpu) {
     uint32_t first = ReadL(cpu.EA);
     if(first >> 24 == 00) {
-        reset_fpu();
+        fpu->reset();
         return 0;
     } else if(first >> 24 != 0x41) {
         FORMAT_ERROR();
@@ -539,32 +545,32 @@ uint32_t do_frestore_common() {
 }
 constexpr double LOG10_2 = .30102999566398119521;
 
-long mpfr_digit10() {
-    mpfr_exp_t e = mpfr_get_exp(cpu.fp_tmp);
+long M68040FpuFull::mpfr_digit10() {
+    mpfr_exp_t e = mpfr_get_exp(fp_tmp);
     if(e <= 0) {
         return 1;
     }
     return e * LOG10_2;
 }
-void store_fpP(uint32_t addr, int k) {
+void M68040FpuFull::store_fpP(uint32_t addr, int k) {
     if(k > 18) {
         mpfr_set_erangeflag();
         k = 17;
     }
     normalize_fp(FPU_PREC::X);
-    if(mpfr_nan_p(cpu.fp_tmp)) {
+    if(mpfr_nan_p(fp_tmp)) {
         // NAN
         WriteL(addr, 0x7FFF0000);
-        WriteLL(addr + 4, cpu.fp_tmp_nan);
+        WriteLL(addr + 4, fp_tmp_nan);
         return;
     }
-    uint32_t e = mpfr_signbit(cpu.fp_tmp) << 31;
-    if(mpfr_inf_p(cpu.fp_tmp)) {
+    uint32_t e = mpfr_signbit(fp_tmp) << 31;
+    if(mpfr_inf_p(fp_tmp)) {
         WriteL(addr, e | 0x7FFF0000);
         WriteLL(addr + 4, 0);
         return;
     }
-    if(mpfr_zero_p(cpu.fp_tmp)) {
+    if(mpfr_zero_p(fp_tmp)) {
         WriteL(addr, e | 0);
         WriteLL(addr + 4, 0);
         return;
@@ -572,7 +578,7 @@ void store_fpP(uint32_t addr, int k) {
     int ln = mpfr_digit10();
     int sn = k <= 0 ? -k + ln : k - 1;
     char buf[96] = {0};
-    mpfr_snprintf(buf, 95, "%+.*R*e", sn, cpu.FPCR.RND, cpu.fp_tmp);
+    mpfr_snprintf(buf, 95, "%+.*R*e", sn, FPCR.RND, fp_tmp);
     uint32_t exp = (buf[1] - '0');
     exp |= (buf[0] == '-') << 31;
     auto ep = strchr(buf, 'e');
@@ -601,132 +607,739 @@ void store_fpP(uint32_t addr, int k) {
     WriteLL(addr + 4, v);
 }
 
-void reset_fpu() {
+void M68040FpuFull::reset() {
     mpfr_set_default_prec(64);
     for(int i = 0; i < 8; ++i) {
-        mpfr_set_nan(cpu.FP[i]);
-        cpu.FP_nan[i] = QNAN_DEFAULT;
+        mpfr_set_nan(FP[i]);
+        FP_nan[i] = QNAN_DEFAULT;
     }
-    mpfr_set_nan(cpu.fp_tmp);
-    cpu.fp_tmp_nan = QNAN_DEFAULT;
+    mpfr_set_nan(fp_tmp);
+    fp_tmp_nan = QNAN_DEFAULT;
 
-    cpu.FPIAR = 0;
-    Set_FPCR(0);
-    Set_FPSR(0);
+    FPIAR = 0;
+	FPCR.set(0);
+    FPSR.set(0);
+}
+namespace M68040_Impl {
+void fpu_prologue(M68040FpuFull *fpu) { fpu->prologue(); }
+void fmovecr_0(M68040FpuFull *fpu, int fpn) {
+    mpfr_const_pi(fpu->fp_tmp, fpu->FPCR.RND);
+    fpu->store_fpr(fpn);
+}
+void fmovecr_B(M68040FpuFull *fpu, int fpn) {
+    mpfr_set_ui(fpu->fp_tmp, 2, fpu->FPCR.RND);
+    mpfr_log10(fpu->fp_tmp, fpu->fp_tmp, fpu->FPCR.RND);
+    fpu->store_fpr(fpn);
+}
+void fmovecr_C(M68040FpuFull *fpu, int fpn) {
+    mpfr_set_ui(fpu->fp_tmp, 1, fpu->FPCR.RND);
+    mpfr_exp(fpu->fp_tmp, fpu->fp_tmp, fpu->FPCR.RND);
+    fpu->store_fpr(fpn);
+}
+void fmovecr_D(M68040FpuFull *fpu, int fpn) {
+    mpfr_set_ui(fpu->fp_tmp, 1, fpu->FPCR.RND);
+    mpfr_exp(fpu->fp_tmp, fpu->fp_tmp, fpu->FPCR.RND);
+    mpfr_log2(fpu->fp_tmp, fpu->fp_tmp, fpu->FPCR.RND);
+    fpu->store_fpr(fpn);
+}
+void fmovecr_E(M68040FpuFull *fpu, int fpn) {
+    mpfr_set_ui(fpu->fp_tmp, 1, fpu->FPCR.RND);
+    mpfr_exp(fpu->fp_tmp, fpu->fp_tmp, fpu->FPCR.RND);
+    mpfr_log10(fpu->fp_tmp, fpu->fp_tmp, fpu->FPCR.RND);
+    fpu->store_fpr(fpn);
+}
+void fmovecr_F(M68040FpuFull *fpu, int fpn) {
+    mpfr_set_zero(fpu->fp_tmp, 1);
+    fpu->store_fpr(fpn);
+}
+void fmovecr_30(M68040FpuFull *fpu, int fpn) {
+    mpfr_const_log2(fpu->fp_tmp, fpu->FPCR.RND);
+    fpu->store_fpr(fpn);
+}
+void fmovecr_31(M68040FpuFull *fpu, int fpn) {
+    mpfr_set_ui(fpu->fp_tmp, 10, fpu->FPCR.RND);
+    mpfr_log(fpu->fp_tmp, fpu->fp_tmp, fpu->FPCR.RND);
+    fpu->store_fpr(fpn);
+}
+void fmovecr_32(M68040FpuFull *fpu, int fpn) {
+    mpfr_ui_pow_ui(fpu->fp_tmp, 10, 0, fpu->FPCR.RND);
+    fpu->store_fpr(fpn);
+}
+void fmovecr_33(M68040FpuFull *fpu, int fpn) {
+    mpfr_ui_pow_ui(fpu->fp_tmp, 10, 1, fpu->FPCR.RND);
+    fpu->store_fpr(fpn);
+}
+void fmovecr_34(M68040FpuFull *fpu, int fpn) {
+    mpfr_ui_pow_ui(fpu->fp_tmp, 10, 2, fpu->FPCR.RND);
+    fpu->store_fpr(fpn);
+}
+void fmovecr_35(M68040FpuFull *fpu, int fpn) {
+    mpfr_ui_pow_ui(fpu->fp_tmp, 10, 4, fpu->FPCR.RND);
+    fpu->store_fpr(fpn);
+}
+void fmovecr_36(M68040FpuFull *fpu, int fpn) {
+    mpfr_ui_pow_ui(fpu->fp_tmp, 10, 8, fpu->FPCR.RND);
+    fpu->store_fpr(fpn);
+}
+void fmovecr_37(M68040FpuFull *fpu, int fpn) {
+    mpfr_ui_pow_ui(fpu->fp_tmp, 10, 16, fpu->FPCR.RND);
+    fpu->store_fpr(fpn);
+}
+void fmovecr_38(M68040FpuFull *fpu, int fpn) {
+    mpfr_ui_pow_ui(fpu->fp_tmp, 10, 32, fpu->FPCR.RND);
+    fpu->store_fpr(fpn);
+}
+void fmovecr_39(M68040FpuFull *fpu, int fpn) {
+    mpfr_ui_pow_ui(fpu->fp_tmp, 10, 64, fpu->FPCR.RND);
+    fpu->store_fpr(fpn);
+}
+void fmovecr_3A(M68040FpuFull *fpu, int fpn) {
+    mpfr_ui_pow_ui(fpu->fp_tmp, 10, 128, fpu->FPCR.RND);
+    fpu->store_fpr(fpn);
+}
+void fmovecr_3B(M68040FpuFull *fpu, int fpn) {
+    mpfr_ui_pow_ui(fpu->fp_tmp, 10, 256, fpu->FPCR.RND);
+    fpu->store_fpr(fpn);
+}
+void fmovecr_3C(M68040FpuFull *fpu, int fpn) {
+    mpfr_ui_pow_ui(fpu->fp_tmp, 10, 512, fpu->FPCR.RND);
+    fpu->store_fpr(fpn);
+}
+void fmovecr_3D(M68040FpuFull *fpu, int fpn) {
+    mpfr_ui_pow_ui(fpu->fp_tmp, 10, 1024, fpu->FPCR.RND);
+    fpu->store_fpr(fpn);
+}
+void fmovecr_3E(M68040FpuFull *fpu, int fpn) {
+    mpfr_ui_pow_ui(fpu->fp_tmp, 10, 2048, fpu->FPCR.RND);
+    fpu->store_fpr(fpn);
+}
+void fmovecr_3F(M68040FpuFull *fpu, int fpn) {
+    mpfr_ui_pow_ui(fpu->fp_tmp, 10, 4096, fpu->FPCR.RND);
+    fpu->store_fpr(fpn);
+}
+void fload_l(M68040FpuFull *fpu, int32_t value) {
+    mpfr_set_si(fpu->fp_tmp, value, fpu->FPCR.RND);
+}
+void fload_s(M68040FpuFull *fpu, uint32_t value) { fpu->loadS(value); }
+void fload_x(M68040FpuFull *fpu) {
+    uint16_t exp = ReadW(cpu.EA);
+    uint64_t frac = loadLL(cpu.EA + 4);
+    fpu->loadX(frac, exp);
+}
+void fload_p(M68040FpuFull *fpu) { fpu->loadP(cpu.EA); }
+void fload_w(M68040FpuFull *fpu, int16_t value) {
+    mpfr_set_si(fpu->fp_tmp, value, fpu->FPCR.RND);
+}
+void fload_d(M68040FpuFull *fpu) {
+    uint64_t frac = loadLL(cpu.EA);
+    fpu->loadD(frac);
+}
+void fload_b(M68040FpuFull *fpu, int8_t value) {
+    mpfr_set_si(fpu->fp_tmp, value, fpu->FPCR.RND);
+}
+void fload_r(M68040FpuFull *fpu, int src) {
+    mpfr_swap(fpu->FP[src], fpu->fp_tmp);
+    std::swap(fpu->FP_nan[src], fpu->fp_tmp_nan);
+}
+void fmove(M68040FpuFull *fpu, int dst) { fpu->store_fpr(dst, FPU_PREC::X); }
+void fint(M68040FpuFull *fpu, int dst) {
+    if(fpu->test_NAN1()) {
+        fpu->fp_tmp_tv = mpfr_rint(fpu->fp_tmp, fpu->fp_tmp, fpu->FPCR.RND);
+    }
+    fpu->store_fpr(dst, FPU_PREC::X);
+}
+void fsinh(M68040FpuFull *fpu, int dst) {
+    if(fpu->test_NAN1()) {
+        fpu->fp_tmp_tv = mpfr_sinh(fpu->fp_tmp, fpu->fp_tmp, fpu->FPCR.RND);
+    }
+    fpu->store_fpr(dst, FPU_PREC::X);
+}
+void fintrz(M68040FpuFull *fpu, int dst) {
+    if(fpu->test_NAN1()) {
+        fpu->fp_tmp_tv = mpfr_trunc(fpu->fp_tmp, fpu->fp_tmp);
+    }
+    fpu->store_fpr(dst, FPU_PREC::X);
+}
+void fsqrt(M68040FpuFull *fpu, int dst) {
+    if(fpu->test_NAN1()) {
+        fpu->fp_tmp_tv = mpfr_sqrt(fpu->fp_tmp, fpu->fp_tmp, fpu->FPCR.RND);
+    }
+    fpu->store_fpr(dst, FPU_PREC::X);
+}
+void flognp1(M68040FpuFull *fpu, int dst) {
+    if(fpu->test_NAN1()) {
+        fpu->fp_tmp_tv = mpfr_log1p(fpu->fp_tmp, fpu->fp_tmp, fpu->FPCR.RND);
+    }
+    fpu->store_fpr(dst, FPU_PREC::X);
+}
+void fetoxm1(M68040FpuFull *fpu, int dst) {
+    if(fpu->test_NAN1()) {
+        fpu->fp_tmp_tv = mpfr_expm1(fpu->fp_tmp, fpu->fp_tmp, fpu->FPCR.RND);
+    }
+    fpu->store_fpr(dst, FPU_PREC::X);
+}
+void ftanh(M68040FpuFull *fpu, int dst) {
+    if(fpu->test_NAN1()) {
+        fpu->fp_tmp_tv = mpfr_tanh(fpu->fp_tmp, fpu->fp_tmp, fpu->FPCR.RND);
+    }
+    fpu->store_fpr(dst, FPU_PREC::X);
+}
+void fatan(M68040FpuFull *fpu, int dst) {
+    if(fpu->test_NAN1()) {
+        fpu->fp_tmp_tv = mpfr_atan(fpu->fp_tmp, fpu->fp_tmp, fpu->FPCR.RND);
+    }
+    fpu->store_fpr(dst, FPU_PREC::X);
+}
+void fasin(M68040FpuFull *fpu, int dst) {
+    if(fpu->test_NAN1()) {
+        fpu->fp_tmp_tv = mpfr_asin(fpu->fp_tmp, fpu->fp_tmp, fpu->FPCR.RND);
+    }
+    fpu->store_fpr(dst, FPU_PREC::X);
+}
+void fatanh(M68040FpuFull *fpu, int dst) {
+    if(fpu->test_NAN1()) {
+        fpu->fp_tmp_tv = mpfr_atanh(fpu->fp_tmp, fpu->fp_tmp, fpu->FPCR.RND);
+    }
+    fpu->store_fpr(dst, FPU_PREC::X);
+}
+void fsin(M68040FpuFull *fpu, int dst) {
+    if(fpu->test_NAN1()) {
+        fpu->fp_tmp_tv = mpfr_sin(fpu->fp_tmp, fpu->fp_tmp, fpu->FPCR.RND);
+    }
+    fpu->store_fpr(dst, FPU_PREC::X);
+}
+void ftan(M68040FpuFull *fpu, int dst) {
+    if(fpu->test_NAN1()) {
+        fpu->fp_tmp_tv = mpfr_tan(fpu->fp_tmp, fpu->fp_tmp, fpu->FPCR.RND);
+    }
+    fpu->store_fpr(dst, FPU_PREC::X);
+}
+void fetox(M68040FpuFull *fpu, int dst) {
+    if(fpu->test_NAN1()) {
+        fpu->fp_tmp_tv = mpfr_exp(fpu->fp_tmp, fpu->fp_tmp, fpu->FPCR.RND);
+    }
+    fpu->store_fpr(dst, FPU_PREC::X);
+}
+void ftwotox(M68040FpuFull *fpu, int dst) {
+    if(fpu->test_NAN1()) {
+        fpu->fp_tmp_tv = mpfr_exp2(fpu->fp_tmp, fpu->fp_tmp, fpu->FPCR.RND);
+    }
+    fpu->store_fpr(dst, FPU_PREC::X);
+}
+void ftentox(M68040FpuFull *fpu, int dst) {
+    if(fpu->test_NAN1()) {
+        fpu->fp_tmp_tv = mpfr_exp10(fpu->fp_tmp, fpu->fp_tmp, fpu->FPCR.RND);
+    }
+    fpu->store_fpr(dst, FPU_PREC::X);
+}
+void flogn(M68040FpuFull *fpu, int dst) {
+    if(fpu->test_NAN1()) {
+        fpu->fp_tmp_tv = mpfr_log(fpu->fp_tmp, fpu->fp_tmp, fpu->FPCR.RND);
+    }
+    fpu->store_fpr(dst, FPU_PREC::X);
+}
+void flog2(M68040FpuFull *fpu, int dst) {
+    if(fpu->test_NAN1()) {
+        fpu->fp_tmp_tv = mpfr_log2(fpu->fp_tmp, fpu->fp_tmp, fpu->FPCR.RND);
+    }
+    fpu->store_fpr(dst, FPU_PREC::X);
+}
+void flog10(M68040FpuFull *fpu, int dst) {
+    if(fpu->test_NAN1()) {
+        fpu->fp_tmp_tv = mpfr_log10(fpu->fp_tmp, fpu->fp_tmp, fpu->FPCR.RND);
+    }
+    fpu->store_fpr(dst, FPU_PREC::X);
+}
+void fabs(M68040FpuFull *fpu, int dst) {
+    if(fpu->test_NAN1()) {
+        fpu->fp_tmp_tv = mpfr_abs(fpu->fp_tmp, fpu->fp_tmp, fpu->FPCR.RND);
+    }
+    fpu->store_fpr(dst, FPU_PREC::X);
+}
+void fcosh(M68040FpuFull *fpu, int dst) {
+    if(fpu->test_NAN1()) {
+        fpu->fp_tmp_tv = mpfr_cosh(fpu->fp_tmp, fpu->fp_tmp, fpu->FPCR.RND);
+    }
+    fpu->store_fpr(dst, FPU_PREC::X);
+}
+void fneg(M68040FpuFull *fpu, int dst) {
+    if(fpu->test_NAN1()) {
+        fpu->fp_tmp_tv = mpfr_neg(fpu->fp_tmp, fpu->fp_tmp, fpu->FPCR.RND);
+    }
+    fpu->store_fpr(dst, FPU_PREC::X);
+}
+void facos(M68040FpuFull *fpu, int dst) {
+    if(fpu->test_NAN1()) {
+        fpu->fp_tmp_tv = mpfr_acos(fpu->fp_tmp, fpu->fp_tmp, fpu->FPCR.RND);
+    }
+    fpu->store_fpr(dst, FPU_PREC::X);
+}
+void fcos(M68040FpuFull *fpu, int dst) {
+    if(fpu->test_NAN1()) {
+        fpu->fp_tmp_tv = mpfr_cos(fpu->fp_tmp, fpu->fp_tmp, fpu->FPCR.RND);
+    }
+    fpu->store_fpr(dst, FPU_PREC::X);
+}
+void fgetexp(M68040FpuFull *fpu, int dst) {
+    if(fpu->test_NAN1()) {
+        if(mpfr_inf_p(fpu->fp_tmp)) {
+            mpfr_set_nan(fpu->fp_tmp);
+            mpfr_set_nanflag();
+            fpu->fp_tmp_nan = QNAN_DEFAULT;
+        } else if(!mpfr_zero_p(fpu->fp_tmp)) {
+            long exp;
+            mpfr_get_d_2exp(&exp, fpu->fp_tmp, fpu->FPCR.RND);
+            // the result of mpfr_get_d_2exp  is
+            // [0.5, 1.0)
+            mpfr_set_si(fpu->fp_tmp, exp - 1, fpu->FPCR.RND);
+        }
+    }
+    fpu->store_fpr(dst, FPU_PREC::X);
+}
+void fgetman(M68040FpuFull *fpu, int dst) {
+    if(fpu->test_NAN1()) {
+        if(mpfr_inf_p(fpu->fp_tmp)) {
+            mpfr_set_nan(fpu->fp_tmp);
+            mpfr_set_nanflag();
+            fpu->fp_tmp_nan = QNAN_DEFAULT;
+        } else {
+            mpfr_exp_t exp;
+            fpu->fp_tmp_tv =
+                mpfr_frexp(&exp, fpu->fp_tmp, fpu->fp_tmp, fpu->FPCR.RND);
+            // the result of mpfr_frexp  is
+            // [0.5, 1.0)
+            mpfr_mul_si(fpu->fp_tmp, fpu->fp_tmp, 2.0, fpu->FPCR.RND);
+        }
+    }
+    fpu->store_fpr(dst, FPU_PREC::X);
+}
+void fdiv(M68040FpuFull *fpu, int dst) {
+    if(fpu->test_NAN2(dst)) {
+        fpu->fp_tmp_tv =
+            mpfr_div(fpu->fp_tmp, fpu->fp_tmp, fpu->FP[dst], fpu->FPCR.RND);
+    }
+    fpu->store_fpr(dst, FPU_PREC::X);
+}
+void fmod(M68040FpuFull *fpu, int dst) {
+    if(fpu->test_NAN2(dst)) {
+        long q;
+        fpu->fp_tmp_tv = mpfr_fmodquo(fpu->fp_tmp, &q, fpu->fp_tmp,
+                                      fpu->FP[dst], fpu->FPCR.RND);
+        fpu->FPSR.Quat = std::abs(q) & 0x7f;
+        fpu->FPSR.QuatSign = q < 0;
+    }
+    fpu->store_fpr(dst, FPU_PREC::X);
 }
 
-void fmovecr(int opc, int fpn) {
+void fadd(M68040FpuFull *fpu, int dst) {
+    if(fpu->test_NAN2(dst)) {
+        fpu->fp_tmp_tv =
+            mpfr_add(fpu->fp_tmp, fpu->fp_tmp, fpu->FP[dst], fpu->FPCR.RND);
+    }
+    fpu->store_fpr(dst, FPU_PREC::X);
+}
+
+void fmul(M68040FpuFull *fpu, int dst) {
+    if(fpu->test_NAN2(dst)) {
+        fpu->fp_tmp_tv =
+            mpfr_mul(fpu->fp_tmp, fpu->fp_tmp, fpu->FP[dst], fpu->FPCR.RND);
+    }
+    fpu->store_fpr(dst, FPU_PREC::X);
+}
+void fsgldiv(M68040FpuFull *fpu, int dst) {
+    if(fpu->test_NAN2(dst)) {
+        mpfr_prec_round(fpu->fp_tmp, 23, fpu->FPCR.RND);
+        mpfr_prec_round(fpu->FP[dst], 23, fpu->FPCR.RND);
+        fpu->fp_tmp_tv =
+            mpfr_div(fpu->fp_tmp, fpu->fp_tmp, fpu->FP[dst], fpu->FPCR.RND);
+    }
+    fpu->store_fpr(dst, FPU_PREC::S);
+}
+
+void frem(M68040FpuFull *fpu, int dst) {
+    if(fpu->test_NAN2(dst)) {
+        long q;
+        fpu->fp_tmp_tv = mpfr_remquo(fpu->fp_tmp, &q, fpu->fp_tmp, fpu->FP[dst],
+                                     fpu->FPCR.RND);
+        fpu->FPSR.Quat = std::abs(q) & 0x7f;
+        fpu->FPSR.QuatSign = q < 0;
+    }
+    fpu->store_fpr(dst, FPU_PREC::X);
+}
+
+void fscale(M68040FpuFull *fpu, int dst) {
+    if(fpu->test_NAN2(dst)) {
+        if(mpfr_inf_p(fpu->fp_tmp)) {
+            mpfr_set_nan(fpu->fp_tmp);
+            fpu->fp_tmp_nan = QNAN_DEFAULT;
+        } else {
+            fpu->fp_tmp_tv = mpfr_mul_2si(
+                fpu->fp_tmp, fpu->FP[dst],
+                mpfr_get_si(fpu->fp_tmp, fpu->FPCR.RND), fpu->FPCR.RND);
+        }
+    }
+    fpu->store_fpr(dst, FPU_PREC::X);
+}
+void fsglmul(M68040FpuFull *fpu, int dst) {
+    if(fpu->test_NAN2(dst)) {
+        mpfr_prec_round(fpu->fp_tmp, 23, fpu->FPCR.RND);
+        mpfr_prec_round(fpu->FP[dst], 23, fpu->FPCR.RND);
+        fpu->fp_tmp_tv =
+            mpfr_mul(fpu->fp_tmp, fpu->fp_tmp, fpu->FP[dst], fpu->FPCR.RND);
+    }
+    fpu->store_fpr(dst, FPU_PREC::S);
+}
+void fsub(M68040FpuFull *fpu, int dst) {
+    if(fpu->test_NAN2(dst)) {
+        fpu->fp_tmp_tv =
+            mpfr_sub(fpu->fp_tmp, fpu->fp_tmp, fpu->FP[dst], fpu->FPCR.RND);
+    }
+    fpu->store_fpr(dst, FPU_PREC::X);
+}
+void fsincos(M68040FpuFull *fpu, int dst, int fp_c) {
+    if(fpu->test_NAN1()) {
+        if(fp_c == dst) {
+            fpu->fp_tmp_tv = mpfr_sin(fpu->fp_tmp, fpu->fp_tmp, fpu->FPCR.RND);
+        } else {
+            fpu->fp_tmp_tv = mpfr_sin_cos(fpu->fp_tmp, fpu->FP[fp_c],
+                                          fpu->fp_tmp, fpu->FPCR.RND);
+        }
+    }
+    fpu->store_fpr(dst, FPU_PREC::X);
+}
+
+void fcmp(M68040FpuFull *fpu, int dst) {
+    if(fpu->test_NAN2(dst)) {
+        fpu->FPSR.CC_Z = mpfr_equal_p(fpu->FP[dst], fpu->fp_tmp);
+        if((mpfr_zero_p(fpu->fp_tmp) && mpfr_zero_p(fpu->FP[dst])) ||
+           (mpfr_inf_p(fpu->fp_tmp) && mpfr_inf_p(fpu->FP[dst]))) {
+            fpu->FPSR.CC_N = mpfr_signbit(fpu->FP[dst]);
+        } else {
+            fpu->FPSR.CC_N = mpfr_less_p(fpu->FP[dst], fpu->fp_tmp);
+        }
+    } else {
+        fpu->FPSR.CC_NAN = true;
+    }
+    fpu->testex();
+}
+
+void ftst(M68040FpuFull *fpu, int) {
+    fpu->FPSR.CC_NAN = mpfr_nan_p(fpu->fp_tmp);
+    fpu->FPSR.CC_I = mpfr_inf_p(fpu->fp_tmp);
+    fpu->FPSR.CC_N = mpfr_signbit(fpu->fp_tmp);
+    fpu->FPSR.CC_Z = mpfr_zero_p(fpu->fp_tmp);
+    fpu->testex();
+}
+
+void fsmove(M68040FpuFull *fpu, int dst) { fpu->store_fpr(dst, FPU_PREC::S); }
+void fssqrt(M68040FpuFull *fpu, int dst) {
+    if(fpu->test_NAN1()) {
+        fpu->fp_tmp_tv = mpfr_sqrt(fpu->fp_tmp, fpu->fp_tmp, fpu->FPCR.RND);
+    }
+    fpu->store_fpr(dst, FPU_PREC::S);
+}
+
+void fdmove(M68040FpuFull *fpu, int dst) { fpu->store_fpr(dst, FPU_PREC::D); }
+void fdsqrt(M68040FpuFull *fpu, int dst) {
+    if(fpu->test_NAN1()) {
+        fpu->fp_tmp_tv = mpfr_sqrt(fpu->fp_tmp, fpu->fp_tmp, fpu->FPCR.RND);
+    }
+    fpu->store_fpr(dst, FPU_PREC::D);
+}
+
+void fsabs(M68040FpuFull *fpu, int dst) {
+    if(fpu->test_NAN1()) {
+        fpu->fp_tmp_tv = mpfr_abs(fpu->fp_tmp, fpu->fp_tmp, fpu->FPCR.RND);
+    }
+    fpu->store_fpr(dst, FPU_PREC::S);
+}
+
+void fsneg(M68040FpuFull *fpu, int dst) {
+    if(fpu->test_NAN1()) {
+        fpu->fp_tmp_tv = mpfr_neg(fpu->fp_tmp, fpu->fp_tmp, fpu->FPCR.RND);
+    }
+    fpu->store_fpr(dst, FPU_PREC::S);
+}
+
+void fdabs(M68040FpuFull *fpu, int dst) {
+    if(fpu->test_NAN1()) {
+        fpu->fp_tmp_tv = mpfr_abs(fpu->fp_tmp, fpu->fp_tmp, fpu->FPCR.RND);
+    }
+    fpu->store_fpr(dst, FPU_PREC::D);
+}
+
+void fdneg(M68040FpuFull *fpu, int dst) {
+    if(fpu->test_NAN1()) {
+        fpu->fp_tmp_tv = mpfr_neg(fpu->fp_tmp, fpu->fp_tmp, fpu->FPCR.RND);
+    }
+    fpu->store_fpr(dst, FPU_PREC::D);
+}
+
+void fsdiv(M68040FpuFull *fpu, int dst) {
+    if(fpu->test_NAN2(dst)) {
+        fpu->fp_tmp_tv =
+            mpfr_div(fpu->fp_tmp, fpu->fp_tmp, fpu->FP[dst], fpu->FPCR.RND);
+    }
+    fpu->store_fpr(dst, FPU_PREC::S);
+}
+
+void fsadd(M68040FpuFull *fpu, int dst) {
+    if(fpu->test_NAN2(dst)) {
+        fpu->fp_tmp_tv =
+            mpfr_add(fpu->fp_tmp, fpu->fp_tmp, fpu->FP[dst], fpu->FPCR.RND);
+    }
+    fpu->store_fpr(dst, FPU_PREC::S);
+}
+
+void fsmul(M68040FpuFull *fpu, int dst) {
+    if(fpu->test_NAN2(dst)) {
+        fpu->fp_tmp_tv =
+            mpfr_mul(fpu->fp_tmp, fpu->fp_tmp, fpu->FP[dst], fpu->FPCR.RND);
+    }
+    fpu->store_fpr(dst, FPU_PREC::S);
+}
+
+void fddiv(M68040FpuFull *fpu, int dst) {
+    if(fpu->test_NAN2(dst)) {
+        fpu->fp_tmp_tv =
+            mpfr_div(fpu->fp_tmp, fpu->fp_tmp, fpu->FP[dst], fpu->FPCR.RND);
+    }
+    fpu->store_fpr(dst, FPU_PREC::D);
+}
+
+void fdadd(M68040FpuFull *fpu, int dst) {
+    if(fpu->test_NAN2(dst)) {
+        fpu->fp_tmp_tv =
+            mpfr_add(fpu->fp_tmp, fpu->fp_tmp, fpu->FP[dst], fpu->FPCR.RND);
+    }
+    fpu->store_fpr(dst, FPU_PREC::D);
+}
+
+void fdmul(M68040FpuFull *fpu, int dst) {
+    if(fpu->test_NAN2(dst)) {
+        fpu->fp_tmp_tv =
+            mpfr_mul(fpu->fp_tmp, fpu->fp_tmp, fpu->FP[dst], fpu->FPCR.RND);
+    }
+    fpu->store_fpr(dst, FPU_PREC::D);
+}
+
+void fssub(M68040FpuFull *fpu, int dst) {
+    if(fpu->test_NAN2(dst)) {
+        fpu->fp_tmp_tv =
+            mpfr_sub(fpu->fp_tmp, fpu->fp_tmp, fpu->FP[dst], fpu->FPCR.RND);
+    }
+    fpu->store_fpr(dst, FPU_PREC::S);
+}
+
+void fdsub(M68040FpuFull *fpu, int dst) {
+    if(fpu->test_NAN2(dst)) {
+        fpu->fp_tmp_tv =
+            mpfr_sub(fpu->fp_tmp, fpu->fp_tmp, fpu->FP[dst], fpu->FPCR.RND);
+    }
+    fpu->store_fpr(dst, FPU_PREC::D);
+}
+void fstore_common(M68040FpuFull *fpu, int fpn) {
+    mpfr_set(fpu->fp_tmp, fpu->FP[fpn], fpu->FPCR.RND);
+    fpu->fp_tmp_nan = fpu->FP_nan[fpn];
+}
+void fstore_l(M68040FpuFull *fpu, int type, int reg) {
+    ea_writeL(type, reg, fpu->storeL());
+    fpu->testex();
+}
+void fstore_s(M68040FpuFull *fpu, int type, int reg) {
+    ea_writeL(type, reg, fpu->storeS());
+    fpu->testex();
+}
+void fstore_x(M68040FpuFull *fpu, int type, int reg) {
+    cpu.EA = ea_getaddr(type, reg, 12);
+    auto [frac, exp] = fpu->storeX();
+    WriteW(cpu.EA, exp);
+    WriteLL(cpu.EA + 4, frac);
+    fpu->testex();
+}
+void fstore_p(M68040FpuFull *fpu, int type, int reg, int k) {
+    cpu.EA = ea_getaddr(type, reg, 12);
+    fpu->store_fpP(cpu.EA, k);
+    fpu->testex();
+}
+void fstore_w(M68040FpuFull *fpu, int type, int reg) {
+    ea_writeW(type, reg, fpu->storeW());
+    fpu->testex();
+}
+void fstore_d(M68040FpuFull *fpu, int type, int reg) {
+    cpu.EA = ea_getaddr(type, reg, 8);
+    WriteLL(cpu.EA, fpu->storeD());
+    fpu->testex();
+}
+void fstore_b(M68040FpuFull *fpu, int type, int reg) {
+    ea_writeB(type, reg, fpu->storeB());
+    fpu->testex();
+}
+void fstore_p2(M68040FpuFull *fpu, int type, int reg, int k) {
+    cpu.EA = ea_getaddr(type, reg, 12);
+    fpu->store_fpP(cpu.EA, static_cast<int8_t>(cpu.D[k]));
+    fpu->testex();
+}
+
+uint32_t get_fpiar(M68040FpuFull *fpu) { return fpu->FPIAR; }
+uint32_t get_fpsr(M68040FpuFull *fpu) { return fpu->FPSR.value(); }
+uint32_t get_fpcr(M68040FpuFull *fpu) { return fpu->FPCR.value(); }
+void set_fpiar(M68040FpuFull *fpu, uint32_t value) { fpu->FPIAR = value; }
+void set_fpsr(M68040FpuFull *fpu, uint32_t value) { fpu->FPSR.set(value); }
+void set_fpcr(M68040FpuFull *fpu, uint32_t value) { fpu->FPCR.set(value); }
+void fsave(int type, int reg) {
+    PRIV_CHECK();
+    // always save idle
+    ea_writeL(type, reg, 0x41000000);
+    TRACE_BRANCH();
+}
+void frestore3(M68040FpuFull *fpu, int reg) {
+    PRIV_CHECK();
+    cpu.EA = cpu.A[reg];
+    auto first = do_frestore_common(fpu);
+    if(!first) {
+        cpu.A[reg] += 4;
+        return;
+    }
+    // only increment reg
+    switch(first >> 16 & 0xff) {
+    case 0x60: // BUSY
+        cpu.A[reg] += 96;
+        break;
+    case 0x30: // UNIMPLEMNET
+        cpu.A[reg] += 48;
+        break;
+    case 0x00: // IDLE
+        cpu.A[reg] += 4;
+        break;
+    default:
+        // unknown frame
+        FORMAT_ERROR();
+    }
+}
+
+void frestore(M68040FpuFull *fpu, int type, int reg) {
+    PRIV_CHECK();
+    cpu.EA = ea_getaddr(type, reg, 0);
+    auto first = do_frestore_common(fpu);
+    if(!first) {
+        return;
+    }
+    // only check format
+    switch(first >> 16 & 0xff) {
+    case 0x60: // BUSY
+    case 0x30: // UNIMPLEMNET
+    case 0x00: // IDLE
+        break;
+    default:
+        // unknown frame
+        FORMAT_ERROR();
+    }
+}
+
+
+} // namespace M68040_Impl
+void M68040FpuFull::fmovecr(int opc, int fpn) {
     switch(opc) {
     case 0:
         // PI
-        mpfr_const_pi(cpu.fp_tmp, cpu.FPCR.RND);
-        break;
+        M68040_Impl::fmovecr_0(this, fpn);
+        return;
     case 0xB:
         // log10_2
-        mpfr_set_ui(cpu.fp_tmp, 2, cpu.FPCR.RND);
-        mpfr_log10(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
+        M68040_Impl::fmovecr_B(this, fpn);
         break;
     case 0xC:
         // e
-        mpfr_set_ui(cpu.fp_tmp, 1, cpu.FPCR.RND);
-        mpfr_exp(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
+        M68040_Impl::fmovecr_C(this, fpn);
         break;
     case 0xD:
         // log2_e
-        mpfr_set_ui(cpu.fp_tmp, 1, cpu.FPCR.RND);
-        mpfr_exp(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
-        mpfr_log2(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
+        M68040_Impl::fmovecr_D(this, fpn);
         break;
     case 0xE:
         // log10_e
-        mpfr_set_ui(cpu.fp_tmp, 1, cpu.FPCR.RND);
-        mpfr_exp(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
-        mpfr_log10(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
+        M68040_Impl::fmovecr_E(this, fpn);
         break;
     case 0x30:
         // log2_e
-        mpfr_const_log2(cpu.fp_tmp, cpu.FPCR.RND);
+        M68040_Impl::fmovecr_30(this, fpn);
         break;
     case 0x31:
         // ln(10)
-        mpfr_set_ui(cpu.fp_tmp, 10, cpu.FPCR.RND);
-        mpfr_log(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
+        M68040_Impl::fmovecr_31(this, fpn);
         break;
     case 0x32:
         // 10^0
-        mpfr_ui_pow_ui(cpu.fp_tmp, 10, 0, cpu.FPCR.RND);
+        M68040_Impl::fmovecr_32(this, fpn);
         break;
     case 0x33:
         // 10^1
-        mpfr_ui_pow_ui(cpu.fp_tmp, 10, 1, cpu.FPCR.RND);
+        M68040_Impl::fmovecr_33(this, fpn);
         break;
     case 0x34:
         // 10^2
-        mpfr_ui_pow_ui(cpu.fp_tmp, 10, 2, cpu.FPCR.RND);
+        M68040_Impl::fmovecr_34(this, fpn);
         break;
-
     case 0x35:
         // 10^4
-        mpfr_ui_pow_ui(cpu.fp_tmp, 10, 4, cpu.FPCR.RND);
+        M68040_Impl::fmovecr_35(this, fpn);
         break;
     case 0x36:
         // 10^8
-        mpfr_ui_pow_ui(cpu.fp_tmp, 10, 8, cpu.FPCR.RND);
+        M68040_Impl::fmovecr_36(this, fpn);
         break;
     case 0x37:
         // 10^16
-        mpfr_ui_pow_ui(cpu.fp_tmp, 10, 16, cpu.FPCR.RND);
+        M68040_Impl::fmovecr_37(this, fpn);
         break;
     case 0x38:
         // 10^32
-        mpfr_ui_pow_ui(cpu.fp_tmp, 10, 32, cpu.FPCR.RND);
+        M68040_Impl::fmovecr_38(this, fpn);
         break;
     case 0x39:
         // 10^64
-        mpfr_ui_pow_ui(cpu.fp_tmp, 10, 64, cpu.FPCR.RND);
+        M68040_Impl::fmovecr_39(this, fpn);
         break;
     case 0x3A:
         // 10^128
-        mpfr_ui_pow_ui(cpu.fp_tmp, 10, 128, cpu.FPCR.RND);
+        M68040_Impl::fmovecr_3A(this, fpn);
         break;
     case 0x3B:
         // 10^256
-        mpfr_ui_pow_ui(cpu.fp_tmp, 10, 256, cpu.FPCR.RND);
+        M68040_Impl::fmovecr_3B(this, fpn);
         break;
     case 0x3C:
         // 10^512
-        mpfr_ui_pow_ui(cpu.fp_tmp, 10, 512, cpu.FPCR.RND);
+        M68040_Impl::fmovecr_3C(this, fpn);
         break;
     case 0x3D:
         // 10^1024
-        mpfr_ui_pow_ui(cpu.fp_tmp, 10, 1024, cpu.FPCR.RND);
+        M68040_Impl::fmovecr_3D(this, fpn);
         break;
     case 0x3E:
         // 10^2048
-        mpfr_ui_pow_ui(cpu.fp_tmp, 10, 2048, cpu.FPCR.RND);
+        M68040_Impl::fmovecr_3E(this, fpn);
         break;
     case 0x3F:
         // 10^4096
-        mpfr_ui_pow_ui(cpu.fp_tmp, 10, 4096, cpu.FPCR.RND);
+        M68040_Impl::fmovecr_3F(this, fpn);
         break;
     case 0x0F:
     default:
-        mpfr_set_zero(cpu.fp_tmp, 1);
+        M68040_Impl::fmovecr_F(this, fpn);
         break;
     }
-    store_fpr(fpn);
 }
-enum class FP_SIZE { LONG, SINGLE, EXT, PACKED, WORD, DOUBLE, BYTE, PACKED2 };
 
-void loadFP(int type, int reg, bool rm, int src) {
+void M68040FpuFull::loadFP(int type, int reg, bool rm, int src) {
     if(rm) {
         switch(FP_SIZE(src)) {
         case FP_SIZE::LONG:
-            mpfr_set_si(cpu.fp_tmp, static_cast<int32_t>(ea_readL(type, reg)),
-                        cpu.FPCR.RND);
+            M68040_Impl::fload_l(this, ea_readL(type, reg));
             break;
         case FP_SIZE::SINGLE:
-            load_fpS(ea_readL(type, reg));
+            M68040_Impl::fload_s(this, ea_readL(type, reg));
             break;
         case FP_SIZE::EXT: {
             if(type == 7 && reg == 4) {
@@ -736,9 +1349,7 @@ void loadFP(int type, int reg, bool rm, int src) {
             } else {
                 cpu.EA = ea_getaddr(type, reg, 12);
             }
-            uint16_t exp = ReadW(cpu.EA);
-            uint64_t frac = loadLL(cpu.EA + 4);
-            load_fpX(frac, exp);
+            M68040_Impl::fload_x(this);
             break;
         }
         case FP_SIZE::PACKED:
@@ -749,11 +1360,10 @@ void loadFP(int type, int reg, bool rm, int src) {
             } else {
                 cpu.EA = ea_getaddr(type, reg, 12);
             }
-            load_fpP(cpu.EA);
+            M68040_Impl::fload_p(this);
             break;
         case FP_SIZE::WORD:
-            mpfr_set_si(cpu.fp_tmp, static_cast<int16_t>(ea_readW(type, reg)),
-                        cpu.FPCR.RND);
+            M68040_Impl::fload_w(this, ea_readW(type, reg));
             break;
         case FP_SIZE::DOUBLE: {
             if(type == 7 && reg == 4) {
@@ -763,277 +1373,126 @@ void loadFP(int type, int reg, bool rm, int src) {
             } else {
                 cpu.EA = ea_getaddr(type, reg, 8);
             }
-            uint64_t frac = loadLL(cpu.EA);
-            load_fpD(frac);
+            M68040_Impl::fload_d(this);
             break;
         }
         case FP_SIZE::BYTE:
-            mpfr_set_si(cpu.fp_tmp, static_cast<int8_t>(ea_readB(type, reg)),
-                        cpu.FPCR.RND);
+            M68040_Impl::fload_b(this, ea_readB(type, reg));
             break;
         case FP_SIZE::PACKED2:
             __builtin_unreachable();
         }
     } else {
-        mpfr_swap(cpu.FP[src], cpu.fp_tmp);
-        std::swap(cpu.FP_nan[src], cpu.fp_tmp_nan);
+        M68040_Impl::fload_r(this, src);
     }
 }
-namespace OP {
-void fop_do(int opc, int dst) {
-    FPU_PREC prec = FPU_PREC::X;
+void M68040FpuFull::fop_do(int opc, int dst) {
+    auto fpu = FPU_P();
     switch(opc) {
     case 0: // FMOVE
+        M68040_Impl::fmove(fpu, dst);
         break;
     case 1: // FINT
-        if(test_NAN1()) {
-            cpu.fp_tmp_tv = mpfr_rint(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
-        }
+        M68040_Impl::fint(fpu, dst);
         break;
     case 2: // FSINH
-        if(test_NAN1()) {
-            cpu.fp_tmp_tv = mpfr_sinh(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
-        }
+        M68040_Impl::fsinh(fpu, dst);
         break;
     case 3: // FINTRZ
-        if(test_NAN1()) {
-            cpu.fp_tmp_tv = mpfr_trunc(cpu.fp_tmp, cpu.fp_tmp);
-        }
+        M68040_Impl::fintrz(fpu, dst);
         break;
-    case 4:
-        // FSQRT
-        if(test_NAN1()) {
-            cpu.fp_tmp_tv = mpfr_sqrt(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
-        }
+    case 4: // FSQRT
+        M68040_Impl::fsqrt(fpu, dst);
         break;
-    case 6:
-        // FLOGNP1
-        if(test_NAN1()) {
-            cpu.fp_tmp_tv = mpfr_log1p(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
-        }
+    case 6: // FLOGNP1
+        M68040_Impl::flognp1(fpu, dst);
         break;
-    case 8:
-        // FETOXM1
-        if(test_NAN1()) {
-            cpu.fp_tmp_tv = mpfr_expm1(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
-        }
+    case 8: // FETOXM1
+        M68040_Impl::fetoxm1(fpu, dst);
         break;
-    case 9:
-        // FTANH
-        if(test_NAN1()) {
-            cpu.fp_tmp_tv = mpfr_tanh(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
-        }
+    case 9: // FTANH
+        M68040_Impl::ftanh(fpu, dst);
         break;
-    case 10:
-        // FATAN
-        if(test_NAN1()) {
-            cpu.fp_tmp_tv = mpfr_atan(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
-        }
+    case 10: // FATAN
+        M68040_Impl::fatan(fpu, dst);
         break;
-    case 12:
-        // FASIN
-        if(test_NAN1()) {
-            cpu.fp_tmp_tv = mpfr_asin(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
-        }
+    case 12: // FASIN
+        M68040_Impl::fasin(fpu, dst);
         break;
-    case 13:
-        // FATANH
-        if(test_NAN1()) {
-            cpu.fp_tmp_tv = mpfr_atanh(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
-        }
+    case 13: // FATANH
+        M68040_Impl::fatanh(fpu, dst);
         break;
-    case 14:
-        // FSIN
-        if(test_NAN1()) {
-            cpu.fp_tmp_tv = mpfr_sin(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
-        }
+    case 14: // FSIN
+        M68040_Impl::fsin(fpu, dst);
         break;
-    case 15:
-        // FTAN
-        if(test_NAN1()) {
-            cpu.fp_tmp_tv = mpfr_tan(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
-        }
+    case 15: // FTAN
+        M68040_Impl::ftan(fpu, dst);
         break;
-    case 16:
-        // FETOX
-        if(test_NAN1()) {
-            cpu.fp_tmp_tv = mpfr_exp(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
-        }
+    case 16: // FETOX
+        M68040_Impl::fetox(fpu, dst);
         break;
-    case 17:
-        // FTWOTOX
-        if(test_NAN1()) {
-            cpu.fp_tmp_tv = mpfr_exp2(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
-        }
+    case 17: // FTWOTOX
+        M68040_Impl::ftwotox(fpu, dst);
         break;
-    case 18:
-        // FTENTOX
-        if(test_NAN1()) {
-            cpu.fp_tmp_tv = mpfr_exp10(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
-        }
+    case 18: // FTENTOX
+        M68040_Impl::ftentox(fpu, dst);
         break;
-    case 20:
-        // FLOGN
-        if(test_NAN1()) {
-            cpu.fp_tmp_tv = mpfr_log(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
-        }
+    case 20: // FLOGN
+        M68040_Impl::flogn(fpu, dst);
         break;
-    case 21:
-        // FLOG10
-        if(test_NAN1()) {
-            cpu.fp_tmp_tv = mpfr_log10(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
-        }
+    case 21: // FLOG10
+        M68040_Impl::flog10(fpu, dst);
         break;
-    case 22:
-        // FLOG2
-        if(test_NAN1()) {
-            cpu.fp_tmp_tv = mpfr_log2(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
-        }
+    case 22: // FLOG2
+        M68040_Impl::flog2(fpu, dst);
         break;
-    case 24:
-        // FABS
-        if(test_NAN1()) {
-            cpu.fp_tmp_tv = mpfr_abs(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
-        }
+    case 24: // FABS
+        M68040_Impl::fabs(fpu, dst);
         break;
-    case 25:
-        // FCOSH
-        if(test_NAN1()) {
-            cpu.fp_tmp_tv = mpfr_cosh(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
-        }
+    case 25: // FCOSH
+        M68040_Impl::fcosh(fpu, dst);
         break;
-    case 26:
-        // FNEG
-        if(test_NAN1()) {
-            cpu.fp_tmp_tv = mpfr_neg(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
-        }
+    case 26: // FNEG
+        M68040_Impl::fneg(fpu, dst);
         break;
-    case 28:
-        // FACOS
-        if(test_NAN1()) {
-            cpu.fp_tmp_tv = mpfr_acos(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
-        }
+    case 28: // FACOS
+        M68040_Impl::facos(fpu, dst);
         break;
-    case 29:
-        // FCOS
-        if(test_NAN1()) {
-            cpu.fp_tmp_tv = mpfr_cos(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
-        }
+    case 29: // FCOS
+        M68040_Impl::fcos(fpu, dst);
         break;
-    case 30:
-        // FGETEXP
-        if(test_NAN1()) {
-            if(mpfr_inf_p(cpu.fp_tmp)) {
-                mpfr_set_nan(cpu.fp_tmp);
-                mpfr_set_nanflag();
-                cpu.fp_tmp_nan = QNAN_DEFAULT;
-            } else if(!mpfr_zero_p(cpu.fp_tmp)) {
-                long exp;
-                mpfr_get_d_2exp(&exp, cpu.fp_tmp, cpu.FPCR.RND);
-                // the result of mpfr_get_d_2exp  is
-                // [0.5, 1.0)
-                mpfr_set_si(cpu.fp_tmp, exp - 1, cpu.FPCR.RND);
-            }
-        }
+    case 30: // FGETEXP
+        M68040_Impl::fgetexp(fpu, dst);
         break;
-    case 31:
-        // FGETMAN
-        if(test_NAN1()) {
-            if(mpfr_inf_p(cpu.fp_tmp)) {
-                mpfr_set_nan(cpu.fp_tmp);
-                mpfr_set_nanflag();
-                cpu.fp_tmp_nan = QNAN_DEFAULT;
-            } else {
-                mpfr_exp_t exp;
-                cpu.fp_tmp_tv =
-                    mpfr_frexp(&exp, cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
-                // the result of mpfr_frexp  is
-                // [0.5, 1.0)
-                mpfr_mul_si(cpu.fp_tmp, cpu.fp_tmp, 2.0, cpu.FPCR.RND);
-            }
-        }
+    case 31: // FGETMAN
+        M68040_Impl::fgetman(fpu, dst);
         break;
-    case 32:
-        // FDIV
-        if(test_NAN2(dst)) {
-            cpu.fp_tmp_tv =
-                mpfr_div(cpu.fp_tmp, cpu.fp_tmp, cpu.FP[dst], cpu.FPCR.RND);
-        }
+    case 32: // FDIV
+        M68040_Impl::fdiv(fpu, dst);
         break;
-    case 33:
-        // FMOD
-        if(test_NAN2(dst)) {
-            long q;
-            cpu.fp_tmp_tv = mpfr_fmodquo(cpu.fp_tmp, &q, cpu.fp_tmp,
-                                         cpu.FP[dst], cpu.FPCR.RND);
-            cpu.FPSR.Quat = std::abs(q) & 0x7f;
-            cpu.FPSR.QuatSign = q < 0;
-        }
+    case 33: // FMOD
+        M68040_Impl::fmod(fpu, dst);
         break;
-    case 34:
-        // FADD
-        if(test_NAN2(dst)) {
-            cpu.fp_tmp_tv =
-                mpfr_add(cpu.fp_tmp, cpu.fp_tmp, cpu.FP[dst], cpu.FPCR.RND);
-        }
+    case 34: // FADD
+        M68040_Impl::fadd(fpu, dst);
         break;
-    case 35:
-        // FMUL
-        if(test_NAN2(dst)) {
-            cpu.fp_tmp_tv =
-                mpfr_mul(cpu.fp_tmp, cpu.fp_tmp, cpu.FP[dst], cpu.FPCR.RND);
-        }
+    case 35: // FMUL
+        M68040_Impl::fmul(fpu, dst);
         break;
-    case 36:
-        // FSGLDIV
-        if(test_NAN2(dst)) {
-            mpfr_prec_round(cpu.fp_tmp, 23, cpu.FPCR.RND);
-            mpfr_prec_round(cpu.FP[dst], 23, cpu.FPCR.RND);
-            cpu.fp_tmp_tv =
-                mpfr_div(cpu.fp_tmp, cpu.fp_tmp, cpu.FP[dst], cpu.FPCR.RND);
-        }
-        prec = FPU_PREC::S;
+    case 36: // FSGLDIV
+        M68040_Impl::fsgldiv(fpu, dst);
         break;
-    case 37:
-        // FREM
-        if(test_NAN2(dst)) {
-            long q;
-
-            cpu.fp_tmp_tv = mpfr_remquo(cpu.fp_tmp, &q, cpu.fp_tmp, cpu.FP[dst],
-                                        cpu.FPCR.RND);
-            cpu.FPSR.Quat = std::abs(q) & 0x7f;
-            cpu.FPSR.QuatSign = q < 0;
-        }
+    case 37: // FREM
+        M68040_Impl::frem(fpu, dst);
         break;
-    case 38:
-        // FSCALE
-        if(test_NAN2(dst)) {
-            if(mpfr_inf_p(cpu.fp_tmp)) {
-                mpfr_set_nan(cpu.fp_tmp);
-                cpu.fp_tmp_nan = QNAN_DEFAULT;
-            } else {
-                cpu.fp_tmp_tv = mpfr_mul_2si(
-                    cpu.fp_tmp, cpu.FP[dst],
-                    mpfr_get_si(cpu.fp_tmp, cpu.FPCR.RND), cpu.FPCR.RND);
-            }
-        }
+    case 38: // FSCALE
+        M68040_Impl::fscale(fpu, dst);
         break;
-    case 39:
-        // FSGLMUL
-        if(test_NAN2(dst)) {
-            mpfr_prec_round(cpu.fp_tmp, 23, cpu.FPCR.RND);
-            mpfr_prec_round(cpu.FP[dst], 23, cpu.FPCR.RND);
-            cpu.fp_tmp_tv =
-                mpfr_mul(cpu.fp_tmp, cpu.fp_tmp, cpu.FP[dst], cpu.FPCR.RND);
-        }
-        prec = FPU_PREC::S;
+    case 39: // FSGLMUL
+        M68040_Impl::fsglmul(fpu, dst);
         break;
-    case 40:
-        // FSUB
-        if(test_NAN2(dst)) {
-            cpu.fp_tmp_tv =
-                mpfr_sub(cpu.fp_tmp, cpu.fp_tmp, cpu.FP[dst], cpu.FPCR.RND);
-        }
+    case 40: // FSUB
+        M68040_Impl::fsub(fpu, dst);
         break;
     case 48:
     case 49:
@@ -1045,228 +1504,125 @@ void fop_do(int opc, int dst) {
     case 55: {
         // FSINCOS
         int fp_c = opc & 7;
-        if(test_NAN1()) {
-            if(fp_c == dst) {
-                cpu.fp_tmp_tv = mpfr_sin(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
-            } else {
-                cpu.fp_tmp_tv = mpfr_sin_cos(cpu.fp_tmp, cpu.FP[fp_c],
-                                             cpu.fp_tmp, cpu.FPCR.RND);
-            }
-        }
+        M68040_Impl::fsincos(fpu, dst, fp_c);
         break;
     }
-    case 56:
-        // FCMP
-        if(test_NAN2(dst)) {
-            cpu.FPSR.CC_Z = mpfr_equal_p(cpu.FP[dst], cpu.fp_tmp);
-            if((mpfr_zero_p(cpu.fp_tmp) && mpfr_zero_p(cpu.FP[dst])) ||
-               (mpfr_inf_p(cpu.fp_tmp) && mpfr_inf_p(cpu.FP[dst]))) {
-                cpu.FPSR.CC_N = mpfr_signbit(cpu.FP[dst]);
-            } else {
-                cpu.FPSR.CC_N = mpfr_less_p(cpu.FP[dst], cpu.fp_tmp);
-            }
-        } else {
-            cpu.FPSR.CC_NAN = true;
-        }
-        fpu_testex();
-        return;
-    case 58:
-        // FTST
-        cpu.FPSR.CC_NAN = mpfr_nan_p(cpu.fp_tmp);
-        cpu.FPSR.CC_I = mpfr_inf_p(cpu.fp_tmp);
-        cpu.FPSR.CC_N = mpfr_signbit(cpu.fp_tmp);
-        cpu.FPSR.CC_Z = mpfr_zero_p(cpu.fp_tmp);
-        fpu_testex();
-        return;
-    case 64:
-        // FSMOVE
-        prec = FPU_PREC::S;
+    case 56: // FCMP
+        M68040_Impl::fcmp(fpu, dst);
         break;
-    case 65:
-        // FSSQRT
-        if(test_NAN1()) {
-            cpu.fp_tmp_tv = mpfr_sqrt(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
-        }
-        prec = FPU_PREC::S;
+    case 58: // FTST
+        M68040_Impl::ftst(fpu, dst);
         break;
-    case 68:
-        // FDMOVE
-        prec = FPU_PREC::D;
+    case 64: // FSMOVE
+        M68040_Impl::fsmove(fpu, dst);
         break;
-    case 69:
-        // FDSQRT
-        if(test_NAN1()) {
-            cpu.fp_tmp_tv = mpfr_sqrt(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
-        }
-        prec = FPU_PREC::D;
+    case 65: // FSSQRT
+        M68040_Impl::fssqrt(fpu, dst);
         break;
-    case 88:
-        // FSABS
-        if(test_NAN1()) {
-            cpu.fp_tmp_tv = mpfr_abs(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
-        }
-        prec = FPU_PREC::S;
+    case 68: // FDMOVE
+        M68040_Impl::fdmove(fpu, dst);
         break;
-    case 90:
-        // FSNEG
-        if(test_NAN1()) {
-            cpu.fp_tmp_tv = mpfr_neg(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
-        }
-        prec = FPU_PREC::S;
+    case 69: // FDSQRT
+        M68040_Impl::fdsqrt(fpu, dst);
         break;
-    case 92:
-        // FDABS
-        if(test_NAN1()) {
-            cpu.fp_tmp_tv = mpfr_abs(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
-        }
-        prec = FPU_PREC::D;
+    case 88: // FSABS
+        M68040_Impl::fsabs(fpu, dst);
         break;
-    case 94:
-        // FDNEG
-        if(test_NAN1()) {
-            cpu.fp_tmp_tv = mpfr_neg(cpu.fp_tmp, cpu.fp_tmp, cpu.FPCR.RND);
-        }
-        prec = FPU_PREC::D;
+    case 90: // FSNEG
+        M68040_Impl::fsneg(fpu, dst);
         break;
-    case 96:
-        // FSDIV
-        if(test_NAN2(dst)) {
-            cpu.fp_tmp_tv =
-                mpfr_div(cpu.fp_tmp, cpu.fp_tmp, cpu.FP[dst], cpu.FPCR.RND);
-        }
-        prec = FPU_PREC::S;
+    case 92: // FDABS
+        M68040_Impl::fdabs(fpu, dst);
         break;
-    case 98:
-        // FSADD
-        if(test_NAN2(dst)) {
-            cpu.fp_tmp_tv =
-                mpfr_add(cpu.fp_tmp, cpu.fp_tmp, cpu.FP[dst], cpu.FPCR.RND);
-        }
-        prec = FPU_PREC::S;
+    case 94: // FDNEG
+        M68040_Impl::fdneg(fpu, dst);
         break;
-    case 99:
-        // FSMUL
-        if(test_NAN2(dst)) {
-            cpu.fp_tmp_tv =
-                mpfr_mul(cpu.fp_tmp, cpu.fp_tmp, cpu.FP[dst], cpu.FPCR.RND);
-        }
-        prec = FPU_PREC::S;
+    case 96: // FSDIV
+        M68040_Impl::fsdiv(fpu, dst);
         break;
-    case 100:
-        // FDDIV
-        if(test_NAN2(dst)) {
-            cpu.fp_tmp_tv =
-                mpfr_div(cpu.fp_tmp, cpu.fp_tmp, cpu.FP[dst], cpu.FPCR.RND);
-        }
-        prec = FPU_PREC::D;
+    case 98: // FSADD
+        M68040_Impl::fsadd(fpu, dst);
         break;
-    case 102:
-        // FDADD
-        if(test_NAN2(dst)) {
-            cpu.fp_tmp_tv =
-                mpfr_add(cpu.fp_tmp, cpu.fp_tmp, cpu.FP[dst], cpu.FPCR.RND);
-        }
-        prec = FPU_PREC::D;
+    case 99: // FSMUL
+        M68040_Impl::fsmul(fpu, dst);
         break;
-    case 103:
-        // FDMUL
-        if(test_NAN2(dst)) {
-            cpu.fp_tmp_tv =
-                mpfr_mul(cpu.fp_tmp, cpu.fp_tmp, cpu.FP[dst], cpu.FPCR.RND);
-        }
-        prec = FPU_PREC::D;
+    case 100: // FDDIV
+        M68040_Impl::fddiv(fpu, dst);
         break;
-
-    case 104:
-        // FSSUB
-        if(test_NAN2(dst)) {
-            cpu.fp_tmp_tv =
-                mpfr_sub(cpu.fp_tmp, cpu.fp_tmp, cpu.FP[dst], cpu.FPCR.RND);
-        }
-        prec = FPU_PREC::S;
+    case 102: // FDADD
+        M68040_Impl::fdadd(fpu, dst);
         break;
-    case 108:
-        // FDSUB
-        if(test_NAN2(dst)) {
-
-            cpu.fp_tmp_tv =
-                mpfr_sub(cpu.fp_tmp, cpu.fp_tmp, cpu.FP[dst], cpu.FPCR.RND);
-        }
-        prec = FPU_PREC::D;
+    case 103: // FDMUL
+        M68040_Impl::fdmul(fpu, dst);
+        break;
+    case 104: // FSSUB
+        M68040_Impl::fssub(fpu, dst);
+        break;
+    case 108: // FDSUB
+        M68040_Impl::fdsub(fpu, dst);
         break;
     default:
         FLINE();
     }
-    store_fpr(dst, prec);
 }
-void fpu_store(int t, int type, int reg, int fpn, int k) {
-    mpfr_set(cpu.fp_tmp, cpu.FP[fpn], cpu.FPCR.RND);
-    cpu.fp_tmp_nan = cpu.FP_nan[fpn];
-
+void M68040FpuFull::fpu_store(int t, int type, int reg, int fpn, int k) {
+    auto fpu = FPU_P();
+    M68040_Impl::fstore_common(fpu, fpn);
     switch(FP_SIZE{t}) {
     case FP_SIZE::LONG:
-        ea_writeL(type, reg, fpu_storeL());
+        M68040_Impl::fstore_l(fpu, type, reg);
         break;
     case FP_SIZE::SINGLE:
-        ea_writeL(type, reg, store_fpS());
+        M68040_Impl::fstore_s(fpu, type, reg);
         break;
-    case FP_SIZE::EXT: {
-        cpu.EA = ea_getaddr(type, reg, 12);
-        auto [frac, exp] = store_fpX(fpn);
-        WriteW(cpu.EA, exp);
-        WriteLL(cpu.EA + 4, frac);
+    case FP_SIZE::EXT:
+        M68040_Impl::fstore_x(fpu, type, reg);
         break;
-    }
-    case FP_SIZE::PACKED: {
-        cpu.EA = ea_getaddr(type, reg, 12);
-        store_fpP(cpu.EA, static_cast<int8_t>(k << 1) >> 1);
+    case FP_SIZE::PACKED:
+        M68040_Impl::fstore_p(fpu, type, reg, static_cast<int8_t>(k << 1) >> 1);
         break;
-    }
     case FP_SIZE::WORD:
-        ea_writeW(type, reg, fpu_storeW());
+        M68040_Impl::fstore_w(fpu, type, reg);
         break;
     case FP_SIZE::DOUBLE:
-        cpu.EA = ea_getaddr(type, reg, 8);
-        WriteLL(cpu.EA, store_fpD());
+        M68040_Impl::fstore_d(fpu, type, reg);
         break;
     case FP_SIZE::BYTE:
-        ea_writeB(type, reg, fpu_storeB());
+        M68040_Impl::fstore_b(fpu, type, reg);
         break;
     case FP_SIZE::PACKED2:
-        cpu.EA = ea_getaddr(type, reg, 12);
-        store_fpP(cpu.EA, static_cast<int8_t>(cpu.D[k >> 4]));
+        M68040_Impl::fstore_p2(fpu, type, reg, k >> 4);
         break;
     default:
         __builtin_unreachable();
     }
-    fpu_testex();
 }
 
-void fmove_to_fpcc(int type, int reg, unsigned int regs) {
+void M68040FpuFull::fmove_to_fpcc(int type, int reg, unsigned int regs) {
     switch(regs) {
     case 0: // NONE
         break;
     case 1: // IR
-        cpu.FPIAR = ea_readL(type, reg);
+        M68040_Impl::set_fpiar(this, ea_readL(type, reg));
         break;
     case 2: // FPSR
-        Set_FPSR(ea_readL(type, reg));
+        M68040_Impl::set_fpsr(this, ea_readL(type, reg));
         break;
     case 4: // FPCR
-        Set_FPCR(ea_readL(type, reg));
+        M68040_Impl::set_fpcr(this, ea_readL(type, reg));
         break;
     default: {
         uint32_t v = cpu.EA = ea_getaddr(type, reg, 4 * std::popcount(regs));
         if(regs & 4) {
-            Set_FPCR(ReadL(v));
+            M68040_Impl::set_fpcr(this, ReadL(v));
             v += 4;
         }
         if(regs & 2) {
-            Set_FPSR(ReadL(v));
+            M68040_Impl::set_fpsr(this, ReadL(v));
             v += 4;
         }
         if(regs & 1) {
-            cpu.FPIAR = ReadL(v);
+            M68040_Impl::set_fpiar(this, ReadL(v));
         }
         break;
     }
@@ -1274,40 +1630,42 @@ void fmove_to_fpcc(int type, int reg, unsigned int regs) {
     TRACE_BRANCH();
 }
 
-void fmove_from_fpcc(int type, int reg, unsigned int regs) {
+void M68040FpuFull::fmove_from_fpcc(int type, int reg, unsigned int regs) {
     switch(regs) {
     case 0: // NONE
         break;
     case 1: // IR
-        ea_writeL(type, reg, cpu.FPIAR);
+        ea_writeL(type, reg, M68040_Impl::get_fpiar(this));
         break;
     case 2: // FPSR
-        ea_writeL(type, reg, Get_FPSR());
+        ea_writeL(type, reg, M68040_Impl::get_fpsr(this));
         break;
     case 4: // FPCR
-        ea_writeL(type, reg, Get_FPCR());
+        ea_writeL(type, reg, M68040_Impl::get_fpcr(this));
         break;
     default: {
         uint32_t v = cpu.EA = ea_getaddr(type, reg, 4 * std::popcount(regs));
         if(regs & 4) {
-            WriteL(v, Get_FPCR());
+            WriteL(v, M68040_Impl::get_fpcr(this));
             v += 4;
         }
         if(regs & 2) {
-            WriteL(v, Get_FPSR());
+            WriteL(v, M68040_Impl::get_fpsr(this));
             v += 4;
         }
         if(regs & 1) {
-            WriteL(v, cpu.FPIAR);
+            WriteL(v, M68040_Impl::get_fpiar(this));
         }
         break;
     }
     }
     TRACE_BRANCH();
 }
+namespace OP {
 
 void fop(uint16_t op) {
-    fpu_prologue();
+    auto fpu = static_cast<M68040FpuFull &>(*cpu.fpu);
+    fpu.prologue();
     uint16_t extw = FETCH();
     bool rm = extw & 1 << 14;
     unsigned int src = extw >> 10 & 7;
@@ -1317,31 +1675,31 @@ void fop(uint16_t op) {
         if(!(extw & 1 << 13)) {
             if(rm && src == 7) {
                 // FMOVECR
-                fmovecr(opc, dst);
+                fpu.fmovecr(opc, dst);
                 return;
             }
-            loadFP(TYPE(op), REG(op), rm, src);
-            fop_do(opc, dst);
+            fpu.loadFP(TYPE(op), REG(op), rm, src);
+            fpu.fop_do(opc, dst);
         } else {
             // FMOVE to ea
-            fpu_store(src, TYPE(op), REG(op), dst, opc);
+            fpu.fpu_store(src, TYPE(op), REG(op), dst, opc);
         }
     } else {
         switch(extw >> 13 & 3) {
         case 0:
             // FMOVE(M) to FPcc
-            fmove_to_fpcc(TYPE(op), REG(op), src);
+            fpu.fmove_to_fpcc(TYPE(op), REG(op), src);
             break;
         case 1:
-            fmove_from_fpcc(TYPE(op), REG(op), src);
+            fpu.fmove_from_fpcc(TYPE(op), REG(op), src);
             break;
         case 2: {
             uint8_t reglist =
                 extw & 1 << 11 ? cpu.D[extw >> 4 & 7] : extw & 0xff;
             if(TYPE(op) == 3) {
-                cpu.A[REG(op)] = fmovem_to_reg(cpu.A[REG(op)], reglist);
+                cpu.A[REG(op)] = fpu.fmovem_to_reg(cpu.A[REG(op)], reglist);
             } else {
-                fmovem_to_reg(ea_getaddr(TYPE(op), REG(op), 0), reglist);
+                fpu.fmovem_to_reg(ea_getaddr(TYPE(op), REG(op), 0), reglist);
             }
             TRACE_BRANCH();
             break;
@@ -1350,9 +1708,10 @@ void fop(uint16_t op) {
             uint8_t reglist =
                 extw & 1 << 11 ? cpu.D[extw >> 4 & 7] : extw & 0xff;
             if(!(extw & 1 << 12) && TYPE(op) == 4) {
-                cpu.A[REG(op)] = fmovem_from_reg_rev(cpu.A[REG(op)], reglist);
+                cpu.A[REG(op)] =
+                    fpu.fmovem_from_reg_rev(cpu.A[REG(op)], reglist);
             } else {
-                fmovem_from_reg(ea_getaddr(TYPE(op), REG(op), 0), reglist);
+                fpu.fmovem_from_reg(ea_getaddr(TYPE(op), REG(op), 0), reglist);
             }
             TRACE_BRANCH();
         }
@@ -1362,17 +1721,17 @@ void fop(uint16_t op) {
 void fscc(uint16_t op) {
     uint16_t extw = FETCH();
     if(extw & 1 << 4) {
-        test_bsun();
+        FPU_P()->test_bsun();
     }
-    ea_writeB(TYPE(op), REG(op), test_Fcc(extw & 0xf) ? 0xff : 0);
+    ea_writeB(TYPE(op), REG(op), FPU_P()->test_Fcc(extw & 0xf) ? 0xff : 0);
 }
 void fdbcc(uint16_t op) {
     uint16_t extw = FETCH();
     int16_t offset = FETCH();
     if(extw & 1 << 4) {
-        test_bsun();
+        FPU_P()->test_bsun();
     }
-    if(!test_Fcc(extw & 0xf)) {
+    if(!FPU_P()->test_Fcc(extw & 0xf)) {
         int16_t v2 = cpu.D[REG(op)];
         STORE_W(cpu.D[REG(op)], --v2);
         if(v2 != -1) {
@@ -1390,9 +1749,9 @@ void ftrapcc(uint16_t op) {
         FETCH32();
     }
     if(extw & 1 << 4) {
-        test_bsun();
+        FPU_P()->test_bsun();
     }
-    if(test_Fcc(extw & 0xf)) {
+    if(FPU_P()->test_Fcc(extw & 0xf)) {
         TRAPX_ERROR();
     }
 }
@@ -1401,9 +1760,9 @@ void fbcc_w(uint16_t op) {
     int c = op & 077;
     int16_t offset = FETCH();
     if(c & 1 << 4) {
-        test_bsun();
+        FPU_P()->test_bsun();
     }
-    if(test_Fcc(c & 0xf)) {
+    if(FPU_P()->test_Fcc(c & 0xf)) {
         JUMP(cpu.oldpc + 2 + offset);
         TRACE_BRANCH();
     }
@@ -1413,67 +1772,39 @@ void fbcc_l(uint16_t op) {
     int c = op & 077;
     int32_t offset = FETCH32();
     if(c & 1 << 4) {
-        test_bsun();
+        FPU_P()->test_bsun();
     }
-    if(test_Fcc(c & 0xf)) {
+    if(FPU_P()->test_Fcc(c & 0xf)) {
         JUMP(cpu.oldpc + 2 + offset);
         TRACE_BRANCH();
     }
 }
 
-void fsave(uint16_t op) {
-    PRIV_CHECK();
-    // always save idle
-    ea_writeL(TYPE(op), REG(op), 0x41000000);
-    TRACE_BRANCH();
-}
+void fsave(uint16_t op) { M68040_Impl::fsave(TYPE(op), REG(op)); }
 
 void frestore(uint16_t op) {
-    PRIV_CHECK();
     if(TYPE(op) == 3) {
-        cpu.EA = cpu.A[REG(op)];
-        auto first = do_frestore_common();
-        if(!first) {
-            cpu.A[REG(op)] += 4;
-            return;
-        }
-        // only increment reg
-        switch(first >> 16 & 0xff) {
-        case 0x60: // BUSY
-            cpu.A[REG(op)] += 96;
-            break;
-        case 0x30: // UNIMPLEMNET
-            cpu.A[REG(op)] += 48;
-            break;
-        case 0x00: // IDLE
-            cpu.A[REG(op)] += 4;
-            break;
-        default:
-            // unknown frame
-            FORMAT_ERROR();
-        }
+        M68040_Impl::frestore3(FPU_P(), REG(op));
     } else {
-        cpu.EA = ea_getaddr(TYPE(op), REG(op), 0);
-        auto first = do_frestore_common();
-        if(!first) {
-            return;
-        }
-        // only check format
-        switch(first >> 16 & 0xff) {
-        case 0x60: // BUSY
-        case 0x30: // UNIMPLEMNET
-        case 0x00: // IDLE
-            break;
-        default:
-            // unknown frame
-            FORMAT_ERROR();
-        }
+        M68040_Impl::frestore(FPU_P(), TYPE(op), REG(op));
     }
 }
 } // namespace OP
 extern run_t run_table[0x10000];
-
-void init_run_table_fpu() {
+std::string M68040FpuFull::dumpReg() {
+    std::string s;
+    for(int i = 0; i < 8; ++i) {
+        mpfr_set(fp_tmp, FP[i], MPFR_RNDN);
+        fp_tmp_nan = FP_nan[i];
+        auto [f, e] = storeX();
+        s += std::format("{:04x}0000{:016x}", e, f);
+    }
+    s += std::format("{:08x}", FPCR.value());
+    s += std::format("{:08x}", FPSR.value());
+    s += std::format("{:08x}", FPIAR);
+    return s;
+}
+void M68040FpuFull::init_table() {
     for(int i = 0; i < 074; ++i) {
         run_table[0171000 | i] = OP::fop;
         run_table[0171100 | i] = OP::fscc;

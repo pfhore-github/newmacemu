@@ -12,10 +12,10 @@
 #include <vector>
 namespace bdata = boost::unit_test::data;
 struct PrepareASCForChipTest : Prepare {
-    PrepareASCForChipTest() { asc->isEASC = false; }
+    PrepareASCForChipTest() { asc->isEASC = false; asc->reset(); }
 };
 struct PrepareEASCForChipTest : Prepare {
-    PrepareEASCForChipTest() { asc->isEASC = true; }
+    PrepareEASCForChipTest() { asc->isEASC = true; asc->reset(); }
 };
 BOOST_FIXTURE_TEST_SUITE(asc_, PrepareASCForChipTest)
 BOOST_AUTO_TEST_CASE(version) { BOOST_TEST(asc->read(0x800) == 0); }
@@ -37,10 +37,10 @@ static void load_table(int n) {
             p = (i - 256) / 128.0;
             break;
         }
-        asc->write(i, p * 127.0);
-        asc->write(i + 0x200, p * 127.0);
-        asc->write(i + 0x400, p * 127.0);
-        asc->write(i + 0x600, p * 127.0);
+        asc->write(i, fabs(p) * 255.0);
+        asc->write(i + 0x200, fabs(p) * 255.0);
+        asc->write(i + 0x400, fabs(p) * 255.0);
+        asc->write(i + 0x600, fabs(p) * 255.0);
     }
 }
 BOOST_DATA_TEST_CASE(incr, bdata::xrange(4), p) {
@@ -211,8 +211,8 @@ static void load(int n) {
             p = 2 * (t - .5);
             break;
         }
-        asc->write(0, p * 64.0);
-        asc->write(0x400, p * 64.0);
+        asc->write(0, fabs(p) * 255.0);
+        asc->write(0x400, fabs(p) * 255.0);
     }
 }
 BOOST_AUTO_TEST_CASE(version) { BOOST_TEST(asc->read(0x800) == 0xB0); }

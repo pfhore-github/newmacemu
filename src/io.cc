@@ -17,7 +17,7 @@
 #include "memory.hpp"
 #include <optional>
 
-extern std::shared_ptr<ASC> asc;
+extern std::unique_ptr<ASC> asc;
 uint8_t *pds = nullptr;
 
 uint8_t GLUE::readB(uint32_t addr) {
@@ -522,7 +522,7 @@ void asc_reset();
 void scc_reset();
 void initBus() {
     // chips initilize
-    asc = std::make_shared<ASC>();
+    asc = std::make_unique<ASC>();
     via1 = std::make_shared<VIA1>();
     via2 = std::make_shared<VIA2>();
     io = std::make_unique<MCU_Q900>();

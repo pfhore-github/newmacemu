@@ -19,16 +19,14 @@ BOOST_FIXTURE_TEST_SUITE(FSAVE, Prepare, *boost::unit_test::fixture<F_FSAVE>())
 BOOST_AUTO_TEST_CASE(err) {
     cpu.S = false;
     cpu.A[2] = 0x100;
-    run_test(0);
-    BOOST_TEST(ex_n == EXCEPTION_NUMBER::PRIV_ERR);
+    run_test(0, EXCEPTION_NUMBER::PRIV_ERR);
 }
 
 BOOST_AUTO_TEST_CASE(traced) {
     cpu.S = true;
     cpu.T = 1;
     cpu.A[2] = 0x1000;
-    run_test(0);
-    BOOST_TEST(ex_n == EXCEPTION_NUMBER::TRACE);
+    run_test(0, EXCEPTION_NUMBER::TRACE);
 }
 BOOST_AUTO_TEST_CASE(normal) {
     cpu.S = true;

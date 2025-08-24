@@ -69,68 +69,65 @@ BOOST_AUTO_TEST_SUITE(DC)
 BOOST_DATA_TEST_CASE(Page, privPtn, p) {
     cpu.S = p.s;
     cpu.T = p.t;
-	run_test(0);
-    BOOST_TEST(ex_n == p.e);
+	run_test(0, p.e);
 }
 
 BOOST_DATA_TEST_CASE(Line, privPtn, p) {
     cpu.S = p.s;
     cpu.T = p.t;
-	run_test(4);
-    BOOST_TEST(ex_n == p.e);
+	run_test(4, p.e);
 }
 
 BOOST_DATA_TEST_CASE(ALL, privPtn, p) {
     cpu.S = p.s;
     cpu.T = p.t;
-	run_test(8);
-    BOOST_TEST(ex_n == p.e);
+	run_test(8, p.e);
 }
 BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE(IC)
 BOOST_DATA_TEST_CASE(Page, privPtn, p) {
+	F_CINV f;
     cpu.S = p.s;
     cpu.T = p.t;
-	run_test(12);
-    BOOST_TEST(ex_n == p.e);
+	run_test(12, p.e);
 }
 
 BOOST_DATA_TEST_CASE(Line, privPtn, p) {
+	F_CINV f;
     cpu.S = p.s;
     cpu.T = p.t;
-	run_test(16);
-    BOOST_TEST(ex_n == p.e);
+	run_test(16, p.e);
 }
 
 BOOST_DATA_TEST_CASE(ALL, privPtn, p) {
+	F_CINV f;
     cpu.S = p.s;
     cpu.T = p.t;
-	run_test(20);
-    BOOST_TEST(ex_n == p.e);
+	run_test(20, p.e);
 }
 
 
 BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE(BC)
 BOOST_DATA_TEST_CASE(Page, privPtn, p) {
+	F_CINV f;
     cpu.S = p.s;
     cpu.T = p.t;
-	run_test(24);
-    BOOST_TEST(ex_n == p.e);
+	run_test(24, p.e);
 }
 
 BOOST_DATA_TEST_CASE(Line, privPtn, p) {
+	F_CINV f;
     cpu.S = p.s;
     cpu.T = p.t;
-	run_test(28);
-    BOOST_TEST(ex_n == p.e);
+	run_test(28, p.e);
 }
 
 BOOST_DATA_TEST_CASE(ALL, privPtn, p) {
+	F_CINV f;
     cpu.S = p.s;
     cpu.T = p.t;
-	run_test(32);
-    BOOST_TEST(ex_n == p.e);
+	run_test(32, p.e);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

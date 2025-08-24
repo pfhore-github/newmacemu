@@ -21,6 +21,7 @@ const mpfr_rnd_t RND_MODES[4] = {MPFR_RNDN, MPFR_RNDZ, MPFR_RNDU, MPFR_RNDD};
 void initBus();
 void init_fpu();
 void jit_init();
+extern EXCEPTION_NUMBER ex_n;
 volatile bool testing;
 /* TEST MEM TABLE
     (pysical)
@@ -57,7 +58,9 @@ volatile bool testing;
     0x9000-0x9FFF: I-STACK
 */
 Prepare::Prepare() {
-    reset_fpu();
+    if( cpu.fpu ) {
+        cpu.fpu->reset();
+    }
     for(int i = 0; i < 8; ++i) {
         cpu.D[i] = cpu.A[i] = 0;
     }
@@ -130,27 +133,26 @@ BOOST_TEST_GLOBAL_FIXTURE(MyGlobalFixture);
 void run_op();
 
 void do_poweroff() { quick_exit(0); }
-#ifdef TEST_JIT
-extern std::unordered_map<uint32_t, std::shared_ptr<jit_cache>> jit_tables;
-#endif
-void run_test(uint32_t pc) {
+void jit_run(uint32_t pc, int block);
+void run_test(uint32_t pc, EXCEPTION_NUMBER ex) {
     cpu.PC = pc;
     testing = true;
-    if(setjmp(ex_buf) == 0) {
+    try {
         while(testing) {
 #ifndef TEST_JIT
+            cpu.inJit = false;
             run_op();
 #else
-            auto e = jit_tables[cpu.PC].get();
-            if(e) {
-                (*e->exec)((cpu.PC - e->begin) >> 1);
-            } else {
-                run_op();
-            }
+            jit_run(cpu.PC, 0);
 #endif
         }
-    } else {
-        cpu.bus_lock = false;
-        handle_exception(ex_n);
+        BOOST_TEST(ex == EXCEPTION_NUMBER::NO_ERR);
+    } catch(M68kException &e) {
+        if(ex == EXCEPTION_NUMBER::NO_ERR) {
+            ex_n = e.ex_n;
+            cpu.bus_lock = false;
+        } else {
+            BOOST_TEST(ex == e.ex_n);
+        }
     }
 }

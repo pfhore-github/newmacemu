@@ -4,6 +4,7 @@
 #include "memory.hpp"
 #include "mpfr.h"
 #include "jit.hpp"
+#include "68040fpu.hpp"
 #include <deque>
 #include <functional>
 #include <stdint.h>
@@ -17,8 +18,8 @@ struct Prepare {
     Prepare();
 };
 namespace TEST {
-inline void SET_FP(int n, double v) { mpfr_set_d(cpu.FP[n], v, MPFR_RNDN); }
-inline double GET_FP(int n) { return mpfr_get_d(cpu.FP[n], MPFR_RNDN); }
+inline void SET_FP(int n, double v) { mpfr_set_d(FPU_P()->FP[n], v, MPFR_RNDN); }
+inline double GET_FP(int n) { return mpfr_get_d(FPU_P()->FP[n], MPFR_RNDN); }
 
 inline uint16_t GET_W(uint32_t addr) { return readBE16(RAM + addr); }
 inline uint32_t GET_L(uint32_t addr) {return readBE32(RAM + addr); }
@@ -28,7 +29,7 @@ inline void SET_L(uint32_t addr, uint32_t v) { writeBE32(RAM+ addr, v); }
 extern const double sg_v[2];
 extern const mpfr_rnd_t RND_MODES[4];
 
-void run_test(uint32_t pc);
+void run_test(uint32_t pc, EXCEPTION_NUMBER ex = EXCEPTION_NUMBER::NO_ERR);
 
 void qnan_test(uint32_t pc);
 void snan_test(uint32_t pc);

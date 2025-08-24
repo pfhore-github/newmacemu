@@ -2,8 +2,8 @@
 #include "SDL3/SDL.h"
 #include "SDL3/SDL_thread.h"
 #include "exception.hpp"
-#include "memory.hpp"
 #include "inline.hpp"
+#include "memory.hpp"
 #include <errno.h>
 #include <fcntl.h>
 #include <memory>
@@ -24,8 +24,24 @@ void video_update();
 void keydown(const SDL_KeyboardEvent *e);
 void keyup(const SDL_KeyboardEvent *e);
 void init_emu();
-void update_event() {}
-
+void update_event() {
+    SDL_Event e;
+    while(SDL_PollEvent(&e)) {
+        switch(e.type) {
+        case SDL_EVENT_KEY_DOWN:
+            keydown(&e.key);
+            break;
+        case SDL_EVENT_KEY_UP:
+            keyup(&e.key);
+            break;
+        case SDL_EVENT_QUIT:
+            quick_exit(0);
+        }
+    }
+}
+void trace();
+void run_lua();
+void init_lua();
 int main(int argc, char **argv) {
     init_emu();
     RESET();
@@ -37,29 +53,24 @@ int main(int argc, char **argv) {
             // debug
             debug_activate();
             quick_exit(0);
+        } else if(strcmp(argv[i], "-t") == 0) {
+            // trace
+            trace();
+            quick_exit(0);
+        } else if(strcmp(argv[i], "-l") == 0) {
+            init_lua();
+            run_lua();
+            quick_exit(0);
         }
     }
-    std::thread th{ run_cpu };
+    std::thread th{run_cpu};
     th.detach();
-    SDL_Event e;
     for(;;) {
         if(cpu.inturrupt.load()) {
-            cpu.sleeping.store(false);
-            cpu.sleeping.notify_one();
+            cpu.run.resume();
         }
         video_update();
-        while(SDL_PollEvent(&e)) {
-            switch(e.type) {
-            case SDL_EVENT_KEY_DOWN:
-                keydown(&e.key);
-                break;
-            case SDL_EVENT_KEY_UP:
-                keyup(&e.key);
-                break;
-            case SDL_EVENT_QUIT:
-                quick_exit(0);
-            }
-        }
+        update_event();
     }
     return 0;
 }

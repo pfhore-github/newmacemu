@@ -54,13 +54,11 @@ BOOST_FIXTURE_TEST_SUITE(BRA, Prepare, *boost::unit_test::fixture<F_BRA>())
 
 BOOST_AUTO_TEST_CASE(traced) {
     cpu.T = 1;
-    run_test(0);
-    BOOST_TEST(ex_n == EXCEPTION_NUMBER::TRACE);
+    run_test(0, EXCEPTION_NUMBER::TRACE);
 }
 
 BOOST_AUTO_TEST_CASE(addressError) {
-    run_test(4);
-    BOOST_TEST(ex_n == EXCEPTION_NUMBER::ADDR_ERR);
+    run_test(4, EXCEPTION_NUMBER::ADDR_ERR);
 }
 
 BOOST_AUTO_TEST_CASE(offset1) {

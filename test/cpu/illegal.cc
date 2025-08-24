@@ -17,7 +17,6 @@ BOOST_FIXTURE_TEST_SUITE(ILLEGAL, Prepare, *boost::unit_test::fixture<F_ILLEGAL>
 
 
 BOOST_AUTO_TEST_CASE(execute) {
-	run_test(0);	
-    BOOST_CHECK(ex_n == EXCEPTION_NUMBER::ILLEGAL_OP);
+	run_test(0, EXCEPTION_NUMBER::ILLEGAL_OP);	
 }
 BOOST_AUTO_TEST_SUITE_END()

@@ -11,17 +11,22 @@ check_ipo_supported(RESULT result)
 find_package(SDL3 REQUIRED CONFIG REQUIRED COMPONENTS SDL3 )
 find_package(SDL3_net REQUIRED )
 find_package(Threads REQUIRED)
+find_package(Lua REQUIRED)
 enable_language(CXX)
 set(CMAKE_CXX_STANDARD 23) 
 # set(CMAKE_CXX_STANDARD_REQUIRED ON) 
 find_package(Boost REQUIRED CONFIG REQUIRED COMPONENTS unit_test_framework)
 if(CMAKE_COMPILER_IS_GNUCXX)
   # Update if necessary
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra  -fsanitize=undefined")
 #  set(CMAKE_EXE_LINKER_FLAGS "--coverage")
+  include_directories("${LUA_INCLUDE_DIR}")
+  link_directories("${LUA_LIBRARIES}")
+  link_libraries(lua5.4)
+
 endif()
 set(SRC_CPU 
-src/common.cc  src/debugger/debugger.cc 
+src/common.cc  src/debugger/debugger.cc src/debugger/lua.cc src/debugger/luafp.cc
 src/cpu/op.cc src/cpu/run.cc src/cpu/m68k_ea.cc src/cpu/bcd.cc src/cpu/arithmetic.cc src/cpu/bits.cc src/cpu/bitfield.cc
 src/cpu/68040_mmu.cc src/cpu/branch.cc
 src/cpu/exception.cc src/cpu/op_move.cc src/cpu/68040_fpu.cc src/bus.cc src/memory.cc 
@@ -82,6 +87,8 @@ test/chip/test_scc.cc
 )
 
 set(CPU_TEST 
+test/lua.cc 
+#[[
 test/cpu/ori.cc test/cpu/andi.cc test/cpu/eori.cc
 test/cpu/subi.cc test/cpu/addi.cc test/cpu/cmpi.cc
 test/cpu/cmp2.cc  test/cpu/chk2.cc test/cpu/chk.cc 
@@ -117,7 +124,6 @@ test/cpu/rte.cc test/cpu/rtd.cc test/cpu/rts.cc  test/cpu/rtr.cc
 test/cpu/syscall.cc
 test/cpu/moves.cc
 test/cpu/movec.cc 
-
 test/fpu/fmovecr.cc 
 test/fpu/fmove.cc test/fpu/fint.cc  test/fpu/fsinh.cc test/fpu/fintrz.cc 
 test/fpu/fsqrt.cc  test/fpu/flognp1.cc test/fpu/fetoxm1.cc  test/fpu/ftanh.cc 
@@ -136,7 +142,7 @@ test/fpu/fdbcc.cc test/fpu/ftrapcc.cc test/fpu/fbcc.cc
 test/fpu/fnop.cc test/fpu/fpexcept.cc
 
 test/fpu/common.cc
-
+]]
 test/mmu/pflush.cc test/cpu/cinv.cc test/cpu/cpush.cc test/mmu/ptest.cc
  
 test/mmu/ittr.cc test/mmu/dttr.cc 

@@ -33,7 +33,7 @@ void do_dbcc(bool cond, int reg, int16_t d) {
 }
 
 void do_rtr() {
-    SetCCR(POP16());
+    SetCCR(cpu, POP16());
     JUMP(POP32());
     TRACE_BRANCH();
 }

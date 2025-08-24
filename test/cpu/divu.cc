@@ -64,8 +64,7 @@ BOOST_AUTO_TEST_CASE(V) {
 BOOST_AUTO_TEST_CASE(Div0) {
     cpu.D[3] = 1;
     cpu.D[2] = 0;
-    run_test(0);
-    BOOST_TEST(ex_n == EXCEPTION_NUMBER::DIV0);
+    run_test(0, EXCEPTION_NUMBER::DIV0);
 }
 
 BOOST_AUTO_TEST_SUITE_END()
@@ -106,8 +105,7 @@ BOOST_AUTO_TEST_CASE(Z) {
 BOOST_AUTO_TEST_CASE(Div0) {
     cpu.D[3] = 1;
     cpu.D[2] = 0;
-	run_test(10);
-	BOOST_TEST(ex_n == EXCEPTION_NUMBER::DIV0 );
+	run_test(10, EXCEPTION_NUMBER::DIV0);
 }
 
 BOOST_AUTO_TEST_SUITE_END()
@@ -149,9 +147,7 @@ BOOST_AUTO_TEST_CASE(Div0) {
     cpu.D[4] = 0;
     cpu.D[3] = 0x10000;
     cpu.D[2] = 0;
-    run_test(16);
-	BOOST_TEST(ex_n == EXCEPTION_NUMBER::DIV0 );
-
+    run_test(16, EXCEPTION_NUMBER::DIV0);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

@@ -40,16 +40,14 @@ BOOST_FIXTURE_TEST_SUITE(PFLUSHx, Prepare,
 
 BOOST_AUTO_TEST_SUITE(PFLUSHN)
 BOOST_AUTO_TEST_CASE(err) {
-    run_test(0);
-    BOOST_TEST(ex_n == EXCEPTION_NUMBER::PRIV_ERR);
+    run_test(0, EXCEPTION_NUMBER::PRIV_ERR);
 }
 BOOST_AUTO_TEST_CASE(traced) {
     cpu.S = true;
     cpu.T = 1;
     cpu.DFC = 2;
     cpu.A[3] = 0x1 << 12;
-    run_test(0);
-    BOOST_TEST(ex_n == EXCEPTION_NUMBER::TRACE);
+    run_test(0, EXCEPTION_NUMBER::TRACE);
 }
 
 BOOST_DATA_TEST_CASE(user, bdata::xrange(2), g) {
@@ -92,8 +90,7 @@ BOOST_DATA_TEST_CASE(sys, bdata::xrange(2), g) {
 BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE(PFLUSH)
 BOOST_AUTO_TEST_CASE(err) {
-    run_test(4);
-    BOOST_TEST(ex_n == EXCEPTION_NUMBER::PRIV_ERR);
+    run_test(4, EXCEPTION_NUMBER::PRIV_ERR);
 }
 
 BOOST_AUTO_TEST_CASE(traced) {
@@ -101,8 +98,7 @@ BOOST_AUTO_TEST_CASE(traced) {
     cpu.S = true;
     cpu.DFC = 2;
     cpu.A[3] = 0x1 << 12;
-    run_test(4);
-    BOOST_TEST(ex_n == EXCEPTION_NUMBER::TRACE);
+    run_test(4, EXCEPTION_NUMBER::TRACE);
 }
 
 BOOST_DATA_TEST_CASE(user, bdata::xrange(2), g) {
@@ -146,16 +142,14 @@ BOOST_DATA_TEST_CASE(sys, bdata::xrange(2), g) {
 BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE(PFLUSHAN)
 BOOST_AUTO_TEST_CASE(err) {
-    run_test(8);
-    BOOST_TEST(ex_n == EXCEPTION_NUMBER::PRIV_ERR);
+    run_test(8, EXCEPTION_NUMBER::PRIV_ERR);
 }
 
 BOOST_AUTO_TEST_CASE(traced) {
     cpu.S = true;
     cpu.T = 1;
     cpu.DFC = 2;
-    run_test(8);
-    BOOST_TEST(ex_n == EXCEPTION_NUMBER::TRACE);
+    run_test(8, EXCEPTION_NUMBER::TRACE);
 }
 
 BOOST_DATA_TEST_CASE(user, bdata::xrange(2), g) {
@@ -197,16 +191,14 @@ BOOST_DATA_TEST_CASE(sys, bdata::xrange(2), g) {
 BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE(PFLUSHA)
 BOOST_AUTO_TEST_CASE(err) {
-    run_test(12);
-    BOOST_TEST(ex_n == EXCEPTION_NUMBER::PRIV_ERR);
+    run_test(12, EXCEPTION_NUMBER::PRIV_ERR);
 }
 
 BOOST_AUTO_TEST_CASE(traced) {
     cpu.S = true;
     cpu.T = 1;
     cpu.DFC = 2;
-    run_test(12);
-    BOOST_TEST(ex_n == EXCEPTION_NUMBER::TRACE);
+    run_test(12, EXCEPTION_NUMBER::TRACE);
 }
 
 BOOST_DATA_TEST_CASE(user, bdata::xrange(2), g) {

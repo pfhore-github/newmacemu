@@ -18,7 +18,6 @@ BOOST_FIXTURE_TEST_SUITE(SYSCALL, Prepare,
                          *boost::unit_test::fixture<F_SYSCALL>())
 
 BOOST_AUTO_TEST_CASE(execute) {
-    run_test(0);
-    BOOST_TEST(ex_n == EXCEPTION_NUMBER::ALINE);
+    run_test(0, EXCEPTION_NUMBER::ALINE);
 }
 BOOST_AUTO_TEST_SUITE_END()

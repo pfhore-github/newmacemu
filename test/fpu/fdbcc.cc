@@ -29,8 +29,7 @@ BOOST_FIXTURE_TEST_SUITE(FDBcc, Prepare, *boost::unit_test::fixture<F_FDBcc>())
 BOOST_AUTO_TEST_CASE(Trace) {
     cpu.D[1] = 3;
     cpu.T = 1;
-    run_test(2);
-    BOOST_TEST(ex_n == EXCEPTION_NUMBER::TRACE);
+    run_test(2, EXCEPTION_NUMBER::TRACE);
 }
 BOOST_AUTO_TEST_CASE(notDecement) {
     cpu.D[1] = 3;

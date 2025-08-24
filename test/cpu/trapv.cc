@@ -19,8 +19,7 @@ BOOST_FIXTURE_TEST_SUITE(TRAPV, Prepare, *boost::unit_test::fixture<F_TRAPV>())
 
 BOOST_DATA_TEST_CASE(run, bdata::xrange(2), v) {
     cpu.V = v;
-    run_test(0);
-    BOOST_TEST(int(ex_n) == (v ? 7 : 0));
+    run_test(0, v ? EXCEPTION_NUMBER::TRAPx : EXCEPTION_NUMBER::NO_ERR);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

@@ -7,7 +7,6 @@
 #include <stdint.h>
 #include <unordered_set>
 void Set_TTR_t(Cpu::TTR_t &x, uint32_t v);
-void nanosleep(uint32_t nanos);
 namespace LibROM {
 extern const AddrMap *gAddrMap;
 extern const UniversalInfo *gUnivInfo;
@@ -77,7 +76,7 @@ void play_asc_chime(const AscChime *p) {
         asc->chA.FIFO[v0 + 0x0200] = d4;
         asc->chA.FIFO[v0] = d4;
         /* wait (p->wait)/2 us */
-        nanosleep(wait);
+        SDL_DelayPrecise(wait);
     }
     for(int i = 0; i < 4; ++i) {
         asc->incr[i] = 0;

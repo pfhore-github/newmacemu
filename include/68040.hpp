@@ -8,16 +8,23 @@
 
 #include <stdint.h>
 #include <unordered_map>
+#include "util.hpp"
 
-enum class FPU_PREC {
-    X,
-    S,
-    D,
-    AUTO,
+class Fpu {
+    public:
+    virtual void init_table() = 0;
+    virtual void init_jit() = 0;
+
+    virtual void init() = 0;
+    virtual void reset() = 0;
+
+    virtual std::string dumpReg() = 0;
+	virtual ~Fpu() {}
 };
-
-// ATC
-
+enum class FPU_TYPE {
+    M68040_FULL, // 68040 + native special function
+};
+std::unique_ptr<Fpu> createFPU(FPU_TYPE fpuType);
 struct Cpu {
     uint32_t D[8];
     uint32_t A[8];
@@ -27,27 +34,8 @@ struct Cpu {
     bool X, N, Z, V, C;
 
     // FPU
-    mpfr_t FP[8];
-    uint64_t FP_nan[8];
-
-    mpfr_t fp_tmp;
-    uint64_t fp_tmp_nan;
-    int fp_tmp_tv;
-
-    struct FPCR_t {
-        mpfr_rnd_t RND;
-        FPU_PREC PREC;
-        bool INEX1, INEX2, DZ, UNFL, OVFL, OPERR, S_NAN, BSUN;
-    } FPCR;
-    struct FPSR_t {
-        bool CC_NAN, CC_I, CC_Z, CC_N;
-        uint8_t Quat;
-        bool QuatSign;
-        bool INEX1, INEX2, DZ, UNFL, OVFL, OPERR, S_NAN, BSUN;
-        bool EXC_INEX, EXC_DZ, EXC_UNFL, EXC_OVFL, EXC_IOP;
-    } FPSR;
-    uint32_t FPIAR;
-
+    std::unique_ptr<Fpu> fpu;
+  
     // hyperviser
     uint32_t MSP, ISP, USP;
     uint8_t I, T;
@@ -70,15 +58,16 @@ struct Cpu {
 
 
     // internal
+    uint32_t ex_addr;
+    uint32_t oldpc;
  
     uint16_t fault_SSW;
-    uint32_t oldpc;
     bool bus_lock;
-
+    bool inJit = false;
     bool must_trace;
 
     bool movem_run;
-    std::atomic<bool> sleeping;
+    ThreadController run;
 
     std::atomic<int> inturrupt;
     uint32_t &R(int n) { return n < 8 ? D[n & 7] : A[n & 7]; }

@@ -11,9 +11,8 @@ std::shared_ptr<VIA1> via1;
 std::shared_ptr<VIA2> via2;
 void do_irq(int i);
 bool scc_wait_req();
-inline int64_t GetVIACounter() {
-    return SDL_GetPerformanceCounter() * 1'276'600 /
-           SDL_GetPerformanceFrequency();
+inline uint64_t GetVIACounter() {
+    return SDL_GetTicksNS() * 1'276'600LL / SDL_NS_PER_SECOND;
 }
 void do_poweroff();
 VIA::~VIA() {
@@ -38,16 +37,8 @@ void VIA::recieve_ca1() {
     }
 }
 
-void nanosleep(uint32_t nanos) {
-    uint64_t nextp = nanos * 1000000000LL / SDL_GetPerformanceFrequency();
-    uint64_t ex = SDL_GetPerformanceCounter();
-    uint64_t next = ex + nextp;
-    while(SDL_GetPerformanceCounter() < next) {
-        __builtin_ia32_pause();
-    }
-}
 uint8_t VIA::read(uint32_t n) {
-    nanosleep(500);
+    SDL_DelayPrecise(500);
     uint8_t v = 0;
     switch(n) {
     case 0: {
@@ -132,17 +123,17 @@ void VIA::irq(VIA_IRQ i) {
 }
 
 void VIA::irq_off(VIA_IRQ i) { IF[int(i)] = false; }
-uint32_t via_timer1_callback(void *t, SDL_TimerID, uint32_t) {
+uint64_t via_timer1_callback(void *t, SDL_TimerID, uint64_t) {
     auto v = static_cast<VIA *>(t);
     v->timer1_base = GetVIACounter();
     v->irq(VIA_IRQ::TIMER1);
     if(v->ACR.PB7_ENABLE) {
         v->writePB(7, true);
     }
-    return v->ACR.T1_REP ? v->timer1_cnt : 0;
+    return v->ACR.T1_REP ? v->timer1_cnt * 1000000LL / 1276.6 : 0;
 }
 
-uint32_t via_timer2_callback(void *t, SDL_TimerID, uint32_t) {
+uint64_t via_timer2_callback(void *t, SDL_TimerID, uint64_t) {
     auto v = static_cast<VIA *>(t);
     v->timer2_base = GetVIACounter();
     v->irq(VIA_IRQ::TIMER2);
@@ -151,7 +142,7 @@ uint32_t via_timer2_callback(void *t, SDL_TimerID, uint32_t) {
 
 void VIA::recieve_sr() { irq(VIA_IRQ::SR); }
 void VIA::write(uint32_t n, uint8_t v) {
-    nanosleep(500);
+    SDL_DelayPrecise(500);
     switch(n) {
     case 0:
         // ORB
@@ -170,7 +161,7 @@ void VIA::write(uint32_t n, uint8_t v) {
         // ORA
         IF[int(VIA_IRQ::CA1)] = false;
         IF[int(VIA_IRQ::CA2)] = false;
-        /* fall through*/
+        /* fall through */
     case 15:
         // ORA (no handshake)
         for(int i = 0; i < 8; ++i) {
@@ -208,7 +199,7 @@ void VIA::write(uint32_t n, uint8_t v) {
         timer1_cnt = timer1_latch = (timer1_latch & 0xff) | (v << 8);
         IF[int(VIA_IRQ::TIMER1)] = false;
         timer1_base = GetVIACounter();
-        timer1 = SDL_AddTimer(timer1_cnt / 1276.6, via_timer1_callback, this);
+        timer1 = SDL_AddTimerNS(timer1_cnt * 1000000LL / 1276.6, via_timer1_callback, this);
         break;
     case 8:
         timer2_latch = (timer2_latch & 0xff00) | v;
@@ -218,7 +209,7 @@ void VIA::write(uint32_t n, uint8_t v) {
         timer2_cnt = timer2_latch = (timer2_latch & 0xff) | (v << 8);
         IF[int(VIA_IRQ::TIMER2)] = false;
         timer2_base = GetVIACounter();
-        timer2 = SDL_AddTimer(timer2_cnt / 1276.6, via_timer2_callback, this);
+        timer2 = SDL_AddTimerNS(timer2_cnt * 1000000LL / 1276.6, via_timer2_callback, this);
         break;
     case 10:
         IF[int(VIA_IRQ::SR)] = false;

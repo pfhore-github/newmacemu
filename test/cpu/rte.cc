@@ -10,7 +10,6 @@
 #include <boost/test/unit_test.hpp>
 namespace bdata = boost::unit_test::data;
 
-extern uint32_t ex_addr;
 struct F_RTE {
     F_RTE() {
         // RTE
@@ -30,8 +29,7 @@ BOOST_FIXTURE_TEST_SUITE(RTE, Prepare, *boost::unit_test::fixture<F_RTE>())
 
 BOOST_AUTO_TEST_CASE(user) {
     cpu.S = false;
-    run_test(0);
-    BOOST_TEST(ex_n == EXCEPTION_NUMBER::PRIV_ERR);
+    run_test(0, EXCEPTION_NUMBER::PRIV_ERR);
 }
 BOOST_AUTO_TEST_SUITE(format)
 BOOST_AUTO_TEST_CASE(type0) {
@@ -54,8 +52,7 @@ BOOST_AUTO_TEST_CASE(type0_trace) {
     TEST::SET_W(0x6800, 0x1F | 1 << 14);
     TEST::SET_L(0x6802, 0x40);
     TEST::SET_W(0x6806, 0 << 12 | 3);
-    run_test(0);
-    BOOST_TEST(ex_n == EXCEPTION_NUMBER::TRACE);
+    run_test(0, EXCEPTION_NUMBER::TRACE);
 }
 
 BOOST_AUTO_TEST_CASE(type1) {
@@ -148,8 +145,7 @@ BOOST_AUTO_TEST_CASE(type7_trace) {
     TEST::SET_W(0x6806, 7 << 12);
     TEST::SET_W(0x680C, 1 << 13);
 
-    run_test(0);
-    BOOST_TEST(ex_n == EXCEPTION_NUMBER::TRACE);
+    run_test(0, EXCEPTION_NUMBER::TRACE);
 }
 // CU/CP not supported
 BOOST_AUTO_TEST_SUITE_END()
@@ -157,7 +153,7 @@ BOOST_AUTO_TEST_SUITE(Occur)
 
 BOOST_AUTO_TEST_CASE(AddressError) {
     cpu.oldpc = 0x100;
-    ex_addr = 0x1001;
+    cpu.ex_addr = 0x1001;
     handle_exception(EXCEPTION_NUMBER::ADDR_ERR);
     BOOST_TEST(cpu.S);
     BOOST_TEST(cpu.T == 0);
@@ -376,17 +372,18 @@ struct AccessErrorBase : Prepare {
         cpu.PC = 0x12;
         cpu.bus_lock = false;
         cpu.movem_run = false;
+        cpu.inJit = false;
     }
 };
 constexpr uint32_t FAULT_STACK_BASE = 0x6FC4;
 BOOST_FIXTURE_TEST_SUITE(AccessError, AccessErrorBase)
 BOOST_AUTO_TEST_CASE(common) {
-    if(setjmp(ex_buf) == 0) {
+    try {
         cpu.TCR_E = false;
         cpu.MSP = 0x7000;
         cpu.VBR = 0x7000;
-        WriteB(0xffffffff, 0);
-    } else {
+        WriteB(0xefffffff, 0);
+    } catch(M68kException& e) {
         handle_exception(EXCEPTION_NUMBER::AFAULT);
     }
     BOOST_TEST(cpu.S);
@@ -394,25 +391,25 @@ BOOST_AUTO_TEST_CASE(common) {
     BOOST_TEST(TEST::GET_L(FAULT_STACK_BASE + 2) == 0x10);
     BOOST_TEST(TEST::GET_W(FAULT_STACK_BASE + 6) == (0x7000 | (2 << 2)));
     BOOST_TEST(TEST::GET_W(FAULT_STACK_BASE + 0x0C) == (1 << 5 | 1));
-    BOOST_TEST(TEST::GET_L(FAULT_STACK_BASE + 0x14) == 0xffffffff);
+    BOOST_TEST(TEST::GET_L(FAULT_STACK_BASE + 0x14) == 0xefffffff);
     BOOST_TEST(cpu.PC == 0x3000+ (2 << 2));
 }
 BOOST_AUTO_TEST_CASE(CT) {
-    if(setjmp(ex_buf) == 0) {
+    try {
         cpu.must_trace = true;
         WriteB(0x3002, 0xff);
-    } else {
+    } catch(M68kException& e) {
         handle_exception(EXCEPTION_NUMBER::AFAULT);
     }
     BOOST_TEST(cpu.T == 0);
     BOOST_TEST(TEST::GET_W(FAULT_STACK_BASE + 0x0C) & SSW_CT);
 }
 BOOST_AUTO_TEST_CASE(CM) {
-    if(setjmp(ex_buf) == 0) {
+    try {
         cpu.EA = 0x3000;
         cpu.movem_run = true;
         WriteB(0x3002, 0xff);
-    } else {
+    } catch(M68kException& e) {
         handle_exception(EXCEPTION_NUMBER::AFAULT);
     }
     BOOST_TEST(TEST::GET_L(FAULT_STACK_BASE + 8) == 0x3000);
@@ -420,111 +417,111 @@ BOOST_AUTO_TEST_CASE(CM) {
 }
 
 BOOST_AUTO_TEST_CASE(MA) {
-    if(setjmp(ex_buf) == 0) {
+    try {
         cpu.movem_run = true;
         WriteW(0x1FFF, 0);
-    } else {
+    } catch(M68kException& e) {
         handle_exception(EXCEPTION_NUMBER::AFAULT);
     }
     BOOST_TEST(TEST::GET_W(FAULT_STACK_BASE + 0x0C) & SSW_MA);
 }
 
 BOOST_AUTO_TEST_CASE(ATC) {
-    if(setjmp(ex_buf) == 0) {
+    try {
         WriteW(0x4000, 0);
-    } else {
+    } catch(M68kException& e) {
         handle_exception(EXCEPTION_NUMBER::AFAULT);
     }
     BOOST_TEST(TEST::GET_W(FAULT_STACK_BASE + 0x0C) & SSW_ATC);
 }
 
 BOOST_AUTO_TEST_CASE(LK) {
-    if(setjmp(ex_buf) == 0) {
+    try {
         cpu.bus_lock = true;
         WriteW(0x2000, 0);
-    } else {
+    } catch(M68kException& e) {
         handle_exception(EXCEPTION_NUMBER::AFAULT);
     }
     BOOST_TEST(TEST::GET_W(FAULT_STACK_BASE + 0x0C) & SSW_LK);
 }
 
 BOOST_AUTO_TEST_CASE(RW) {
-    if(setjmp(ex_buf) == 0) {
+    try {
         ReadW(0x3000);
-    } else {
+    } catch(M68kException& e) {
         handle_exception(EXCEPTION_NUMBER::AFAULT);
     }
     BOOST_TEST(TEST::GET_W(FAULT_STACK_BASE + 0x0C) & SSW_RW);
 }
 
 BOOST_AUTO_TEST_CASE(SZ_W) {
-    if(setjmp(ex_buf) == 0) {
+    try {
         WriteW(0x3000, 0);
-    } else {
+    } catch(M68kException& e) {
         handle_exception(EXCEPTION_NUMBER::AFAULT);
     }
     BOOST_TEST((TEST::GET_W(FAULT_STACK_BASE + 0x0C) >> 5 & 3) == int(SIZ::W));
 }
 
 BOOST_AUTO_TEST_CASE(SZ_L) {
-    if(setjmp(ex_buf) == 0) {
+    try {
         WriteL(0x3000, 0);
-    } else {
+    } catch(M68kException& e) {
         handle_exception(EXCEPTION_NUMBER::AFAULT);
     }
     BOOST_TEST((TEST::GET_W(FAULT_STACK_BASE + 0x0C) >> 5 & 3) == int(SIZ::L));
 }
 
 BOOST_AUTO_TEST_CASE(TT_MOVE16_) {
-    if(setjmp(ex_buf) == 0) {
+    try {
         Transfer16(0x100, 0x3000);
-    } else {
+    } catch(M68kException& e) {
         handle_exception(EXCEPTION_NUMBER::AFAULT);
     }
     BOOST_TEST((TEST::GET_W(FAULT_STACK_BASE + 0x0C) & TT_MASK) == TT_MOVE16);
 }
 
 BOOST_AUTO_TEST_CASE(TT_ALT_) {
-    if(setjmp(ex_buf) == 0) {
+    try {
         WriteSB(0x3000, 0);
-    } else {
+    } catch(M68kException& e) {
         handle_exception(EXCEPTION_NUMBER::AFAULT);
     }
     BOOST_TEST((TEST::GET_W(FAULT_STACK_BASE + 0x0C) & TT_MASK) == TT_ALT);
 }
 
 BOOST_AUTO_TEST_CASE(TM_USER_DATA) {
-    if(setjmp(ex_buf) == 0) {
+    try {
         WriteW(0x3000, 0);
-    } else {
+    } catch(M68kException& e) {
         handle_exception(EXCEPTION_NUMBER::AFAULT);
     }
     BOOST_TEST((TEST::GET_W(FAULT_STACK_BASE + 0x0C) & 7) == int(TM::USER_DATA));
 }
 
 BOOST_AUTO_TEST_CASE(TM_USER_CODE) {
-    if(setjmp(ex_buf) == 0) {
+    try {
         FetchW(0x3000);
-    } else {
+    } catch(M68kException& e) {
         handle_exception(EXCEPTION_NUMBER::AFAULT);
     }
     BOOST_TEST((TEST::GET_W(FAULT_STACK_BASE + 0x0C) & 7) == int(TM::USER_CODE));
 }
 BOOST_AUTO_TEST_CASE(TM_SYS_DATA) {
-    if(setjmp(ex_buf) == 0) {
+    try {
         cpu.S = true;
         WriteW(0x2000, 0);
-    } else {
+    } catch(M68kException& e) {
         handle_exception(EXCEPTION_NUMBER::AFAULT);
     }
     BOOST_TEST((TEST::GET_W(FAULT_STACK_BASE + 0x0C) & 7) == int(TM::SYS_DATA));
 }
 
 BOOST_AUTO_TEST_CASE(TM_SYS_CODE) {
-    if(setjmp(ex_buf) == 0) {
+    try {
         cpu.S = true;
         FetchW(0x4000);
-    } else {
+    } catch(M68kException& e) {
         handle_exception(EXCEPTION_NUMBER::AFAULT);
     }
     BOOST_TEST((TEST::GET_W(FAULT_STACK_BASE + 0x0C) & 7) == int(TM::SYS_CODE));

@@ -7,9 +7,10 @@
 #include "mmu.hpp"
 #include <expected>
 #include <print>
+#include <setjmp.h>
+struct TestEnd {};
 [[noreturn]] void double_fault() {
 #ifdef CI
-    struct TestEnd {};
     std::print("double bus fault:{:x}", cpu.PC);
     throw TestEnd{};
 #else
@@ -22,13 +23,12 @@ void WriteWImpl(uint32_t addr, uint16_t w);
 uint32_t ReadLImpl(uint32_t addr);
 
 jmp_buf ex_buf;
-uint32_t ex_addr;
 EXCEPTION_NUMBER ex_n;
 
 inline void ex_PUSH16(uint16_t v) {
-	try {
-		WriteWImpl(cpu.A[7] -= 2, v);
-	} catch(PTestError&) {
+    try {
+        WriteWImpl(cpu.A[7] -= 2, v);
+    } catch(PTestError &) {
         double_fault();
     }
 }
@@ -39,8 +39,8 @@ inline void ex_PUSH32(uint32_t v) {
 
 inline uint32_t ex_READL(uint32_t addr) {
     try {
-		return ReadLImpl(addr, false);
-	} catch(PTestError& e) {
+        return ReadLImpl(addr, false);
+    } catch(PTestError &e) {
         double_fault();
     }
 }
@@ -75,7 +75,7 @@ void EXCEPTION3(int n, uint16_t sr) {
 }
 
 void handle_exception(EXCEPTION_NUMBER n) {
-    uint16_t sr = GetSR();
+    uint16_t sr = GetSR(cpu);
     cpu.S = true;
     LoadSP();
     cpu.T = 0;
@@ -85,7 +85,7 @@ void handle_exception(EXCEPTION_NUMBER n) {
         break;
     case EXCEPTION_NUMBER::AFAULT:
         cpu.A[7] -= 4 * 9;
-        ex_PUSH32(ex_addr);
+        ex_PUSH32(cpu.ex_addr);
         cpu.A[7] -= 2 * 3;
         if(cpu.must_trace) {
             cpu.fault_SSW |= SSW_CT;
@@ -103,7 +103,7 @@ void handle_exception(EXCEPTION_NUMBER n) {
         JUMP(ex_READL(cpu.VBR + (2 << 2)));
         break;
     case EXCEPTION_NUMBER::ADDR_ERR:
-        EXCEPTION2(3, ex_addr & ~1, cpu.oldpc, sr);
+        EXCEPTION2(3, cpu.ex_addr & ~1, cpu.oldpc, sr);
         break;
     case EXCEPTION_NUMBER::ILLEGAL_OP:
     case EXCEPTION_NUMBER::PRIV_ERR:
@@ -171,11 +171,16 @@ void handle_exception(EXCEPTION_NUMBER n) {
     }
 }
 [[noreturn]] static inline void RAISE(EXCEPTION_NUMBER n) {
-    ex_n = n;
-    longjmp(ex_buf, 1);
+    if(cpu.inJit) {
+        // JIT runtime cannot use c++ exception(currently)
+        ex_n = n;
+        longjmp(ex_buf, 1);
+    } else {
+        throw M68kException{n};
+    }
 }
 void ACCESS_FAULT(uint32_t a, SIZ sz, bool rw, TM m, uint16_t tt) {
-    ex_addr = a;
+    cpu.ex_addr = a;
     if(cpu.movem_run) {
         cpu.fault_SSW |= SSW_CM;
     }
@@ -187,7 +192,7 @@ void ACCESS_FAULT(uint32_t a, SIZ sz, bool rw, TM m, uint16_t tt) {
     RAISE(EXCEPTION_NUMBER::AFAULT);
 }
 void ADDRESS_ERROR(uint32_t addr) {
-    ex_addr = addr;
+    cpu.ex_addr = addr;
     RAISE(EXCEPTION_NUMBER::ADDR_ERR);
 }
 
@@ -227,7 +232,7 @@ void do_rte() {
     case 0:
         break;
     case 1:
-        SetSR(sr);
+        SetSR(cpu, sr);
         return do_rte();
     case 2:
     case 3:
@@ -246,7 +251,7 @@ void do_rte() {
             // CT restart
             cpu.A[7] += 52;
             // restart trace
-            SetSR(sr);
+            SetSR(cpu, sr);
             cpu.must_trace = false;
             cpu.PC = pc;
             TRACE();
@@ -263,7 +268,7 @@ void do_rte() {
     default:
         FORMAT_ERROR();
     }
-    SetSR(sr);
+    SetSR(cpu, sr);
     if(cpu.T == 1) {
         cpu.must_trace = true;
     }

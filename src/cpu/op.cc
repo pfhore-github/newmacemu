@@ -15,20 +15,20 @@ uint32_t ea_getaddr(int type, int reg, int sz, bool rw);
 extern volatile bool testing;
 #endif
 
-inline uint8_t GetCCR() {
+uint8_t GetCCR(const Cpu& cpu) {
     return cpu.X << 4 | cpu.N << 3 | cpu.Z << 2 | cpu.V << 1 | cpu.C;
 }
-inline void SetCCR(uint8_t v) {
+void SetCCR(Cpu& cpu, uint8_t v) {
     cpu.X = v >> 4 & 1;
     cpu.N = v >> 3 & 1;
     cpu.Z = v >> 2 & 1;
     cpu.V = v >> 1 & 1;
     cpu.C = v & 1;
 }
-inline uint16_t GetSR() {
-    return GetCCR() | cpu.I << 8 | cpu.M << 12 | cpu.S << 13 | cpu.T << 14;
+uint16_t GetSR(const Cpu& cpu) {
+    return GetCCR(cpu) | cpu.I << 8 | cpu.M << 12 | cpu.S << 13 | cpu.T << 14;
 }
-inline void SaveSP() {
+void SaveSP() {
     if(cpu.S)
         if(cpu.M)
             cpu.MSP = cpu.A[7];
@@ -37,7 +37,7 @@ inline void SaveSP() {
     else
         cpu.USP = cpu.A[7];
 }
-inline void LoadSP() {
+void LoadSP() {
     if(cpu.S)
         if(cpu.M)
             cpu.A[7] = cpu.MSP;
@@ -46,9 +46,9 @@ inline void LoadSP() {
     else
         cpu.A[7] = cpu.USP;
 }
-inline void SetSR(uint16_t v) {
+void SetSR(Cpu& cpu, uint16_t v) {
     SaveSP();
-    SetCCR(v);
+    SetCCR(cpu, v);
     cpu.I = v >> 8 & 7;
     cpu.M = v >> 12 & 1;
     cpu.S = v >> 13 & 1;
@@ -77,13 +77,13 @@ void ori_l(uint16_t op) {
 
 void ori_b_ccr(uint16_t) {
     uint8_t v = FETCH();
-    SetCCR(GetCCR() | v);
+    SetCCR(cpu, GetCCR(cpu) | v);
 }
 
 void ori_w_sr(uint16_t) {
     PRIV_CHECK();
     uint16_t v = FETCH();
-    SetSR(GetSR() | v);
+    SetSR(cpu, GetSR(cpu) | v);
     TRACE_BRANCH();
 }
 
@@ -104,13 +104,13 @@ void andi_l(uint16_t op) {
 
 void andi_b_ccr(uint16_t) {
     uint8_t v = FETCH();
-    SetCCR(GetCCR() & v);
+    SetCCR(cpu, GetCCR(cpu) & v);
 }
 
 void andi_w_sr(uint16_t) {
     PRIV_CHECK();
     uint16_t v = FETCH();
-    SetSR(GetSR() & v);
+    SetSR(cpu, GetSR(cpu) & v);
     TRACE_BRANCH();
 }
 
@@ -131,13 +131,13 @@ void eori_l(uint16_t op) {
 
 void eori_b_ccr(uint16_t) {
     uint8_t v = FETCH();
-    SetCCR(GetCCR() ^ v);
+    SetCCR(cpu, GetCCR(cpu) ^ v);
 }
 
 void eori_w_sr(uint16_t) {
     PRIV_CHECK();
     uint16_t v = FETCH();
-    SetSR(GetSR() ^ v);
+    SetSR(cpu, GetSR(cpu) ^ v);
     TRACE_BRANCH();
 }
 
@@ -474,20 +474,20 @@ void movea_l(uint16_t op) {
 
 void move_from_sr(uint16_t op) {
     PRIV_CHECK();
-    ea_writeW(TYPE(op), REG(op), GetSR());
+    ea_writeW(TYPE(op), REG(op), GetSR(cpu));
 }
 
 void move_from_ccr(uint16_t op) {
-    ea_writeW(TYPE(op), REG(op), GetCCR());
+    ea_writeW(TYPE(op), REG(op), GetCCR(cpu));
 }
 
 void move_to_ccr(uint16_t op) {
-    SetCCR(ea_readW(TYPE(op), REG(op)));
+    SetCCR(cpu, ea_readW(TYPE(op), REG(op)));
 }
 
 void move_to_sr(uint16_t op) {
     PRIV_CHECK();
-    SetSR(ea_readW(TYPE(op), REG(op)));
+    SetSR(cpu, ea_readW(TYPE(op), REG(op)));
     TRACE_BRANCH();
 }
 
@@ -732,11 +732,9 @@ void nop(uint16_t) { TRACE_BRANCH(); }
 
 void stop_impl(uint16_t nw) {
     PRIV_CHECK();
-    SetSR(nw);
-    cpu.sleeping.store(true);
-    while(cpu.sleeping.load()) {
-        cpu.sleeping.wait(true);
-    }
+    SetSR(cpu, nw);
+    cpu.run.stop();
+    cpu.run.wait();
     TRACE_BRANCH();
 }
 void stop(uint16_t) {
@@ -959,13 +957,13 @@ void divu_w(uint16_t op) {
 }
 
 void sbcd_d(uint16_t op) {
-    STORE_B(cpu.D[REG(op)], do_sbcd(cpu.D[REG(op)], cpu.D[DN(op)], cpu.X));
+    STORE_B(cpu.D[DN(op)], do_sbcd(cpu.D[REG(op)], cpu.D[DN(op)], cpu.X));
 }
 
 void sbcd_m(uint16_t op) {
     auto v1 = ReadB(--cpu.A[REG(op)]);
     auto v2 = ReadB(--cpu.A[DN(op)]);
-    WriteB(cpu.A[REG(op)], do_sbcd(v1, v2, cpu.X));
+    WriteB(cpu.A[DN(op)], do_sbcd(v1, v2, cpu.X));
 }
 
 void or_b_to_ea(uint16_t op) {
@@ -1653,7 +1651,6 @@ void move16_inc_inc(uint16_t op) {
 } // namespace OP
 run_t run_table[0x10000];
 
-void init_run_table_fpu();
 void init_run_table_mmu();
 void init_run_table() {
 
@@ -2060,8 +2057,9 @@ void init_run_table() {
         run_table[0173030 | i] = OP::move16_imm_base;
         run_table[0173040 | i] = OP::move16_inc_inc;
     }
-
-    init_run_table_fpu();
+    if( cpu.fpu ) {
+        cpu.fpu->init_table();
+    }
     init_run_table_mmu();
 #ifdef CI
     run_table[0044117] = OP::test_exit;

@@ -27,12 +27,12 @@ inline uint16_t POP32() {
     cpu.A[7] += 4;
     return v;
 }
-uint8_t GetCCR();
-void SetCCR(uint8_t v);
-uint16_t GetSR();
+uint8_t GetCCR(const Cpu& cpu);
+void SetCCR(Cpu& cpu, uint8_t v);
+uint16_t GetSR(const Cpu& cpu);
 void SaveSP();
 void LoadSP();
-void SetSR(uint16_t v);
+void SetSR(Cpu& cpu, uint16_t v);
 
 inline void TEST_B(int8_t v) {
     cpu.N = v < 0;

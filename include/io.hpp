@@ -28,6 +28,7 @@ struct IO_BUS {
         writeB(addr + 2, value >> 16);
         writeB(addr + 3, value >> 16);
     }
+	virtual ~IO_BUS() {}
 };
 
 extern std::unique_ptr<IO_BUS> io;

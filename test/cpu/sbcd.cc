@@ -26,35 +26,35 @@ BOOST_AUTO_TEST_SUITE(Reg)
 
 BOOST_DATA_TEST_CASE(value, bdata::xrange(2), old_x) {
     cpu.Z = true;
-    cpu.D[1] = 0x71;
-    cpu.D[3] = 0x34;
+    cpu.D[3] = 0x71;
+    cpu.D[1] = 0x34;
     cpu.X = old_x;
     run_test(0);
-    BOOST_TEST(cpu.D[1] == (0x37 - old_x));
+    BOOST_TEST(cpu.D[3] == (0x37 - old_x));
     BOOST_TEST(!cpu.Z);
     BOOST_TEST(!cpu.X);
     BOOST_TEST(!cpu.C);
 }
 
 BOOST_AUTO_TEST_CASE(c1) {
-    cpu.D[1] = 0x80;
-    cpu.D[3] = 0x22;
+    cpu.D[3] = 0x80;
+    cpu.D[1] = 0x22;
     cpu.X = false;
     run_test(0);
     BOOST_TEST(cpu.D[1] == 0x58);
 }
 
 BOOST_AUTO_TEST_CASE(c2) {
-    cpu.D[1] = 0x87;
-    cpu.D[3] = 0x29;
+    cpu.D[3] = 0x87;
+    cpu.D[1] = 0x29;
     cpu.X = false;
     run_test(0);
     BOOST_TEST(cpu.D[1] == 0x58);
 }
 
 BOOST_AUTO_TEST_CASE(CX) {
-    cpu.D[1] = 0x30;
-    cpu.D[3] = 0x44;
+    cpu.D[3] = 0x30;
+    cpu.D[1] = 0x44;
     cpu.X = false;
     run_test(0);
     BOOST_TEST(cpu.C);

@@ -31,8 +31,7 @@ BOOST_AUTO_TEST_CASE(untraced) {
 BOOST_AUTO_TEST_CASE(traced) {
     cpu.T = 1;
     cpu.C = false;
-    run_test(8);
-    BOOST_TEST(ex_n == EXCEPTION_NUMBER::TRACE);
+    run_test(8, EXCEPTION_NUMBER::TRACE);
 }
 
 BOOST_AUTO_TEST_CASE(trace_not_taken) {

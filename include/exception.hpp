@@ -1,7 +1,6 @@
 #ifndef CPU_EXCEPTION_
 #define CPU_EXCEPTION_
 #include <stdint.h>
-#include <setjmp.h>
 constexpr uint16_t TT_MASK = 0x18;
 constexpr uint16_t TT_NORMAL = 0;
 constexpr uint16_t TT_MOVE16 = 1 << 3;
@@ -18,7 +17,7 @@ enum class TM : uint8_t {
     ALT_7
 };
 enum class SIZ : uint8_t { L = 0, B, W, LN, NONE };
-enum class EXCEPTION_NUMBER : uint8_t {
+enum class EXCEPTION_NUMBER : int8_t {
     NO_ERR = 0,
     RESET = 1,
     AFAULT,
@@ -75,8 +74,8 @@ constexpr uint16_t SSW_MA = 1 << 11;
 constexpr uint16_t SSW_ATC = 1 << 10;
 constexpr uint16_t SSW_LK = 1 << 9;
 constexpr uint16_t SSW_RW = 1 << 8;
-[[noreturn]] void ACCESS_FAULT(uint32_t a, SIZ sz, bool rw,
-                               TM m, uint16_t tt = TT_NORMAL);
+[[noreturn]] void ACCESS_FAULT(uint32_t a, SIZ sz, bool rw, TM m,
+                               uint16_t tt = TT_NORMAL);
 // 3
 [[noreturn]] void ADDRESS_ERROR(uint32_t next);
 
@@ -134,6 +133,7 @@ constexpr uint16_t SSW_RW = 1 << 8;
 
 [[noreturn]] void IRQ(int n);
 
-extern jmp_buf ex_buf;
-extern EXCEPTION_NUMBER ex_n;
+struct M68kException {
+    EXCEPTION_NUMBER ex_n;
+};
 #endif

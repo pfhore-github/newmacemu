@@ -5,8 +5,12 @@
 #include <memory>
 #include <unordered_map>
 #include <utility>
+#include <setjmp.h>
+
 using namespace asmjit;
 std::unique_ptr<JitRuntime> rt;
+extern jmp_buf ex_buf;
+extern EXCEPTION_NUMBER ex_n;
 
 class MyErrorHandler : public ErrorHandler {
   public:
@@ -434,7 +438,9 @@ void jit_init() {
         jit_compile_op[0173030 | i] = JIT_OP::move16_imm_base;
         jit_compile_op[0173040 | i] = JIT_OP::move16_inc_inc;
     }
-    init_jit_table_fpu();
+    if( cpu.fpu ) {
+        cpu.fpu->init_jit();
+    }
     init_jit_table_mmu();
 #ifdef CI
     jit_compile_op[0044117] = JIT_OP::jit_exit;
@@ -506,9 +512,9 @@ void jit_compile(uint32_t base, uint32_t len) {
     for(cpu.PC = base; cpu.PC < end;) {
         auto pc = cpu.PC;
         uint16_t op = FETCH();
-        jit_tables.insert_or_assign(pc, cc);
         try {
             if(jit_compile_op[op]) {
+                jit_tables.insert_or_assign(pc, cc);
                 as->bind(jumpMap[pc]);
                 cc->offset[(pc - cc->begin) >> 1] = as->offset();
                 as->mov(ARG1.r32(), pc);
@@ -516,7 +522,9 @@ void jit_compile(uint32_t base, uint32_t len) {
                 jit_compile_op[op](op);
                 jit_postop();
             } else {
-                throw JitError{};
+                as->mov(ARG1.r32(), pc);
+                as->call(op_prologue);
+                break;
             }
         } catch(JitError &) {
             as->mov(ARG1.r32(), pc);
@@ -537,17 +545,30 @@ void jit_compile(uint32_t base, uint32_t len) {
     }
     AddJitFunction(cc.get(), frame, cc->exec, sz);
 }
-
-void jit_run(uint32_t pc) {
+void run_op();
+void jit_run(uint32_t pc, int block) {
     cpu.PC = pc;
-    if(!jit_tables.count(pc)) {
-        jit_compile(pc, 0x4000);
+    if(!jit_tables.contains(pc) && !block) {
+        jit_compile(pc, block);
     }
     auto e = jit_tables[pc].get();
-    if(setjmp(ex_buf) == 0) {
-        (*e->exec)((pc - e->begin) >> 1);
+    if(e) {
+        switch(setjmp(ex_buf)) {
+        case 0:
+            cpu.inJit = true;
+            (*e->exec)((pc - e->begin) >> 1);
+            cpu.inJit = false;
+            break;
+        case 1:
+            cpu.inJit = false;
+            throw M68kException{ex_n};
+        case 2:
+            cpu.inJit = false;
+            break;
+        }
     } else {
-        handle_exception(ex_n);
-        cpu.bus_lock = false;
+        // TODO: jit fialure
+        cpu.inJit = false;
+        run_op();
     }
 }

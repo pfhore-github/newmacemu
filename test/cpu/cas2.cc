@@ -72,9 +72,10 @@ BOOST_AUTO_TEST_CASE(F2) {
 BOOST_AUTO_TEST_CASE(traced) {
     TEST::SET_W(0x1000, 0x2222);
     TEST::SET_W(0x1010, 0x3333);
+    cpu.A[2] = 0x1000;
+    cpu.A[5] = 0x1010;
     cpu.T = 1;
-	run_test(0);
-	BOOST_TEST(ex_n == EXCEPTION_NUMBER::TRACE );
+	run_test(0,  EXCEPTION_NUMBER::TRACE );
 }
 
 BOOST_AUTO_TEST_SUITE_END()
@@ -127,8 +128,9 @@ BOOST_AUTO_TEST_CASE(traced) {
     TEST::SET_L(0x1000, 0x22222222);
     TEST::SET_L(0x1010, 0x33333333);
     cpu.T = 1;
-	run_test(8);
-	BOOST_TEST(ex_n == EXCEPTION_NUMBER::TRACE );
+    cpu.A[2] = 0x1000;
+    cpu.A[5] = 0x1010;
+	run_test(8, EXCEPTION_NUMBER::TRACE );
 }
 BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE_END()

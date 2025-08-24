@@ -4,22 +4,22 @@
 #include <algorithm>
 #include <utility>
 #include <vector>
-std::shared_ptr<ASC> asc;
+std::unique_ptr<ASC> asc;
 constexpr int DEFAULT_FREQ = 22257;
 void asc_reset() { asc->reset(); }
 void ASC::do_wave(int additional_amount) {
-    std::vector<int8_t> buf(additional_amount);
+    std::vector<uint8_t> buf(additional_amount);
     for(int i = 0; i < additional_amount; i++) {
         for(int ch = 0; ch < 4; ch++) {
             if(wav_run & (1 << ch)) {
                 phase[ch] = (phase[ch] + incr[ch]) & 0xffffff;
             }
         }
-        int16_t mix = chA.FIFO[phase[0] >> 15] ^ 0x80;
-        mix += chA.FIFO[phase[1] >> 15 | 0x200] ^ 0x80;
-        mix += chB.FIFO[phase[2] >> 15] ^ 0x80;
-        mix += chB.FIFO[phase[3] >> 15 | 0x200] ^ 0x80;
-        buf[i] = static_cast<int8_t>(mix * volume / 2048);
+        uint16_t mix = chA.FIFO[phase[0] >> 15];
+        mix += chA.FIFO[phase[1] >> 15 | 0x200];
+        mix += chB.FIFO[phase[2] >> 15];
+        mix += chB.FIFO[phase[3] >> 15 | 0x200];
+        buf[i] = static_cast<uint8_t>(mix >> 2);
     }
     SDL_PutAudioStreamData(wavStream, buf.data(), buf.size());
 }
@@ -43,25 +43,26 @@ ASC::ASC(bool isEASC_) :isEASC(isEASC_) {
     want.format = SDL_AUDIO_S16;
     want.channels = 2;
     want.freq = DEFAULT_FREQ;
-    want2.format = SDL_AUDIO_S8;
+    
+    want2.format = SDL_AUDIO_U8;
     want2.channels = 1;
     want2.freq = DEFAULT_FREQ;
     wavStream = SDL_CreateAudioStream(&want2, &want);
-    SDL_PauseAudioStreamDevice(wavStream);
     SDL_SetAudioStreamGetCallback(wavStream,asc_wave_read, this );
-    chA.chStream = SDL_CreateAudioStream(&want, &want);
-    chB.chStream = SDL_CreateAudioStream(&want, &want);
+    chA.chStream = SDL_CreateAudioStream(&want, &speakerSpec);
+    chB.chStream = SDL_CreateAudioStream(&want, &speakerSpec);
 
     SDL_AudioStream* p[] = { wavStream, chA.chStream, chB.chStream};
     SDL_BindAudioStreams(speaker, p, 3);
 
     SDL_AudioSpec macMicSpec;
     macMicSpec.freq = 22050;
-    macMicSpec.format = SDL_AUDIO_S8;
+    macMicSpec.format = SDL_AUDIO_U8;
     macMicSpec.channels = 1;
     micStream = SDL_CreateAudioStream(&macMicSpec, &micSpec);
     SDL_BindAudioStream(mic, micStream);
     
+    reset();
 }
 ASC::~ASC() {
     SDL_DestroyAudioStream(wavStream);
@@ -76,9 +77,7 @@ void ASC::reset() {
         phase[i] = incr[i] = 0;
     }
     SDL_PauseAudioDevice(speaker);
-    if(mic) {
-        SDL_PauseAudioDevice(mic);
-    }
+    SDL_PauseAudioDevice(mic);
     SDL_PauseAudioStreamDevice(wavStream);
 }
 ASC_CH::ASC_CH() {
@@ -88,8 +87,6 @@ void ASC_CH::reset() {
     memset(FIFO, 0, 0x400);
     FIFO_READP = 0;
     FIFO_WRITEP = 0;
-    FIFO_SIZE = 0;
-    FIFO_PLAYP = 0;
     fifo_half.store(false);
     fifo_full.store(false);
     xa_last[0] = xa_last[1] = 0;
@@ -97,26 +94,23 @@ void ASC_CH::reset() {
     SDL_UnlockAudioStream(chStream);
 }
 void ASC_CH::fifo_write(uint8_t v) {
-    FIFO[FIFO_WRITEP] = v ^ 0x80;
+    FIFO[FIFO_WRITEP] = v;
 
     FIFO_WRITEP = (FIFO_WRITEP + 1) & 0x3ff;
-    FIFO_SIZE++;
-    fifo_half.store(FIFO_SIZE <= 0x1ff);
-    if(FIFO_SIZE == 0x200 && IRQ_CTL) {
+    fifo_half.store(FIFO_WRITEP <= 0x1ff);
+    if(FIFO_WRITEP == 0x200 && IRQ_CTL) {
         via2->irq(VIA_IRQ::CB1);
     }
-    if(FIFO_SIZE == 0x400) {
-        FIFO_SIZE = 0;
+    if(FIFO_WRITEP == 0) {
         fifo_full.store(true);
         via2->irq(VIA_IRQ::CB1);
         int16_t p[0x400 * 2];
         for(int i = 0; i < 0x400; i++) {
-            int16_t cha_v = FIFO[i];
-            int32_t left = cha_v * left_vol;
-            int32_t right = cha_v * right_vol;
-            p[2 * i] = std::clamp(left * asc->volume / 65536, -32768, 32767);
-            p[2 * i + 1] =
-                std::clamp(right * asc->volume / 65536, -32768, 32767);
+            uint8_t cha_v = FIFO[i];
+            uint32_t left = (uint32_t)cha_v * left_vol;
+            uint32_t right = (uint32_t)cha_v * right_vol;
+            p[2 * i] = (int16_t)(left ^ 0x8000);
+            p[2 * i + 1] = (int16_t)(right ^ 0x8000);
         }
         set_fifotimer(); 
         SDL_PutAudioStreamData(chStream, p, sizeof(int16_t)*0x800);
@@ -151,13 +145,12 @@ uint8_t ASC_CH::read_reg(int t) {
 }
 
 void ASC_CH::set_fifotimer() {
-    int half = 512.0 * 1000 / SAMPLE_RATE;
+    int half = 256.0 * 1000 / SAMPLE_RATE;
     timerH = SDL_AddTimer(
         half,
         [](void *data, SDL_TimerID, uint32_t) -> uint32_t {
             ASC_CH *a = static_cast<ASC_CH *>(data);
             a->fifo_half.store(true);
-            a->fifo_half.notify_one();
             if(a->IRQ_CTL) {
                 via2->irq(VIA_IRQ::CB1);
             }
@@ -170,7 +163,6 @@ void ASC_CH::set_fifotimer() {
         [](void *data, SDL_TimerID, uint32_t) -> uint32_t {
             ASC_CH *a = static_cast<ASC_CH *>(data);
             a->fifo_full.store(true);
-            a->fifo_full.notify_one();
             if(a->IRQ_CTL) {
                 via2->irq(VIA_IRQ::CB1);
             }
@@ -323,18 +315,16 @@ int8_t ASC_CH::cdxa_read() {
 }
 int8_t ASC_CH::fifo_read() {
 
-    if(FIFO_SIZE) {
-        FIFO_SIZE--;
+    if(FIFO_READP) {
 
-        auto v = FIFO[FIFO_PLAYP];
-        FIFO_PLAYP = (FIFO_PLAYP + 1) & 0x3ff;
-        fifo_half.store(FIFO_SIZE <= 0x1ff);
-        if(FIFO_SIZE == 0x1ff && IRQ_CTL) {
+        auto v = FIFO[FIFO_READP];
+        FIFO_READP = (FIFO_READP + 1) & 0x3ff;
+        fifo_half.store(FIFO_READP > 0x1ff);
+        if(FIFO_READP == 0x1ff && IRQ_CTL) {
             via2->irq(VIA_IRQ::CB1);
         }
-        if(FIFO_SIZE == 0) {
+        if(FIFO_READP == 0) {
             fifo_full.store(true);
-            fifo_full.notify_one();
             via2->irq(VIA_IRQ::CB1);
         }
         return v;
@@ -385,8 +375,10 @@ void ASC::write(uint32_t addr, uint8_t v) {
                 }
                 break;
             case 2:
+                SDL_ResumeAudioDevice(speaker);
+                SDL_PauseAudioStreamDevice(chA.chStream);
+                SDL_PauseAudioStreamDevice(chB.chStream);
                 if(!isEASC) {
-                    SDL_PauseAudioDevice(speaker);
                     SDL_ResumeAudioStreamDevice(wavStream);
                 }
                 break;
@@ -409,6 +401,9 @@ void ASC::write(uint32_t addr, uint8_t v) {
             break;
         case 6:
             volume = v;
+            SDL_SetAudioStreamGain(wavStream, v / 255.0);
+            SDL_SetAudioStreamGain(chA.chStream, v / 255.0);
+            SDL_SetAudioStreamGain(chA.chStream, v / 255.0);
             break;
         case 7:
             if(!isEASC) {

@@ -20,8 +20,7 @@ BOOST_FIXTURE_TEST_SUITE(RESET, Prepare, *boost::unit_test::fixture<F_RESET>())
 
 BOOST_AUTO_TEST_CASE(user) {
     cpu.S = false;
-	run_test(0);
-	BOOST_TEST( ex_n == EXCEPTION_NUMBER::PRIV_ERR );
+	run_test(0, EXCEPTION_NUMBER::PRIV_ERR );
 }
 
 BOOST_AUTO_TEST_CASE(sys) {

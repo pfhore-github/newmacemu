@@ -20,8 +20,7 @@ BOOST_FIXTURE_TEST_SUITE(BSR, Prepare, *boost::unit_test::fixture<F_BSR>())
 
 BOOST_AUTO_TEST_CASE(traced) {
     cpu.T = 1;
-    run_test(0);
-	BOOST_TEST(ex_n == EXCEPTION_NUMBER::TRACE );
+    run_test(0, EXCEPTION_NUMBER::TRACE );
 }
 
 BOOST_AUTO_TEST_CASE(not_traced) {

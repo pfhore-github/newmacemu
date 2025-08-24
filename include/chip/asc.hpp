@@ -8,13 +8,11 @@
 #include <atomic>
 #include <stdint.h>
 struct ASC_CH {
-    int8_t FIFO[0x400];
+    uint8_t FIFO[0x400];
     SDL_AudioStream *chStream;
     uint16_t FIFO_READP;
     uint16_t FIFO_WRITEP;
-    uint16_t FIFO_PLAYP;
     uint16_t SAMPLE_RATE;
-    uint16_t FIFO_SIZE;
     std::atomic<bool> fifo_full{false};
     std::atomic<bool> fifo_half{false};
     SDL_TimerID timerH, timerF;
@@ -40,12 +38,12 @@ struct ASC_CH {
 };
 struct ASC {
     ASC_CH chA, chB;
+    SDL_AudioSpec speakerSpec;
+    SDL_AudioSpec micSpec;
     uint32_t phase[4];
     uint32_t incr[4];
     SDL_AudioDeviceID speaker = 0;
     SDL_AudioDeviceID mic = 0;
-    SDL_AudioSpec speakerSpec;
-    SDL_AudioSpec micSpec;
     SDL_AudioStream *micStream = nullptr;
     uint8_t wav_run = 0xff;
     uint8_t mode = 0;
@@ -63,5 +61,5 @@ struct ASC {
     ASC(bool isEASC_ = true);
     ~ASC();
 };
-extern std::shared_ptr<ASC> asc;
+extern std::unique_ptr<ASC> asc;
 #endif

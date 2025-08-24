@@ -24,15 +24,13 @@ BOOST_FIXTURE_TEST_SUITE(PTESTx, Prepare,
 BOOST_AUTO_TEST_SUITE(PTESTR)
 BOOST_AUTO_TEST_CASE(err) {
     cpu.S = false;
-    run_test(0);
-    BOOST_TEST(ex_n == EXCEPTION_NUMBER::PRIV_ERR);
+    run_test(0, EXCEPTION_NUMBER::PRIV_ERR);
 }
 
 BOOST_AUTO_TEST_CASE(traced) {
     cpu.S = true;
     cpu.T = 1;
-    run_test(0);
-    BOOST_TEST(ex_n == EXCEPTION_NUMBER::TRACE);
+    run_test(0, EXCEPTION_NUMBER::TRACE);
 }
 BOOST_AUTO_TEST_SUITE(R)
 BOOST_AUTO_TEST_CASE(P) {
@@ -166,7 +164,7 @@ BOOST_DATA_TEST_CASE(G, bdata::xrange(2), v) {
 
 BOOST_AUTO_TEST_CASE(B) {
     cpu.S = true;
-    TEST::SET_L(0x8004, 0xFFFFFFF2); // ATC-BUS ERROR
+    TEST::SET_L(0x8004, 0xEFFFFFF2); // ATC-BUS ERROR
     cpu.A[2] = 0x2000000;
     cpu.DFC = 1;
     run_test(0);
@@ -210,15 +208,13 @@ BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE(PTESTW)
 BOOST_AUTO_TEST_CASE(err) {
     cpu.S = false;
-    run_test(4);
-    BOOST_TEST(ex_n == EXCEPTION_NUMBER::PRIV_ERR);
+    run_test(4, EXCEPTION_NUMBER::PRIV_ERR);
 }
 
 BOOST_AUTO_TEST_CASE(traced) {
     cpu.S = true;
     cpu.T = 1;
-    run_test(4);
-    BOOST_TEST(ex_n == EXCEPTION_NUMBER::TRACE);
+    run_test(4, EXCEPTION_NUMBER::TRACE);
 }
 
 BOOST_AUTO_TEST_CASE(M) {

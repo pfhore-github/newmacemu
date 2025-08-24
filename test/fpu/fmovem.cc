@@ -119,8 +119,7 @@ BOOST_AUTO_TEST_SUITE(ToReg)
 BOOST_AUTO_TEST_CASE(trace_postincr) {
     cpu.A[3] = 0x1000;
     cpu.T = 1;
-    run_test(0);
-    BOOST_TEST(ex_n == EXCEPTION_NUMBER::TRACE);
+    run_test(0, EXCEPTION_NUMBER::TRACE);
 }
 BOOST_AUTO_TEST_CASE(static_postincr) {
     cpu.A[3] = 0x1000;
@@ -140,8 +139,7 @@ BOOST_AUTO_TEST_CASE(trace_addr) {
     cpu.A[3] = 0x1000;
     cpu.T = 1;
     STORE_MEMX(0x1000, 1.1);
-    run_test(6);
-    BOOST_TEST(ex_n == EXCEPTION_NUMBER::TRACE);
+    run_test(6, EXCEPTION_NUMBER::TRACE);
 }
 BOOST_AUTO_TEST_CASE(static_addr) {
     cpu.A[3] = 0x1000;
@@ -189,8 +187,7 @@ BOOST_AUTO_TEST_SUITE(FromReg)
 BOOST_AUTO_TEST_CASE(trace_predecr) {
     cpu.A[3] = 0x1050;
     cpu.T = 1;
-    run_test(24);
-    BOOST_TEST(ex_n == EXCEPTION_NUMBER::TRACE);
+    run_test(24, EXCEPTION_NUMBER::TRACE);
 }
 BOOST_AUTO_TEST_CASE(static_predecr) {
     cpu.A[3] = 0x1030;
@@ -208,8 +205,7 @@ BOOST_AUTO_TEST_CASE(static_predecr) {
 BOOST_AUTO_TEST_CASE(trace_addr) {
     cpu.A[3] = 0x1000;
     cpu.T = 1;
-    run_test(30);
-    BOOST_TEST(ex_n == EXCEPTION_NUMBER::TRACE);
+    run_test(30, EXCEPTION_NUMBER::TRACE);
 }
 BOOST_AUTO_TEST_CASE(static_addr) {
     cpu.A[3] = 0x1000;

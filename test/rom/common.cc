@@ -24,9 +24,9 @@ void test_rom(
         if(trace) {
             printf("%X:%08x\n", cpu.PC, cpu.D[0]);
         }
-        if(setjmp(ex_buf) == 0) {
+        try {
             run_op();
-        } else {
+        } catch(M68kException& e) {
             cpu.bus_lock = false;
         }
         auto stubFound = testStubs.find(cpu.PC & ~0x40800000);

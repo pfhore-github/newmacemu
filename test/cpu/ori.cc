@@ -127,8 +127,7 @@ BOOST_AUTO_TEST_CASE(CCR) {
 BOOST_AUTO_TEST_SUITE(SR)
 BOOST_AUTO_TEST_CASE(NG) {
     cpu.S = false;
-	run_test(46);
-	BOOST_TEST( ex_n == EXCEPTION_NUMBER::PRIV_ERR );
+	run_test(46,  EXCEPTION_NUMBER::PRIV_ERR);
 }
 BOOST_AUTO_TEST_CASE(OK) {
     cpu.S = true;
@@ -140,8 +139,7 @@ BOOST_AUTO_TEST_CASE(OK) {
 BOOST_AUTO_TEST_CASE(Traced) {
     cpu.S = true;
     cpu.T = 1;
-	run_test(46);
-	BOOST_TEST(ex_n == EXCEPTION_NUMBER::TRACE );
+	run_test(46, EXCEPTION_NUMBER::TRACE );
 }
 
 BOOST_AUTO_TEST_SUITE_END()
